@@ -1,0 +1,14 @@
+{
+  "name": "@rogue/gpx-console",
+  "version": "5.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@rogue/gpx-core": "workspace:*"
+  }
+}

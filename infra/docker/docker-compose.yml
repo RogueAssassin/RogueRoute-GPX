@@ -1,0 +1,17 @@
+services:
+  gpx-web:
+    build:
+      context: ../..
+      dockerfile: apps/gpx-web/Dockerfile
+    container_name: gpx-web
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    ports:
+      - "9080:9080"
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    external: true

@@ -1,0 +1,13 @@
+{
+  "name": "@rogue/gpx-exporter",
+  "version": "5.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@rogue/gpx-core": "workspace:*"
+  }
+}

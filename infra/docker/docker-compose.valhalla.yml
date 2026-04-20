@@ -1,0 +1,18 @@
+services:
+  gpx-web:
+    environment:
+      ROUTER_MODE: valhalla
+      VALHALLA_URL: http://valhalla:8002
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: valhalla
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    external: true
