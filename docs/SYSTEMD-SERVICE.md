@@ -17,9 +17,9 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/media-server/gpx-route-generator
-ExecStartPre=/bin/sleep 30
-ExecStart=/usr/bin/docker compose -f infra/docker/docker-compose.yml up -d
-ExecStop=/usr/bin/docker compose -f infra/docker/docker-compose.yml down
+ExecStartPre=/bin/sleep 60
+ExecStart=/usr/bin/bash -lc 'cd /opt/media-server/RogueRoute-GPX/infra/docker && /usr/bin/docker compose up -d'
+ExecStop=/usr/bin/bash -lc 'cd /opt/media-server/RogueRoute-GPX/infra/docker && /usr/bin/docker compose down'
 TimeoutStartSec=0
 
 [Install]

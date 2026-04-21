@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-set -e
-
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+ensure_core_tools
+ensure_env_file
+ensure_media_net
+enable_pnpm
+load_env_values
+check_port_free "${HOST_PORT:-}"
+check_port_free "8002"
+check_valhalla_data
+cd "$REPO_ROOT"
+log "Pulling latest changes"
 git pull
-
-if command -v corepack >/dev/null 2>&1; then
-  corepack enable
-  corepack prepare pnpm@10.12.1 --activate
-elif ! command -v pnpm >/dev/null 2>&1; then
-  echo "Error: neither corepack nor pnpm is available."
-  echo "Install pnpm with: sudo npm install -g pnpm@10.12.1"
-  exit 1
-fi
-
+log "Installing dependencies"
 pnpm install
+log "Building workspace"
 pnpm build
-docker compose \
-  -f infra/docker/docker-compose.yml \
-  -f infra/docker/docker-compose.valhalla.yml \
-  up -d --build
+cd "$DOCKER_DIR"
+log "Using env file: $ENV_FILE"
+log "Starting RogueRoute GPX with Valhalla"
+log "Valhalla data path: ${VALHALLA_DATA_PATH:-unset}"
+docker compose -f docker-compose.yml -f docker-compose.valhalla.yml up -d --build
+log "Done. Check logs with ./logs-valhalla.sh"

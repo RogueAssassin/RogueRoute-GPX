@@ -6,7 +6,7 @@ services:
     container_name: gpx-web
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - ./.env
     ports:
       - "9080:9080"
     networks:

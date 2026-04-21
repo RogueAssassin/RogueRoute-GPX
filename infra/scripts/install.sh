@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-set -e
-
-if command -v corepack >/dev/null 2>&1; then
-  corepack enable
-  corepack prepare pnpm@10.12.1 --activate
-elif ! command -v pnpm >/dev/null 2>&1; then
-  echo "Error: neither corepack nor pnpm is available."
-  echo "Install pnpm with: sudo npm install -g pnpm@10.12.1"
-  exit 1
-fi
-
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+ensure_core_tools
+log "Repo root: $REPO_ROOT"
+log "Docker directory: $DOCKER_DIR"
+enable_pnpm
+cd "$REPO_ROOT"
+log "Installing dependencies"
 pnpm install
+log "Building workspace"
 pnpm build
+log "Install/build complete"

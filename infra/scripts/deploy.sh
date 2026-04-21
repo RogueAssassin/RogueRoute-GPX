@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-set -e
-
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+ensure_core_tools
+ensure_env_file
+ensure_media_net
+enable_pnpm
+load_env_values
+check_port_free "${HOST_PORT:-}"
+cd "$REPO_ROOT"
+log "Pulling latest changes"
 git pull
-
-if command -v corepack >/dev/null 2>&1; then
-  corepack enable
-  corepack prepare pnpm@10.12.1 --activate
-elif ! command -v pnpm >/dev/null 2>&1; then
-  echo "Error: neither corepack nor pnpm is available."
-  echo "Install pnpm with: sudo npm install -g pnpm@10.12.1"
-  exit 1
-fi
-
+log "Installing dependencies"
 pnpm install
+log "Building workspace"
 pnpm build
-docker compose -f infra/docker/docker-compose.yml up -d --build
+cd "$DOCKER_DIR"
+log "Using env file: $ENV_FILE"
+log "Starting RogueRoute GPX"
+docker compose up -d --build
+log "Done. Check status with ./status.sh or docker compose ps"
