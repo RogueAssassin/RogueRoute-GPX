@@ -1,4 +1,4 @@
-# RogueRoute GPX v6.4.5
+# RogueRoute GPX v7.0.0
 
 Cyber neon wolf edition of the GPX generator by RogueAssassin.
 
@@ -8,12 +8,12 @@ Cyber neon wolf edition of the GPX generator by RogueAssassin.
 - explicit manual override warnings
 - ferry toggle
 - named GPX and debug downloads
-- updated IITC exporter aligned with v6.4.5
+- updated IITC exporter aligned with v7.0.0
 - RogueAssassin branding and repo links
 - Docker-ready Next.js deployment on port 9080
 - documented Valhalla setup for Linux and WSL mounts
 - regional/global map pack guidance for worldwide routing coverage
-- root-level wrapper scripts for easier install, deploy, logs, status, and stop commands
+- root-level wrapper scripts for easier install, deploy, refresh, logs, status, and stop commands
 - deployment preflight checks for env, ports, docker compose, media-net, and Valhalla data path
 
 ## Repo
@@ -85,9 +85,45 @@ wget https://download.geofabrik.de/europe/great-britain-latest.osm.pbf
 wget https://download.geofabrik.de/australia-oceania/new-zealand-latest.osm.pbf
 ```
 
-If Valhalla cannot route a leg, v6.4.5 either:
+If Valhalla cannot route a leg, v7.0.0 either:
 - blocks the route when manual override is off
 - marks the leg as a manual override when manual override is on
+
+## Clean refresh on the server
+If you want to repull the repo and remove stale files from older versions while **keeping your external Valhalla map data untouched**, use the new refresh wrappers from the repo root:
+
+```bash
+./refresh.sh
+./refresh-valhalla.sh
+```
+
+What they do:
+- stop the running containers
+- fetch the latest Git changes
+- hard reset to `origin/main`
+- remove stale tracked and untracked files from the repo
+- preserve `infra/docker/.env`
+- rebuild and redeploy
+
+Because `VALHALLA_DATA_PATH` points to a host path outside the repo such as `/mnt/h/Valhalla`, your map packs and built tiles stay in place.
+
+## Safe manual refresh flow
+If you prefer to do it yourself:
+
+```bash
+cd /opt/media-server/RogueRoute-GPX
+./stop.sh
+git fetch origin
+git reset --hard origin/main
+git clean -fdx -e infra/docker/.env -e infra/docker/.env.example
+./install.sh
+./deploy.sh
+```
+
+With Valhalla:
+```bash
+./deploy-valhalla.sh
+```
 
 ## Wrapper commands
 Run these from the repo root:
@@ -96,6 +132,8 @@ Run these from the repo root:
 ./install.sh
 ./deploy.sh
 ./deploy-valhalla.sh
+./refresh.sh
+./refresh-valhalla.sh
 ./update.sh
 ./status.sh
 ./logs.sh
@@ -120,6 +158,7 @@ The userscript is configured for Tampermonkey update checks using `@version`, `@
 ## Docs
 - `docs/INSTALLATION.md`
 - `docs/DOCKER-DEPLOYMENT.md`
+- `docs/GITHUB-DESKTOP.md`
 - `docs/IITC-SETUP.md`
 - `docs/VALHALLA-SETUP.md`
 - `docs/TROUBLESHOOTING.md`

@@ -6,6 +6,10 @@ node_modules
 dist
 build
 coverage
+out
+.turbo
 *.log
 .env
 .env.local
+infra/docker/.env
+.DS_Store

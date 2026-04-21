@@ -1,24 +1,42 @@
 # Installation
 
-## Quick install
+## Clone the repo
 ```bash
 cd /opt/media-server
 git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
+```
+
+## Create the Docker env file
+```bash
 cp infra/docker/.env.example infra/docker/.env
+```
+
+Edit `infra/docker/.env` and set the values you need.
+
+## Install dependencies
+```bash
 ./install.sh
+```
+
+## Deploy the web app
+```bash
 ./deploy.sh
 ```
 
-Open the app on port `9080`.
-
-## Recommended
-Use `ROUTER_MODE=valhalla` for strict land routing.
-
-## With Valhalla enabled
+## Deploy with Valhalla
 ```bash
-cd /opt/media-server/RogueRoute-GPX
-cp infra/docker/.env.example infra/docker/.env  # first time only
-./install.sh
 ./deploy-valhalla.sh
+```
+
+## Clean refresh later
+When the repo changes significantly and you want to remove stale files from older versions:
+
+```bash
+./refresh.sh
+```
+
+With Valhalla:
+```bash
+./refresh-valhalla.sh
 ```

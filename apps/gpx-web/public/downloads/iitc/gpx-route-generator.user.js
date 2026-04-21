@@ -3,8 +3,8 @@
 // @name           IITC Plugin: RogueRoute GPX Exporter
 // @namespace      https://github.com/RogueAssassin/RogueRoute-GPX
 // @category       Layer
-// @version        6.4.0
-// @description    Smart IITC exporter for RogueRoute GPX v6.4 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
+// @version        7.0.0
+// @description    Smart IITC exporter for RogueRoute GPX v7.0.0 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
 // @author         RogueAssassin
 // @homepageURL    https://github.com/RogueAssassin/RogueRoute-GPX
 // @supportURL     https://github.com/RogueAssassin/RogueRoute-GPX/issues
@@ -31,7 +31,7 @@ function wrapper(plugin_info) {
   };
 
   const plugin = {
-    pluginVersion: "6.4.0",
+    pluginVersion: "7.0.0",
     polyline: null,
 
     loadSelected() {

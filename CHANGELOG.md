@@ -1,5 +1,14 @@
 # Changelog
 
+## v7.0.0
+- promoted the deployment polish track into a full major-release packaging pass
+- added `refresh.sh` and `refresh-valhalla.sh` for clean server re-pulls that preserve external Valhalla data
+- documented the safe `git fetch` + `git reset --hard` + `git clean` refresh flow
+- added a dedicated GitHub Desktop guide for cloning, committing, and pushing the project
+- tightened `.gitignore`, `.dockerignore`, and added `.gitattributes` for cleaner cross-platform repository behavior
+- updated README, installation, Docker, Valhalla, and troubleshooting guides to match the refreshed deployment workflow
+- bumped IITC userscript metadata and in-plugin version to v7.0.0
+
 ## v6.4.5
 - added root-level wrapper commands: `install.sh`, `deploy.sh`, `deploy-valhalla.sh`, `update.sh`, `status.sh`, `logs.sh`, `logs-valhalla.sh`, and `stop.sh`
 - added safer helper-script preflight checks for Docker, Docker Compose, env file presence, port warnings, and Valhalla data availability

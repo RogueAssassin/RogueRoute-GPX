@@ -15,6 +15,15 @@ If your Ubuntu box runs in WSL and you created `H:\Valhalla` on Windows, the pat
 /mnt/h/Valhalla
 ```
 
+## Keep map data outside the repo
+The recommended layout is to keep Valhalla map data outside the Git working tree. For example:
+
+```text
+/mnt/h/Valhalla
+```
+
+That way you can refresh or fully clean the repo without deleting map packs or built tiles.
+
 ## Example `infra/docker/.env`
 ```env
 VALHALLA_DATA_PATH=/mnt/h/Valhalla
@@ -63,6 +72,14 @@ cd /opt/media-server/RogueRoute-GPX
 cp infra/docker/.env.example infra/docker/.env  # first time only
 ./deploy-valhalla.sh
 ```
+
+## Refresh the repo without deleting map data
+```bash
+cd /opt/media-server/RogueRoute-GPX
+./refresh-valhalla.sh
+```
+
+This works safely because the map data path is outside the repo.
 
 ## Verify
 ```bash
