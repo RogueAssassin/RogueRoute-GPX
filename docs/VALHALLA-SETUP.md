@@ -1,59 +1,61 @@
 # Valhalla Setup
 
-## Requirement
-Valhalla needs one of the following inside the mounted `/custom_files` path:
+## What Valhalla needs
+Valhalla must see one of the following in its mounted `/custom_files` path:
 - one or more `.osm.pbf` files
 - `valhalla_tiles.tar`
-- `valhalla_tiles` directory
+- a `valhalla_tiles` directory
 
-If none are present, it will fail with a `Nothing to do` error.
+If none of those exist, Valhalla will stop with a `Nothing to do` error.
 
-## WSL host path
-If your Ubuntu box runs in WSL and you created `H:\Valhalla` on Windows, the path is usually:
-
-```text
-/mnt/h/Valhalla
-```
-
-## Keep map data outside the repo
-The recommended layout is to keep Valhalla map data outside the Git working tree. For example:
+## Recommended location for map data
+Keep map data outside the Git repo. Example for WSL:
 
 ```text
 /mnt/h/Valhalla
 ```
 
-That way you can refresh or fully clean the repo without deleting map packs or built tiles.
+That lets you refresh or fully reset the repo without deleting your routing data.
 
-## Example `infra/docker/.env`
+## Docker env example
+Edit `infra/docker/.env`:
+
 ```env
 VALHALLA_DATA_PATH=/mnt/h/Valhalla
 ROUTER_MODE=valhalla
 VALHALLA_URL=http://valhalla:8002
 ```
 
-## Example compose override
-```yaml
-services:
-  gpx-web:
-    environment:
-      ROUTER_MODE: valhalla
-      VALHALLA_URL: http://valhalla:8002
-    depends_on:
-      - valhalla
+## Approximate full-world size and hardware guidance
+### Full-world download size
+The current `planet-latest.osm.pbf` is about **86 GB**.
 
-  valhalla:
-    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
-    container_name: valhalla
-    restart: unless-stopped
-    ports:
-      - "8002:8002"
-    networks:
-      - media-net
-    volumes:
-      - ${VALHALLA_DATA_PATH}:/custom_files
-```
+### Storage planning
+For a full-world setup, plan for:
+- **86 GB** raw planet file
+- **300 GB to 500+ GB** total free SSD space for processing, tiles, and rebuild headroom
 
-## Recommended regional downloads
+### Recommended hardware for full-world use
+Project recommendation:
+- **8 CPU cores** or more
+- **32 GB RAM minimum**
+- **64 GB RAM preferred**
+- **500 GB+ SSD free space**
+
+## Better option for most users
+Regional packs are easier to download, easier to rebuild, and easier to update.
+
+Recommended packs:
+- Australia-Oceania
+- Europe
+- North America
+- Asia
+- South America
+- Africa
+- Great Britain
+- New Zealand
+
+## Example regional downloads
 ```bash
 cd /mnt/h/Valhalla
 wget https://download.geofabrik.de/australia-oceania-latest.osm.pbf
@@ -66,24 +68,19 @@ wget https://download.geofabrik.de/europe/great-britain-latest.osm.pbf
 wget https://download.geofabrik.de/australia-oceania/new-zealand-latest.osm.pbf
 ```
 
-## Start the full stack
+## Start Valhalla stack
 ```bash
 cd /opt/media-server/RogueRoute-GPX
-cp infra/docker/.env.example infra/docker/.env  # first time only
 ./deploy-valhalla.sh
 ```
 
-## Refresh the repo without deleting map data
-```bash
-cd /opt/media-server/RogueRoute-GPX
-./refresh-valhalla.sh
-```
-
-This works safely because the map data path is outside the repo.
-
-## Verify
+## Check that Valhalla is running
 ```bash
 ./logs-valhalla.sh
 curl -v http://127.0.0.1:8002/status
-docker exec -it gpx-web sh -c 'wget -qO- http://valhalla:8002/status'
+```
+
+## Refresh repo without touching map data
+```bash
+./refresh-valhalla.sh
 ```

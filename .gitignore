@@ -16,3 +16,6 @@ infra/docker/.env
 Thumbs.db
 .idea/
 .vscode/
+*.zip
+*.tar
+*.tar.gz

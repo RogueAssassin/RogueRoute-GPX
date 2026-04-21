@@ -13,3 +13,7 @@ out
 .env.local
 infra/docker/.env
 .DS_Store
+Thumbs.db
+*.zip
+*.tar
+*.tar.gz

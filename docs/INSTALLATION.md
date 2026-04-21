@@ -1,42 +1,55 @@
 # Installation
 
-## Clone the repo
+## 1. Clone the repo
 ```bash
 cd /opt/media-server
 git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 ```
 
-## Create the Docker env file
+## 2. Fix permissions first
+This step is safe to run on any username because the script automatically uses the current account.
+
+```bash
+bash fix-permissions.sh
+```
+
+## 3. Create the Docker env file
 ```bash
 cp infra/docker/.env.example infra/docker/.env
 ```
 
-Edit `infra/docker/.env` and set the values you need.
+Open it and adjust the values you need:
 
-## Install dependencies
 ```bash
-./install.sh
+nano infra/docker/.env
 ```
 
-## Deploy the web app
+## 4. First-time install
+```bash
+bash first-run.sh
+```
+
+## 5. Deploy the web app
 ```bash
 ./deploy.sh
 ```
 
-## Deploy with Valhalla
+## 6. Deploy with Valhalla
+Only do this after `VALHALLA_DATA_PATH` is set and your map data exists there.
+
 ```bash
 ./deploy-valhalla.sh
 ```
 
-## Clean refresh later
-When the repo changes significantly and you want to remove stale files from older versions:
-
+## Simplest path for complete beginners
 ```bash
-./refresh.sh
-```
-
-With Valhalla:
-```bash
-./refresh-valhalla.sh
+cd /opt/media-server
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
+cd RogueRoute-GPX
+bash fix-permissions.sh
+cp infra/docker/.env.example infra/docker/.env
+nano infra/docker/.env
+bash first-run.sh
+./deploy.sh
 ```

@@ -1,5 +1,13 @@
 # Changelog
 
+## v7.0.0 - Rewrite
+- added `fix-permissions.sh` for username-agnostic Linux and WSL permission repair
+- added `first-run.sh` for simpler first-time setup
+- rewrote README and beginner docs for easier onboarding
+- expanded Valhalla guidance with practical full-world file-size and hardware planning
+- improved GitHub Desktop guide and beginner troubleshooting
+
+
 ## v7.0.0
 - promoted the deployment polish track into a full major-release packaging pass
 - added `refresh.sh` and `refresh-valhalla.sh` for clean server re-pulls that preserve external Valhalla data

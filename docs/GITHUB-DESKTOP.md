@@ -1,48 +1,50 @@
 # GitHub Desktop Guide
 
-## First upload of RogueRoute GPX
+## Easiest upload flow
+### 1. Clone the repo in GitHub Desktop
+- Open GitHub Desktop.
+- Click **File -> Clone repository**.
+- Use the **URL** tab.
+- Enter your repo URL.
+- Choose a local folder and click **Clone**.
 
-### If the repo already exists on GitHub
-1. Open GitHub Desktop.
-2. Go to **File -> Clone repository**.
-3. Choose the **URL** tab.
-4. Enter the repository URL:
-   `https://github.com/RogueAssassin/RogueRoute-GPX.git`
-5. Choose a local folder and click **Clone**.
-6. Copy the updated project files into the cloned folder.
-7. In GitHub Desktop, review the changed files.
-8. Enter a commit summary such as `Release v7.0.0`.
-9. Click **Commit to main**.
-10. Click **Push origin**.
+### 2. Copy in the new release files
+- Extract the RogueRoute GPX release zip.
+- Copy the files into the cloned repository folder.
+- Let Windows replace the older files.
 
-### If you already have the folder locally
-1. Open GitHub Desktop.
-2. Go to **File -> Add Local Repository**.
-3. Choose your `RogueRoute-GPX` folder.
-4. If the folder is not yet published, use **Publish repository**.
-5. After editing files, review changes, commit, and click **Push origin**.
+### 3. Review the changed files
+- Open GitHub Desktop.
+- Review the changed files list.
+- Make sure files like `infra/docker/.env` are not included.
 
-## Recommended workflow for releases
-1. Update files locally.
-2. Review changed files in GitHub Desktop.
-3. Commit with a clear summary such as `Release v7.0.0`.
-4. Push to GitHub.
-5. Open GitHub in the browser and create a new release tag such as `v7.0.0`.
-6. Upload the release ZIP and the `.user.js` plugin as release assets.
+### 4. Commit
+Use a simple message like:
+- `Release v7.0.1`
+- `Improve beginner setup and Valhalla docs`
 
-## Good commit examples
-- `Release v7.0.0`
-- `Update Docker and Valhalla guides`
-- `Bump IITC plugin to v7.0.0`
-- `Add refresh scripts and GitHub Desktop guide`
+Then click **Commit to main**.
+
+### 5. Push
+Click **Push origin**.
+
+## If you already have the repo on your PC
+- Open GitHub Desktop.
+- Click **File -> Add Local Repository**.
+- Select your `RogueRoute-GPX` folder.
 
 ## What not to commit
 Do not commit:
 - `infra/docker/.env`
 - `node_modules`
 - `.next`
-- generated logs
+- build logs
 - private credentials
 - downloaded Valhalla map data
+- big zip files you only use locally
 
-Keep Valhalla map data outside the repo, for example in `/mnt/h/Valhalla`.
+## Release asset suggestion
+For GitHub Releases, upload:
+- the project zip
+- the `.user.js` plugin file
+- screenshots if you have them
