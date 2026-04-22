@@ -5,7 +5,7 @@ ensure_core_tools
 enable_pnpm
 ensure_env_file
 load_env_values
-check_valhalla_data
+prepare_valhalla_data
 cd "$REPO_ROOT"
 log "Stopping running stack"
 "$REPO_ROOT/stop.sh" || true

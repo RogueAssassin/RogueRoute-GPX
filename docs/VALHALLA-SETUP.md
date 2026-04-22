@@ -24,7 +24,18 @@ Edit `infra/docker/.env`:
 VALHALLA_DATA_PATH=/mnt/h/Valhalla
 ROUTER_MODE=valhalla
 VALHALLA_URL=http://valhalla:8002
+VALHALLA_PREFER_PBF_REBUILD=true
+VALHALLA_SMART_REPAIR=true
 ```
+
+## Smart Valhalla behavior in v7.5.0
+RogueRoute GPX checks the contents of `VALHALLA_DATA_PATH` and follows a simple plan:
+- `planet-latest.osm.pbf` found: treat the folder as a planet-build source
+- multiple `.osm.pbf` files found: treat the folder as a regional-build source
+- built tiles only found: load the existing tiles directly
+- source `.osm.pbf` files plus stale generated tiles found: if smart repair is enabled, purge the generated outputs and rebuild from the source files
+
+This makes the common broken-tile loop much easier to recover from.
 
 ## Approximate full-world size and hardware guidance
 ### Full-world download size
@@ -73,6 +84,17 @@ wget https://download.geofabrik.de/australia-oceania/new-zealand-latest.osm.pbf
 cd /opt/media-server/RogueRoute-GPX
 ./deploy-valhalla.sh
 ```
+
+## Repair a broken tile loop
+If Valhalla keeps restarting and logs mention unusable tiles, run:
+
+```bash
+cd /opt/media-server/RogueRoute-GPX
+./repair-valhalla.sh
+./deploy-valhalla.sh
+```
+
+This removes generated tiles and config files, but preserves your `.osm.pbf` source files.
 
 ## Check that Valhalla is running
 ```bash

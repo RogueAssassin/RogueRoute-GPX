@@ -12,6 +12,8 @@ services:
     restart: unless-stopped
     ports:
       - "8002:8002"
+    environment:
+      use_tiles_ignore_pbf: "False"
     networks:
       - media-net
     volumes:

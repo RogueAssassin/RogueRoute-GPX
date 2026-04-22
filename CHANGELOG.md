@@ -1,12 +1,19 @@
 # Changelog
 
-## v7.0.0 - Rewrite
+## v7.5.0
+- added smart Valhalla deployment planning based on the contents of `VALHALLA_DATA_PATH`
+- made `deploy-valhalla.sh` and `refresh-valhalla.sh` prefer source `.osm.pbf` files over stale generated tiles when smart repair is enabled
+- added `repair-valhalla.sh` to stop the container, remove broken generated tile outputs, and preserve source map files
+- updated the Valhalla compose override to set `use_tiles_ignore_pbf=False`
+- expanded README and setup docs with the new repair workflow and clearer beginner guidance
+- aligned the IITC userscript metadata and release version to v7.5.0
+
+## v7.0.1
 - added `fix-permissions.sh` for username-agnostic Linux and WSL permission repair
 - added `first-run.sh` for simpler first-time setup
 - rewrote README and beginner docs for easier onboarding
 - expanded Valhalla guidance with practical full-world file-size and hardware planning
 - improved GitHub Desktop guide and beginner troubleshooting
-
 
 ## v7.0.0
 - promoted the deployment polish track into a full major-release packaging pass

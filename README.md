@@ -1,13 +1,13 @@
-# RogueRoute GPX v7.0.0
+# RogueRoute GPX v7.5.0
 
 RogueRoute GPX is a beginner-friendly GPX route generator with IITC export support, optional Valhalla routing, and simple Docker deployment.
 
 ## What this project does
 - builds GPX routes from waypoint lists and IITC exports
-- supports a modern web UI on port `9080`
+- serves a modern web UI on port `9080`
 - supports optional Valhalla routing for land-aware paths
 - keeps Valhalla map data outside the repo so updates do not wipe it
-- includes easy root-level commands for install, deploy, logs, refresh, and stop
+- includes easy root-level commands for install, deploy, logs, refresh, repair, and stop
 
 ## Who this is for
 This package is written so a first-time self-hoster can get it running with very little Linux or Docker experience.
@@ -19,7 +19,6 @@ git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 bash fix-permissions.sh
 bash first-run.sh
-cp infra/docker/.env.example infra/docker/.env
 nano infra/docker/.env
 ./deploy.sh
 ```
@@ -31,11 +30,24 @@ http://SERVER-IP:9080
 
 ## If you want Valhalla routing
 1. Put your Valhalla data on a host path outside the repo, for example `/mnt/h/Valhalla` on WSL.
-2. Copy the Docker env file and set `VALHALLA_DATA_PATH=/mnt/h/Valhalla`.
+2. Open `infra/docker/.env` and set `VALHALLA_DATA_PATH=/mnt/h/Valhalla`.
 3. Put your `.osm.pbf` files or built tiles in that folder.
 4. Run:
 
 ```bash
+./deploy-valhalla.sh
+```
+
+## Smart Valhalla behavior in v7.5.0
+RogueRoute GPX now tries to make Valhalla safer to operate:
+- if `planet-latest.osm.pbf` exists, it treats the folder as a planet build source
+- if multiple regional `.osm.pbf` files exist, it treats the folder as a regional build source
+- if only built tiles exist, it loads those tiles directly
+- if source `.osm.pbf` files and old generated tiles both exist, it can purge the generated tile outputs and force a rebuild from source files
+- if Valhalla gets stuck in a broken tile loop, run:
+
+```bash
+./repair-valhalla.sh
 ./deploy-valhalla.sh
 ```
 
@@ -48,6 +60,7 @@ bash first-run.sh
 ./install.sh
 ./deploy.sh
 ./deploy-valhalla.sh
+./repair-valhalla.sh
 ./refresh.sh
 ./refresh-valhalla.sh
 ./status.sh
