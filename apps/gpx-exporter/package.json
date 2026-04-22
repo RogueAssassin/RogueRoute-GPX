@@ -1,6 +1,6 @@
 {
   "name": "@rogue/gpx-exporter",
-  "version": "5.0.0",
+  "version": "7.6.0",
   "private": true,
   "type": "module",
   "scripts": {

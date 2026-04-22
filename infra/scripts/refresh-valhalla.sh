@@ -2,6 +2,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 ensure_core_tools
+ensure_node_version
 enable_pnpm
 ensure_env_file
 load_env_values

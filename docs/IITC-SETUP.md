@@ -11,13 +11,13 @@ plugins/iitc/gpx-route-generator.user.js
 /downloads/iitc/rogueroute-exporter.user.js
 ```
 
-## Features
-- selected/view/polygon/circle export
+## What the plugin gives you
+- selected, view, polygon, and circle export
 - route-name prompt on export
 - route optimization helpers
-- preflight checks
+- preflight checks before sending data to the website
 - direct website handoff
-- copy payload / copy coordinates helpers
+- copy payload and copy coordinates helpers
 - saved website URL and route settings
 
 ## Installation
@@ -27,9 +27,4 @@ plugins/iitc/gpx-route-generator.user.js
 4. Open IITC and use the `RogueRoute GPX` button.
 
 ## Automatic updates
-The v6.4 plugin includes:
-- `@version`
-- `@updateURL`
-- `@downloadURL`
-
-That allows Tampermonkey to check for and install newer versions when the hosted script changes.
+The v7.6.0 plugin includes `@version`, `@updateURL`, and `@downloadURL`, so Tampermonkey can detect newer hosted versions when the userscript file changes.

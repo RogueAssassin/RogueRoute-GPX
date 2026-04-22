@@ -1,18 +1,28 @@
-# RogueRoute GPX v7.5.0
+# RogueRoute GPX v7.6.0
 
-RogueRoute GPX is a beginner-friendly GPX route generator with IITC export support, optional Valhalla routing, and simple Docker deployment.
+RogueRoute GPX is a beginner-friendly GPX route generator with IITC export support, a web UI on port `9080`, and an optional Valhalla Enhanced mode for land-aware routing.
 
-## What this project does
-- builds GPX routes from waypoint lists and IITC exports
-- serves a modern web UI on port `9080`
-- supports optional Valhalla routing for land-aware paths
-- keeps Valhalla map data outside the repo so updates do not wipe it
-- includes easy root-level commands for install, deploy, logs, refresh, repair, and stop
+## Choose your install type
 
-## Who this is for
-This package is written so a first-time self-hoster can get it running with very little Linux or Docker experience.
+### RogueRoute-GPX (Standard)
+The base install is the best starting point for most users. It gives you:
+- the core RogueRoute GPX web app
+- GPX generation from waypoint lists and IITC exports
+- simpler Docker deployment
+- lower storage and RAM requirements
+- the easiest path for first-time users
 
-## Fastest beginner setup
+### RogueRoute-GPX (Valhalla Enhanced)
+The enhanced install is for users who want more realistic routing. It gives you:
+- Valhalla-backed routing
+- support for reusable regional or full-world map data stored outside the repo
+- better route realism for roads and paths
+- repair, verify, refresh, and rebuild workflows for routing data
+- higher storage, CPU, and RAM requirements than Standard mode
+
+## Quick start
+
+### Standard
 ```bash
 cd /opt/media-server
 git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
@@ -28,50 +38,63 @@ Open:
 http://SERVER-IP:9080
 ```
 
-## If you want Valhalla routing
-1. Put your Valhalla data on a host path outside the repo, for example `/mnt/h/Valhalla` on WSL.
-2. Open `infra/docker/.env` and set `VALHALLA_DATA_PATH=/mnt/h/Valhalla`.
-3. Put your `.osm.pbf` files or built tiles in that folder.
-4. Run:
+### Valhalla Enhanced
+1. Set `VALHALLA_DATA_PATH` in `infra/docker/.env` to a folder outside the repo, for example `/mnt/h/Valhalla` on WSL.
+2. Put one or more `.osm.pbf` files or existing Valhalla tiles in that folder.
+3. Run:
 
 ```bash
 ./deploy-valhalla.sh
 ```
 
-## Smart Valhalla behavior in v7.5.0
-RogueRoute GPX now tries to make Valhalla safer to operate:
-- if `planet-latest.osm.pbf` exists, it treats the folder as a planet build source
-- if multiple regional `.osm.pbf` files exist, it treats the folder as a regional build source
-- if only built tiles exist, it loads those tiles directly
-- if source `.osm.pbf` files and old generated tiles both exist, it can purge the generated tile outputs and force a rebuild from source files
-- if Valhalla gets stuck in a broken tile loop, run:
+## Crash and reboot recovery
+Use restart commands after a reboot or crash. These do not pull Git or rebuild the workspace.
 
+### Standard
 ```bash
-./repair-valhalla.sh
-./deploy-valhalla.sh
-```
-
-## Beginner command list
-Run these from the repo root:
-
-```bash
-bash fix-permissions.sh
-bash first-run.sh
-./install.sh
-./deploy.sh
-./deploy-valhalla.sh
-./repair-valhalla.sh
-./refresh.sh
-./refresh-valhalla.sh
+./restart.sh
 ./status.sh
 ./logs.sh
-./logs-valhalla.sh
-./stop.sh
 ```
+
+### Valhalla Enhanced
+```bash
+./verify-valhalla.sh
+./restart-valhalla.sh
+./logs-valhalla.sh
+curl -v http://127.0.0.1:8002/status
+```
+
+If Valhalla tiles or config become corrupted after a crash:
+
+```bash
+./repair-valhalla.sh
+./deploy-valhalla.sh
+```
+
+## First-run dependency behaviour
+RogueRoute GPX supports Node.js `22` for local install/build tasks.
+
+If `corepack` is available, the helper scripts try to activate the pinned pnpm version on first run. If pnpm is still missing, install it manually and rerun `./install.sh`.
+
+> `pnpm-lock.yaml` is not included in this offline packaging build. Generate it on a connected machine with `pnpm install --lockfile-only` before publishing the release if you want fully pinned dependency resolution.
+
+## Valhalla guidance for map files
+Most users should start with regional `.osm.pbf` files instead of the full planet file.
+
+Good starting regions for active Pokémon GO play areas:
+- **Australia / New Zealand:** `australia-oceania-latest.osm.pbf`, optional `new-zealand-latest.osm.pbf`
+- **UK / Europe:** `europe-latest.osm.pbf`, optional `europe/great-britain-latest.osm.pbf`
+- **North America:** `north-america-latest.osm.pbf`
+- **Asia:** `asia-latest.osm.pbf`
+- **South America:** `south-america-latest.osm.pbf`
+- **Africa:** `africa-latest.osm.pbf`
+
+Start with the places you actually play in, confirm routing works, then add more regions only if needed.
 
 ## Full-world Valhalla planning
 ### Approximate planet download size
-The current `planet-latest.osm.pbf` download is roughly **86 GB**. That is just the raw planet file and not the built routing tiles.
+The current `planet-latest.osm.pbf` download is roughly **86 GB**.
 
 ### Practical full-world storage estimate
 For a comfortable full-world self-hosted Valhalla setup, plan for roughly:
@@ -85,53 +108,34 @@ This project recommends the following for a full-world build:
 - **64 GB RAM preferred** for smoother rebuilds and updates
 - **500 GB+ SSD free space**
 
-### Better choice for most people
-For easier setup, use regional packs instead of the full planet file. Recommended packs:
-- Australia-Oceania
-- Europe
-- North America
-- Asia
-- South America
-- Africa
-- Great Britain
-- New Zealand
-
-## Valhalla data path example for WSL
-If your Windows drive is `H:\Valhalla`, the normal WSL path is:
-
-```text
-/mnt/h/Valhalla
-```
-
-## Safe repo refresh without deleting map data
-Because Valhalla data lives outside the repo, you can refresh the project safely:
+## Beginner command list
+Run these from the repo root:
 
 ```bash
+bash fix-permissions.sh
+bash first-run.sh
+./install.sh
+./deploy.sh
+./deploy-valhalla.sh
+./restart.sh
+./restart-valhalla.sh
+./verify-valhalla.sh
+./doctor.sh
+./repair-valhalla.sh
 ./refresh.sh
 ./refresh-valhalla.sh
+./status.sh
+./logs.sh
+./logs-valhalla.sh
+./stop.sh
 ```
-
-These commands:
-- stop the running containers
-- fetch the latest Git changes
-- reset to `origin/main`
-- remove stale old-version files from the repo
-- preserve `infra/docker/.env`
-- leave `/mnt/h/Valhalla` alone
-
-## Plugin
-Main userscript file:
-
-```text
-plugins/iitc/gpx-route-generator.user.js
-```
-
-The plugin is set up for Tampermonkey update checks using userscript metadata.
 
 ## Main docs
 - `docs/INSTALLATION.md`
 - `docs/VALHALLA-SETUP.md`
 - `docs/DOCKER-DEPLOYMENT.md`
+- `docs/COMMANDS.md`
 - `docs/TROUBLESHOOTING.md`
+- `docs/SYSTEMD-SERVICE.md`
 - `docs/GITHUB-DESKTOP.md`
 - `CHANGELOG.md`

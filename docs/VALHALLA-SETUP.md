@@ -1,7 +1,10 @@
-# Valhalla Setup
+# RogueRoute GPX (Valhalla Enhanced) Setup
+
+## What Valhalla Enhanced gives you
+RogueRoute-GPX (Valhalla Enhanced) adds land-aware routing and support for external map data. Use it when you want more realistic route generation and are comfortable managing `.osm.pbf` or tile data.
 
 ## What Valhalla needs
-Valhalla must see one of the following in its mounted `/custom_files` path:
+Valhalla must see one of the following inside the mounted `/custom_files` path:
 - one or more `.osm.pbf` files
 - `valhalla_tiles.tar`
 - a `valhalla_tiles` directory
@@ -28,43 +31,26 @@ VALHALLA_PREFER_PBF_REBUILD=true
 VALHALLA_SMART_REPAIR=true
 ```
 
-## Smart Valhalla behavior in v7.5.0
-RogueRoute GPX checks the contents of `VALHALLA_DATA_PATH` and follows a simple plan:
-- `planet-latest.osm.pbf` found: treat the folder as a planet-build source
-- multiple `.osm.pbf` files found: treat the folder as a regional-build source
-- built tiles only found: load the existing tiles directly
-- source `.osm.pbf` files plus stale generated tiles found: if smart repair is enabled, purge the generated outputs and rebuild from the source files
+## Recommended files for main play areas
+Most users should start with regional `.osm.pbf` downloads instead of the full planet file.
 
-This makes the common broken-tile loop much easier to recover from.
+### Suggested starting regions for Pokémon GO players
+- **Australia / New Zealand**
+  - `australia-oceania-latest.osm.pbf`
+  - optional `australia-oceania/new-zealand-latest.osm.pbf`
+- **United Kingdom / Europe**
+  - `europe-latest.osm.pbf`
+  - optional `europe/great-britain-latest.osm.pbf`
+- **North America**
+  - `north-america-latest.osm.pbf`
+- **Asia**
+  - `asia-latest.osm.pbf`
+- **South America**
+  - `south-america-latest.osm.pbf`
+- **Africa**
+  - `africa-latest.osm.pbf`
 
-## Approximate full-world size and hardware guidance
-### Full-world download size
-The current `planet-latest.osm.pbf` is about **86 GB**.
-
-### Storage planning
-For a full-world setup, plan for:
-- **86 GB** raw planet file
-- **300 GB to 500+ GB** total free SSD space for processing, tiles, and rebuild headroom
-
-### Recommended hardware for full-world use
-Project recommendation:
-- **8 CPU cores** or more
-- **32 GB RAM minimum**
-- **64 GB RAM preferred**
-- **500 GB+ SSD free space**
-
-## Better option for most users
-Regional packs are easier to download, easier to rebuild, and easier to update.
-
-Recommended packs:
-- Australia-Oceania
-- Europe
-- North America
-- Asia
-- South America
-- Africa
-- Great Britain
-- New Zealand
+Start with the regions you actually play in most often, confirm routing works, then add more only if needed.
 
 ## Example regional downloads
 ```bash
@@ -79,10 +65,16 @@ wget https://download.geofabrik.de/europe/great-britain-latest.osm.pbf
 wget https://download.geofabrik.de/australia-oceania/new-zealand-latest.osm.pbf
 ```
 
-## Start Valhalla stack
+## Start Valhalla Enhanced
 ```bash
 cd /opt/media-server/RogueRoute-GPX
 ./deploy-valhalla.sh
+```
+
+## Verify existing files before restarting after a crash
+```bash
+./verify-valhalla.sh
+./restart-valhalla.sh
 ```
 
 ## Repair a broken tile loop
@@ -90,6 +82,7 @@ If Valhalla keeps restarting and logs mention unusable tiles, run:
 
 ```bash
 cd /opt/media-server/RogueRoute-GPX
+./verify-valhalla.sh
 ./repair-valhalla.sh
 ./deploy-valhalla.sh
 ```
@@ -101,6 +94,21 @@ This removes generated tiles and config files, but preserves your `.osm.pbf` sou
 ./logs-valhalla.sh
 curl -v http://127.0.0.1:8002/status
 ```
+
+## Full-world size and hardware guidance
+### Full-world download size
+The current `planet-latest.osm.pbf` is about **86 GB**.
+
+### Storage planning
+For a full-world setup, plan for:
+- **86 GB** raw planet file
+- **300 GB to 500+ GB** total free SSD space for processing, tiles, and rebuild headroom
+
+### Recommended hardware for full-world use
+- **8 CPU cores** or more
+- **32 GB RAM minimum**
+- **64 GB RAM preferred**
+- **500 GB+ SSD free space**
 
 ## Refresh repo without touching map data
 ```bash

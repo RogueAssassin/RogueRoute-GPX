@@ -12,4 +12,4 @@ docker compose -f docker-compose.yml -f docker-compose.valhalla.yml stop valhall
 docker rm -f valhalla 2>/dev/null || true
 cd "$REPO_ROOT"
 remove_generated_valhalla_outputs
-log "Valhalla source files preserved. You can now redeploy with ./deploy-valhalla.sh"
+log "Valhalla source files preserved. Use ./verify-valhalla.sh, then ./deploy-valhalla.sh when you are ready to rebuild."

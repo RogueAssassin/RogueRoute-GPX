@@ -2,6 +2,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 ensure_core_tools
+ensure_node_version
 enable_pnpm
 cd "$REPO_ROOT"
 log "Pulling latest changes"

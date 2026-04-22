@@ -1,15 +1,27 @@
 # Docker Deployment
 
-## Web app only
+## RogueRoute-GPX (Standard)
 ```bash
 cd /opt/media-server/RogueRoute-GPX
 ./deploy.sh
 ```
 
-## Web app with Valhalla
+## RogueRoute-GPX (Valhalla Enhanced)
 ```bash
 cd /opt/media-server/RogueRoute-GPX
 ./deploy-valhalla.sh
+```
+
+## Restart after a reboot or crash
+### Standard
+```bash
+./restart.sh
+```
+
+### Valhalla Enhanced
+```bash
+./verify-valhalla.sh
+./restart-valhalla.sh
 ```
 
 ## Repair Valhalla and redeploy

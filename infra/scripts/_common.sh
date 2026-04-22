@@ -6,6 +6,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCKER_DIR="$REPO_ROOT/infra/docker"
 ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
+EXPECTED_NODE_MAJOR="22"
+EXPECTED_PNPM_VERSION="10.12.1"
 
 log() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
@@ -28,15 +30,35 @@ ensure_env_file() {
 }
 
 ensure_media_net() {
-  docker network inspect media-net >/dev/null 2>&1 || warn "Docker network 'media-net' does not exist yet. Create it if your stack expects an external network."
+  if ! docker network inspect media-net >/dev/null 2>&1; then
+    warn "Docker network 'media-net' does not exist yet. Create it if your stack expects an external network."
+  fi
+}
+
+ensure_node_version() {
+  ensure_command node
+  local detected major
+  detected="$(node -v 2>/dev/null || true)"
+  major="${detected#v}"
+  major="${major%%.*}"
+  [[ -n "$major" ]] || fail "Unable to determine Node.js version."
+  if [[ "$major" != "$EXPECTED_NODE_MAJOR" ]]; then
+    fail "Node.js v$EXPECTED_NODE_MAJOR is required. Detected: ${detected:-unknown}. Install Node $EXPECTED_NODE_MAJOR and try again."
+  fi
 }
 
 enable_pnpm() {
   if command -v corepack >/dev/null 2>&1; then
+    log "Preparing pnpm via Corepack (pnpm@$EXPECTED_PNPM_VERSION)"
     corepack enable >/dev/null 2>&1 || true
-    corepack prepare pnpm@10.12.1 --activate >/dev/null 2>&1 || true
+    corepack prepare "pnpm@$EXPECTED_PNPM_VERSION" --activate >/dev/null 2>&1 || true
+  else
+    warn "Corepack was not found. pnpm must already be installed manually."
   fi
-  command -v pnpm >/dev/null 2>&1 || fail "pnpm is not available. Install it with: sudo npm install -g pnpm@10.12.1"
+
+  if ! command -v pnpm >/dev/null 2>&1; then
+    fail "pnpm is not available. Install Node.js $EXPECTED_NODE_MAJOR with Corepack enabled, or run: sudo npm install -g pnpm@$EXPECTED_PNPM_VERSION"
+  fi
 }
 
 load_env_values() {
@@ -58,10 +80,20 @@ check_port_free() {
   fi
 }
 
-check_valhalla_data() {
-  load_env_values
+ensure_mount_available() {
+  [[ -n "${VALHALLA_DATA_PATH:-}" ]] || load_env_values
   [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is not set in $ENV_FILE"
   [[ -d "$VALHALLA_DATA_PATH" ]] || fail "VALHALLA_DATA_PATH does not exist: $VALHALLA_DATA_PATH"
+  if command -v findmnt >/dev/null 2>&1; then
+    if ! findmnt "$VALHALLA_DATA_PATH" >/dev/null 2>&1; then
+      warn "VALHALLA_DATA_PATH exists but does not appear as a mounted filesystem. If this path should be on another drive, confirm the mount is active before starting Valhalla."
+    fi
+  fi
+}
+
+check_valhalla_data() {
+  load_env_values
+  ensure_mount_available
   local pbf_count
   pbf_count=$(find "$VALHALLA_DATA_PATH" -maxdepth 1 -type f -name '*.osm.pbf' | wc -l | tr -d ' ')
   if [[ "$pbf_count" == "0" && ! -e "$VALHALLA_DATA_PATH/valhalla_tiles.tar" && ! -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
@@ -91,6 +123,61 @@ valhalla_source_mode() {
   echo none
 }
 
+verify_valhalla_outputs() {
+  load_env_values
+  ensure_mount_available
+
+  local pbf_count tile_dir_count tar_size json_exists mode
+  pbf_count=$(find "$VALHALLA_DATA_PATH" -maxdepth 1 -type f -name '*.osm.pbf' -size +0c | wc -l | tr -d ' ')
+  tile_dir_count=0
+  if [[ -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
+    tile_dir_count=$(find "$VALHALLA_DATA_PATH/valhalla_tiles" -mindepth 1 | wc -l | tr -d ' ')
+  fi
+  tar_size=0
+  if [[ -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" ]]; then
+    tar_size=$(wc -c < "$VALHALLA_DATA_PATH/valhalla_tiles.tar" | tr -d ' ')
+  fi
+  json_exists=false
+  [[ -f "$VALHALLA_DATA_PATH/valhalla.json" ]] && json_exists=true
+  mode=$(valhalla_source_mode)
+
+  log "Valhalla data path: $VALHALLA_DATA_PATH"
+  log "Detected mode: $mode"
+  log "Detected .osm.pbf files: $pbf_count"
+  [[ -f "$VALHALLA_DATA_PATH/planet-latest.osm.pbf" ]] && log "planet-latest.osm.pbf detected"
+  if [[ -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" ]]; then
+    log "valhalla_tiles.tar detected (${tar_size} bytes)"
+    [[ "$tar_size" -gt 0 ]] || warn "valhalla_tiles.tar exists but is empty."
+  fi
+  if [[ -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
+    log "valhalla_tiles directory detected ($tile_dir_count entries)"
+    [[ "$tile_dir_count" -gt 0 ]] || warn "valhalla_tiles directory exists but is empty."
+  fi
+  [[ "$json_exists" == true ]] && log "valhalla.json detected"
+
+  if [[ "$json_exists" == true && ! -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" && ! -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
+    warn "valhalla.json exists without tiles. This usually means a broken or incomplete prior build."
+  fi
+  if [[ "$pbf_count" -gt 0 && ( -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" || -d "$VALHALLA_DATA_PATH/valhalla_tiles" ) && "${VALHALLA_PREFER_PBF_REBUILD,,}" == "true" ]]; then
+    warn "Source PBF files and generated tiles both exist. Current settings prefer rebuilding from source files."
+  fi
+
+  case "$mode" in
+    planet|regional|single-pbf)
+      log "Recommended action: ./deploy-valhalla.sh to build fresh routing data."
+      ;;
+    planet-rebuild|regional-rebuild)
+      log "Recommended action: ./deploy-valhalla.sh to purge stale generated outputs and rebuild from source PBF files."
+      ;;
+    tiles)
+      log "Recommended action: ./restart-valhalla.sh to start using the existing tiles."
+      ;;
+    none)
+      warn "Recommended action: add regional .osm.pbf files or existing Valhalla tiles to $VALHALLA_DATA_PATH first."
+      ;;
+  esac
+}
+
 remove_generated_valhalla_outputs() {
   [[ -n "${VALHALLA_DATA_PATH:-}" ]] || load_env_values
   [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is not set"
@@ -117,6 +204,7 @@ print_valhalla_plan() {
 
 prepare_valhalla_data() {
   check_valhalla_data
+  verify_valhalla_outputs
   load_env_values
   print_valhalla_plan
   local mode
@@ -131,4 +219,14 @@ prepare_valhalla_data() {
       fi
       ;;
   esac
+}
+
+print_restart_help() {
+  echo
+  log "Useful follow-up commands:"
+  echo "  ./status.sh"
+  echo "  ./logs.sh"
+  echo "  ./logs-valhalla.sh"
+  echo "  ./verify-valhalla.sh"
+  echo "  ./repair-valhalla.sh"
 }
