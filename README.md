@@ -25,7 +25,7 @@ sudo chown -R $USER:$USER /opt/media-server
 
 ```bash
 cd /opt/media-server
-git clone https://github.com/RogueAssassin/RogueRoute-GPX.git RogueRoute-GPX
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 ```
 
