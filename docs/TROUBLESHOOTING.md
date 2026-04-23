@@ -1,70 +1,30 @@
 # Troubleshooting
 
-## Permission denied when running scripts
-Run:
+## fatal: not a git repository
+You are probably running from a release ZIP instead of a Git clone.
+
+Newer deploy scripts skip Git pull automatically for release ZIP installs. If you are using an older script version, switch to the updated release or use a Git clone.
+
+## network media-net not found
+The updated deploy scripts create `media-net` automatically. If you still need to create it manually:
 
 ```bash
-cd /opt/media-server/RogueRoute-GPX
-bash fix-permissions.sh
+docker network create media-net
 ```
 
-## Wrong Node.js version or missing pnpm
-RogueRoute GPX expects Node.js `22` for local install/build tasks.
+## HOST_PORT changed but the app still uses 9080
+Use a release that maps Docker like this:
 
-If pnpm is missing, the scripts will try to activate it through Corepack. If that still fails, install pnpm manually and rerun `./install.sh`.
-
-## `fetch failed` in the web UI
-This usually means the frontend loaded but the routing backend is unreachable.
-
-Check:
-
-```bash
-./doctor.sh
-./status.sh
-./logs.sh
-./logs-valhalla.sh
-curl -v http://127.0.0.1:8002/status
+```yaml
+${HOST_PORT:-9080}:9080
 ```
 
-## Valhalla says `Nothing to do`
-Your Valhalla data path does not contain `.osm.pbf` files or built tiles.
+Older releases hardcode `9080:9080`.
 
-Add region files or existing tiles to `VALHALLA_DATA_PATH`, then run:
+## Valhalla says Nothing to do
+Your `VALHALLA_DATA_PATH` does not contain any valid source data.
 
-```bash
-./verify-valhalla.sh
-./deploy-valhalla.sh
-```
-
-## Valhalla keeps restarting with unusable tiles
-Run:
-
-```bash
-cd /opt/media-server/RogueRoute-GPX
-./verify-valhalla.sh
-./repair-valhalla.sh
-./deploy-valhalla.sh
-```
-
-## Reboot or crash recovery
-### Standard
-```bash
-./restart.sh
-./status.sh
-./logs.sh
-```
-
-### Valhalla Enhanced
-```bash
-./verify-valhalla.sh
-./restart-valhalla.sh
-./logs-valhalla.sh
-```
-
-## Repo refresh while preserving map data
-Run:
-
-```bash
-./refresh.sh
-./refresh-valhalla.sh
-```
+Add one of these:
+- one or more `.osm.pbf` files
+- `valhalla_tiles.tar`
+- a `valhalla_tiles` directory

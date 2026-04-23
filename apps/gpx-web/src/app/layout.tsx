@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "RogueRoute GPX v6",
+  title: "RogueRoute GPX v8",
   description: "Cyber neon GPX route generation with IITC export, strict land routing, and RogueAssassin branding.",
 };
 

@@ -9,8 +9,7 @@ enable_pnpm
 load_env_values
 check_port_free "${HOST_PORT:-}"
 cd "$REPO_ROOT"
-log "Pulling latest changes"
-git pull
+update_repo_if_git_checkout
 log "Installing dependencies"
 pnpm install
 log "Building workspace"

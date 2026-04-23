@@ -11,8 +11,7 @@ check_port_free "${HOST_PORT:-}"
 check_port_free "8002"
 prepare_valhalla_data
 cd "$REPO_ROOT"
-log "Pulling latest changes"
-git pull
+update_repo_if_git_checkout
 log "Installing dependencies"
 pnpm install
 log "Building workspace"

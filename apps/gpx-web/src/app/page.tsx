@@ -202,7 +202,7 @@ export default function HomePage() {
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, background: "rgba(15,23,42,0.8)", border: "1px solid rgba(56,189,248,0.24)", color: "#93c5fd", marginBottom: 14 }}>
               <span style={{ width: 10, height: 10, borderRadius: 999, background: "#22d3ee", boxShadow: "0 0 18px #22d3ee" }} />
-              RogueRoute GPX v6 · Cyber Neon Wolf Edition
+              RogueRoute GPX v8 · Cyber Neon Wolf Edition
             </div>
             <h1 style={{ margin: 0, fontSize: 48, lineHeight: 1.05 }}>RogueRoute GPX</h1>
             <p style={{ fontSize: 19, color: "#cbd5e1", maxWidth: 700 }}>

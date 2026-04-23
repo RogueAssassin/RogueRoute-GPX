@@ -6,8 +6,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCKER_DIR="$REPO_ROOT/infra/docker"
 ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
-EXPECTED_NODE_MAJOR="22"
-EXPECTED_PNPM_VERSION="10.12.1"
+EXPECTED_NODE_MAJOR="24"
+EXPECTED_NODE_VERSION="24.15.0"
+EXPECTED_COREPACK_VERSION="0.34.7"
+EXPECTED_DOCKER_VERSION="29.4.1"
+EXPECTED_PNPM_VERSION="10.33.1"
 
 log() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
@@ -18,7 +21,6 @@ ensure_command() {
 }
 
 ensure_core_tools() {
-  ensure_command git
   ensure_command docker
   docker compose version >/dev/null 2>&1 || fail "docker compose is not available"
 }
@@ -31,7 +33,8 @@ ensure_env_file() {
 
 ensure_media_net() {
   if ! docker network inspect media-net >/dev/null 2>&1; then
-    warn "Docker network 'media-net' does not exist yet. Create it if your stack expects an external network."
+    warn "Docker network 'media-net' does not exist yet. Creating it now."
+    docker network create media-net >/dev/null
   fi
 }
 
@@ -43,7 +46,7 @@ ensure_node_version() {
   major="${major%%.*}"
   [[ -n "$major" ]] || fail "Unable to determine Node.js version."
   if [[ "$major" != "$EXPECTED_NODE_MAJOR" ]]; then
-    fail "Node.js v$EXPECTED_NODE_MAJOR is required. Detected: ${detected:-unknown}. Install Node $EXPECTED_NODE_MAJOR and try again."
+    fail "Node.js v$EXPECTED_NODE_MAJOR is required. Supported standard: Node.js $EXPECTED_NODE_VERSION. Detected: ${detected:-unknown}. Install Node $EXPECTED_NODE_VERSION and try again."
   fi
 }
 
@@ -57,7 +60,7 @@ enable_pnpm() {
   fi
 
   if ! command -v pnpm >/dev/null 2>&1; then
-    fail "pnpm is not available. Install Node.js $EXPECTED_NODE_MAJOR with Corepack enabled, or run: sudo npm install -g pnpm@$EXPECTED_PNPM_VERSION"
+    fail "pnpm is not available. Install Node.js $EXPECTED_NODE_VERSION with Corepack enabled, or run: sudo npm install -g pnpm@$EXPECTED_PNPM_VERSION"
   fi
 }
 
@@ -219,6 +222,21 @@ prepare_valhalla_data() {
       fi
       ;;
   esac
+}
+
+
+
+is_git_checkout() {
+  [[ -d "$REPO_ROOT/.git" ]]
+}
+
+update_repo_if_git_checkout() {
+  if is_git_checkout; then
+    log "Git checkout detected. Pulling latest changes"
+    git -C "$REPO_ROOT" pull
+  else
+    log "Release ZIP detected. Skipping git pull"
+  fi
 }
 
 print_restart_help() {

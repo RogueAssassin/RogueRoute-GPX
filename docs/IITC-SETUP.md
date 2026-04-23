@@ -27,4 +27,4 @@ plugins/iitc/gpx-route-generator.user.js
 4. Open IITC and use the `RogueRoute GPX` button.
 
 ## Automatic updates
-The v7.6.0 plugin includes `@version`, `@updateURL`, and `@downloadURL`, so Tampermonkey can detect newer hosted versions when the userscript file changes.
+The v8.0.0 plugin includes `@version`, `@updateURL`, and `@downloadURL`, so Tampermonkey can detect newer hosted versions when the userscript file changes.
