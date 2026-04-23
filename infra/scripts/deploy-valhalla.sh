@@ -6,9 +6,9 @@ print_header "RogueRoute GPX v8 Valhalla Deploy"
 print_step 1 8 "Create env file if missing"
 bootstrap_env_file valhalla
 
-print_step 2 8 "Check Docker and Node.js"
+print_step 2 8 "Review env and check Docker and Node.js"
+maybe_edit_env_file valhalla
 ensure_core_tools
-ensure_node_version
 ensure_env_file
 validate_env_for_mode valhalla
 ensure_media_net

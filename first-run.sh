@@ -62,6 +62,7 @@ print_mode_summary "$MODE"
 print_step 2 6 "Create env file next to docker compose"
 bootstrap_env_file "$MODE"
 log "Env file location: $ENV_FILE"
+maybe_edit_env_file "$MODE"
 
 print_step 3 6 "Check host requirements"
 log "Before running this installer, use: bash ./fix-permissions.sh"
