@@ -1,21 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
+print_header "RogueRoute GPX v8.0.0 Valhalla Deploy"
+print_step 1 8 "Create env file if missing"
+bootstrap_env_file valhalla
+
+print_step 2 8 "Check Docker and Node.js"
 ensure_core_tools
 ensure_node_version
 ensure_env_file
+validate_env_for_mode valhalla
 ensure_media_net
+
+print_step 3 8 "Prepare pnpm"
 enable_pnpm
 load_env_values
 check_port_free "${HOST_PORT:-}"
 check_port_free "8002"
+
+print_step 4 8 "Validate Valhalla data"
 prepare_valhalla_data
+
+print_step 5 8 "Update git checkout if available"
 cd "$REPO_ROOT"
 update_repo_if_git_checkout
-log "Installing dependencies"
+
+print_step 6 8 "Install dependencies"
 pnpm install
-log "Building workspace"
+
+print_step 7 8 "Build workspace"
 pnpm build
+
+print_step 8 8 "Start Docker services"
 cd "$DOCKER_DIR"
 log "Using env file: $ENV_FILE"
 log "Starting RogueRoute GPX with Valhalla Enhanced"

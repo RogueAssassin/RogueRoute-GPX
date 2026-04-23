@@ -6,6 +6,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DOCKER_DIR="$REPO_ROOT/infra/docker"
 ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
+ENV_STANDARD="$DOCKER_DIR/.env.standard"
+ENV_VALHALLA="$DOCKER_DIR/.env.valhalla"
 EXPECTED_NODE_MAJOR="24"
 EXPECTED_NODE_VERSION="24.15.0"
 EXPECTED_COREPACK_VERSION="0.34.7"
@@ -15,6 +17,73 @@ EXPECTED_PNPM_VERSION="10.33.1"
 log() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
 fail() { echo "[ERROR] $*"; exit 1; }
+
+print_header() {
+  local title="${1:-RogueRoute GPX}"
+  printf '
+'
+  printf '╔════════════════════════════════════════════╗
+'
+  printf '║ %-42s ║
+' "$title"
+  printf '╚════════════════════════════════════════════╝
+'
+}
+
+print_step() {
+  local current="$1"
+  local total="$2"
+  local message="$3"
+  printf '
+[%s/%s] %s
+' "$current" "$total" "$message"
+}
+
+print_mode_summary() {
+  local mode="$1"
+  if [[ "$mode" == "valhalla" ]]; then
+    echo "Mode selected: Valhalla"
+    echo "Audience: intermediate / advanced users"
+    echo "Focus: land-aware routing with self-hosted Valhalla"
+  else
+    echo "Mode selected: Standard"
+    echo "Audience: beginner / most self-host users"
+    echo "Focus: easiest setup and lowest resource usage"
+  fi
+}
+
+normalize_mode() {
+  local raw="${1:-standard}"
+  case "${raw,,}" in
+    standard|std) echo "standard" ;;
+    valhalla|val) echo "valhalla" ;;
+    *) return 1 ;;
+  esac
+}
+
+bootstrap_env_file() {
+  local requested="${1:-standard}"
+  local mode
+  mode="$(normalize_mode "$requested")" || fail "Invalid mode: $requested. Use Standard or Valhalla."
+
+  if [[ -f "$ENV_FILE" ]]; then
+    log "Reusing existing env file: $ENV_FILE"
+    return 0
+  fi
+
+  local template
+  case "$mode" in
+    standard) template="$ENV_STANDARD" ;;
+    valhalla) template="$ENV_VALHALLA" ;;
+  esac
+
+  [[ -f "$template" ]] || fail "Missing env template: $template"
+  cp "$template" "$ENV_FILE"
+  log "Created $ENV_FILE from $(basename "$template")"
+  if [[ "$mode" == "valhalla" ]]; then
+    warn "Review VALHALLA_DATA_PATH in $ENV_FILE before the first Valhalla deploy."
+  fi
+}
 
 ensure_command() {
   command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
@@ -27,7 +96,7 @@ ensure_core_tools() {
 
 ensure_env_file() {
   if [[ ! -f "$ENV_FILE" ]]; then
-    fail "Missing $ENV_FILE . Copy $ENV_EXAMPLE to $ENV_FILE first."
+    fail "Missing $ENV_FILE . Run ./first-run.sh or let deploy bootstrap it from .env.standard / .env.valhalla."
   fi
 }
 
@@ -69,10 +138,44 @@ load_env_values() {
   VALHALLA_DATA_PATH=$(grep -E '^VALHALLA_DATA_PATH=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   HOST_PORT=$(grep -E '^HOST_PORT=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   PORT=$(grep -E '^PORT=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  ROUTER_MODE=$(grep -E '^ROUTER_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  VALHALLA_URL=$(grep -E '^VALHALLA_URL=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   VALHALLA_PREFER_PBF_REBUILD=$(grep -E '^VALHALLA_PREFER_PBF_REBUILD=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   VALHALLA_SMART_REPAIR=$(grep -E '^VALHALLA_SMART_REPAIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   : "${VALHALLA_PREFER_PBF_REBUILD:=true}"
   : "${VALHALLA_SMART_REPAIR:=true}"
+  : "${ROUTER_MODE:=direct}"
+}
+
+validate_boolean_env() {
+  local name="$1"
+  local value="${2:-}"
+  case "${value,,}" in
+    true|false|'') return 0 ;;
+    *) fail "$name must be true or false in $ENV_FILE. Current value: $value" ;;
+  esac
+}
+
+validate_env_for_mode() {
+  local mode="$1"
+  load_env_values
+
+  [[ -n "${HOST_PORT:-}" ]] || HOST_PORT="9080"
+  [[ "$HOST_PORT" =~ ^[0-9]+$ ]] || fail "HOST_PORT must be numeric in $ENV_FILE. Current value: ${HOST_PORT:-unset}"
+
+  case "$mode" in
+    standard)
+      [[ "${ROUTER_MODE,,}" == "direct" ]] || warn "Standard mode usually uses ROUTER_MODE=direct. Current value: ${ROUTER_MODE:-unset}"
+      ;;
+    valhalla)
+      [[ "${ROUTER_MODE,,}" == "valhalla" ]] || fail "Valhalla mode requires ROUTER_MODE=valhalla in $ENV_FILE"
+      [[ -n "${VALHALLA_URL:-}" ]] || fail "VALHALLA_URL is required in $ENV_FILE for Valhalla mode"
+      [[ "$VALHALLA_URL" =~ ^https?:// ]] || fail "VALHALLA_URL must start with http:// or https:// in $ENV_FILE"
+      [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is required in $ENV_FILE for Valhalla mode"
+      validate_boolean_env "VALHALLA_PREFER_PBF_REBUILD" "${VALHALLA_PREFER_PBF_REBUILD:-}"
+      validate_boolean_env "VALHALLA_SMART_REPAIR" "${VALHALLA_SMART_REPAIR:-}"
+      ;;
+  esac
 }
 
 check_port_free() {
@@ -223,8 +326,6 @@ prepare_valhalla_data() {
       ;;
   esac
 }
-
-
 
 is_git_checkout() {
   [[ -d "$REPO_ROOT/.git" ]]
