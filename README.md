@@ -25,8 +25,8 @@ sudo chown -R $USER:$USER /opt/media-server
 
 ```bash
 cd /opt/media-server
-git clone https://github.com/YOUR_USERNAME/RogueRoute-GPX.git rogueroute-gpx
-cd rogueroute-gpx
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git RogueRoute-GPX
+cd RogueRoute-GPX
 ```
 
 ### 3. Run first-time setup
