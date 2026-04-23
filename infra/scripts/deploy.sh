@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 
-print_header "RogueRoute GPX v8.0.0 Standard Deploy"
+print_header "RogueRoute GPX v8 Standard Deploy"
 print_step 1 7 "Create env file if missing"
 bootstrap_env_file standard
 

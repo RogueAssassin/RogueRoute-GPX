@@ -42,8 +42,8 @@ For most users, regional `.osm.pbf` files are the best starting point.
 
 ## Step 3: Run first-time setup
 ```bash
-bash fix-permissions.sh
-bash first-run.sh
+bash ./fix-permissions.sh
+bash ./first-run.sh
 ```
 
 When asked which mode to use, choose **Valhalla**.

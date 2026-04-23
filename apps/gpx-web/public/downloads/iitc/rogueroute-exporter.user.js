@@ -4,7 +4,7 @@
 // @namespace      https://github.com/RogueAssassin/RogueRoute-GPX
 // @category       Layer
 // @version        8.0.0
-// @description    Smart IITC exporter for RogueRoute GPX v8.0.0 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
+// @description    Smart IITC exporter for RogueRoute GPX v8 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
 // @author         RogueAssassin
 // @homepageURL    https://github.com/RogueAssassin/RogueRoute-GPX
 // @supportURL     https://github.com/RogueAssassin/RogueRoute-GPX/issues

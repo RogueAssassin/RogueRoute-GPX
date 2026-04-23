@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
-print_header "RogueRoute GPX v8.0.0 Update"
+print_header "RogueRoute GPX v8 Update"
 print_step 1 5 "Check Docker and Node.js"
 ensure_core_tools
 ensure_node_version

@@ -1,4 +1,4 @@
-# RogueRoute GPX v8.0.0
+# RogueRoute GPX v8
 
 Self-hosted GPX route generation built for home lab, media server, and private infrastructure setups.
 
@@ -11,7 +11,7 @@ Create realistic GPX walking, driving, and advanced routed tracks using a simple
 Install RogueRoute GPX under:
 
 ```bash
-/opt/media-server/rogueroute-gpx
+/opt/media-server/RogueRoute-GPX
 ```
 
 ### 1. Prepare folder
@@ -25,14 +25,20 @@ sudo chown -R $USER:$USER /opt/media-server
 
 ```bash
 cd /opt/media-server
-git clone https://github.com/YOUR_USERNAME/RogueRoute-GPX.git rogueroute-gpx
-cd rogueroute-gpx
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
+cd RogueRoute-GPX
 ```
 
-### 3. Run first-time setup
+### 3. Fix permissions
 
 ```bash
-bash first-run.sh
+bash ./fix-permissions.sh
+```
+
+### 4. Run first-time setup
+
+```bash
+bash ./first-run.sh
 ```
 
 The installer will guide you through:
@@ -40,7 +46,7 @@ The installer will guide you through:
 * Standard mode (recommended)
 * Valhalla mode (advanced routing)
 
-### 4. Deploy
+### 5. Deploy
 
 #### Standard
 
@@ -141,7 +147,7 @@ This release is tested with:
 ## Git Install
 
 ```bash
-cd /opt/media-server/rogueroute-gpx
+cd /opt/media-server/RogueRoute-GPX
 git pull
 ./update.sh
 ```

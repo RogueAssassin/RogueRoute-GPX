@@ -8,6 +8,7 @@ ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
 ENV_STANDARD="$DOCKER_DIR/.env.standard"
 ENV_VALHALLA="$DOCKER_DIR/.env.valhalla"
+APP_VERSION="v8"
 EXPECTED_NODE_MAJOR="24"
 EXPECTED_NODE_VERSION="24.15.0"
 EXPECTED_COREPACK_VERSION="0.34.7"
@@ -20,42 +21,48 @@ fail() { echo "[ERROR] $*"; exit 1; }
 
 print_header() {
   local title="${1:-RogueRoute GPX}"
-  printf '
-'
-  printf '╔════════════════════════════════════════════╗
-'
-  printf '║ %-42s ║
-' "$title"
-  printf '╚════════════════════════════════════════════╝
-'
+  printf '\n'
+  printf '╔════════════════════════════════════════════╗\n'
+  printf '║ %-42s ║\n' "$title"
+  printf '╚════════════════════════════════════════════╝\n'
 }
 
 print_step() {
   local current="$1"
   local total="$2"
   local message="$3"
-  printf '
-[%s/%s] %s
-' "$current" "$total" "$message"
+  printf '\n[%s/%s] %s\n' "$current" "$total" "$message"
 }
 
 print_mode_summary() {
-  local mode="$1"
-  if [[ "$mode" == "valhalla" ]]; then
-    echo "Mode selected: Valhalla"
-    echo "Audience: intermediate / advanced users"
-    echo "Focus: land-aware routing with self-hosted Valhalla"
-  else
-    echo "Mode selected: Standard"
-    echo "Audience: beginner / most self-host users"
-    echo "Focus: easiest setup and lowest resource usage"
-  fi
+  local mode="${1:-standard}"
+  case "$mode" in
+    valhalla)
+      echo "Mode selected: Valhalla"
+      echo "Audience: intermediate / advanced users"
+      echo "Focus: land-aware routing with self-hosted Valhalla"
+      ;;
+    *)
+      echo "Mode selected: Standard"
+      echo "Audience: beginner / most self-host users"
+      echo "Focus: easiest setup and lowest resource usage"
+      ;;
+  esac
+}
+
+trim_value() {
+  local raw="${1:-}"
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  printf '%s' "$raw"
 }
 
 normalize_mode() {
-  local raw="${1:-standard}"
-  case "${raw,,}" in
-    standard|std) echo "standard" ;;
+  local raw normalized
+  raw="$(trim_value "${1:-standard}")"
+  normalized="${raw,,}"
+  case "$normalized" in
+    ""|standard|std) echo "standard" ;;
     valhalla|val) echo "valhalla" ;;
     *) return 1 ;;
   esac
@@ -96,7 +103,7 @@ ensure_core_tools() {
 
 ensure_env_file() {
   if [[ ! -f "$ENV_FILE" ]]; then
-    fail "Missing $ENV_FILE . Run ./first-run.sh or let deploy bootstrap it from .env.standard / .env.valhalla."
+    fail "Missing $ENV_FILE . Run bash ./fix-permissions.sh, then ./first-run.sh, or let the deploy script bootstrap it from .env.standard / .env.valhalla."
   fi
 }
 
@@ -142,9 +149,22 @@ load_env_values() {
   VALHALLA_URL=$(grep -E '^VALHALLA_URL=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   VALHALLA_PREFER_PBF_REBUILD=$(grep -E '^VALHALLA_PREFER_PBF_REBUILD=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   VALHALLA_SMART_REPAIR=$(grep -E '^VALHALLA_SMART_REPAIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  NEXT_PUBLIC_APP_NAME=$(grep -E '^NEXT_PUBLIC_APP_NAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+
+  VALHALLA_DATA_PATH="$(trim_value "${VALHALLA_DATA_PATH:-}")"
+  HOST_PORT="$(trim_value "${HOST_PORT:-}")"
+  PORT="$(trim_value "${PORT:-}")"
+  ROUTER_MODE="$(trim_value "${ROUTER_MODE:-}")"
+  VALHALLA_URL="$(trim_value "${VALHALLA_URL:-}")"
+  VALHALLA_PREFER_PBF_REBUILD="$(trim_value "${VALHALLA_PREFER_PBF_REBUILD:-true}")"
+  VALHALLA_SMART_REPAIR="$(trim_value "${VALHALLA_SMART_REPAIR:-true}")"
+  NEXT_PUBLIC_APP_NAME="$(trim_value "${NEXT_PUBLIC_APP_NAME:-RogueRoute GPX}")"
+
   : "${VALHALLA_PREFER_PBF_REBUILD:=true}"
   : "${VALHALLA_SMART_REPAIR:=true}"
   : "${ROUTER_MODE:=direct}"
+  : "${HOST_PORT:=9080}"
+  : "${NEXT_PUBLIC_APP_NAME:=RogueRoute GPX}"
 }
 
 validate_boolean_env() {
@@ -157,18 +177,31 @@ validate_boolean_env() {
 }
 
 validate_env_for_mode() {
-  local mode="$1"
+  local mode
+  mode="$(normalize_mode "${1:-standard}")" || fail "Invalid mode requested for validation: ${1:-}"
+
   load_env_values
 
   [[ -n "${HOST_PORT:-}" ]] || HOST_PORT="9080"
   [[ "$HOST_PORT" =~ ^[0-9]+$ ]] || fail "HOST_PORT must be numeric in $ENV_FILE. Current value: ${HOST_PORT:-unset}"
 
+  if [[ -n "${PORT:-}" && ! "$PORT" =~ ^[0-9]+$ ]]; then
+    fail "PORT must be numeric in $ENV_FILE. Current value: ${PORT:-unset}"
+  fi
+
+  local router_mode_normalized
+  router_mode_normalized="$(normalize_mode "${ROUTER_MODE:-standard}" 2>/dev/null || true)"
+
   case "$mode" in
     standard)
-      [[ "${ROUTER_MODE,,}" == "direct" ]] || warn "Standard mode usually uses ROUTER_MODE=direct. Current value: ${ROUTER_MODE:-unset}"
+      if [[ -n "${ROUTER_MODE:-}" && "${ROUTER_MODE,,}" != "direct" && "$router_mode_normalized" == "valhalla" ]]; then
+        warn "Standard mode deploy was chosen, but ROUTER_MODE in $ENV_FILE is set for Valhalla. Standard mode usually uses ROUTER_MODE=direct."
+      elif [[ "${ROUTER_MODE,,}" != "direct" ]]; then
+        warn "Standard mode usually uses ROUTER_MODE=direct. Current value: ${ROUTER_MODE:-unset}"
+      fi
       ;;
     valhalla)
-      [[ "${ROUTER_MODE,,}" == "valhalla" ]] || fail "Valhalla mode requires ROUTER_MODE=valhalla in $ENV_FILE"
+      [[ "$router_mode_normalized" == "valhalla" ]] || fail "Valhalla mode requires ROUTER_MODE=valhalla in $ENV_FILE"
       [[ -n "${VALHALLA_URL:-}" ]] || fail "VALHALLA_URL is required in $ENV_FILE for Valhalla mode"
       [[ "$VALHALLA_URL" =~ ^https?:// ]] || fail "VALHALLA_URL must start with http:// or https:// in $ENV_FILE"
       [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is required in $ENV_FILE for Valhalla mode"
@@ -259,93 +292,24 @@ verify_valhalla_outputs() {
     log "valhalla_tiles directory detected ($tile_dir_count entries)"
     [[ "$tile_dir_count" -gt 0 ]] || warn "valhalla_tiles directory exists but is empty."
   fi
-  [[ "$json_exists" == true ]] && log "valhalla.json detected"
-
-  if [[ "$json_exists" == true && ! -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" && ! -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
-    warn "valhalla.json exists without tiles. This usually means a broken or incomplete prior build."
+  if [[ "$json_exists" == true ]]; then
+    log "valhalla.json detected"
+  else
+    warn "valhalla.json not found in $VALHALLA_DATA_PATH"
   fi
-  if [[ "$pbf_count" -gt 0 && ( -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" || -d "$VALHALLA_DATA_PATH/valhalla_tiles" ) && "${VALHALLA_PREFER_PBF_REBUILD,,}" == "true" ]]; then
-    warn "Source PBF files and generated tiles both exist. Current settings prefer rebuilding from source files."
-  fi
-
-  case "$mode" in
-    planet|regional|single-pbf)
-      log "Recommended action: ./deploy-valhalla.sh to build fresh routing data."
-      ;;
-    planet-rebuild|regional-rebuild)
-      log "Recommended action: ./deploy-valhalla.sh to purge stale generated outputs and rebuild from source PBF files."
-      ;;
-    tiles)
-      log "Recommended action: ./restart-valhalla.sh to start using the existing tiles."
-      ;;
-    none)
-      warn "Recommended action: add regional .osm.pbf files or existing Valhalla tiles to $VALHALLA_DATA_PATH first."
-      ;;
-  esac
-}
-
-remove_generated_valhalla_outputs() {
-  [[ -n "${VALHALLA_DATA_PATH:-}" ]] || load_env_values
-  [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is not set"
-  log "Removing generated Valhalla outputs from $VALHALLA_DATA_PATH while preserving .osm.pbf source files"
-  rm -rf "$VALHALLA_DATA_PATH/valhalla_tiles"
-  rm -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar"
-  rm -f "$VALHALLA_DATA_PATH/valhalla.json"
-  rm -f "$VALHALLA_DATA_PATH"/*.md5 "$VALHALLA_DATA_PATH"/*.hash 2>/dev/null || true
-}
-
-print_valhalla_plan() {
-  local mode
-  mode=$(valhalla_source_mode)
-  case "$mode" in
-    planet) log "Valhalla mode: full planet build from planet-latest.osm.pbf" ;;
-    planet-rebuild) log "Valhalla mode: full planet rebuild. Existing tiles will be purged in favour of planet-latest.osm.pbf" ;;
-    regional) log "Valhalla mode: regional build from multiple .osm.pbf files" ;;
-    regional-rebuild) log "Valhalla mode: regional rebuild. Existing tiles will be purged in favour of .osm.pbf source files" ;;
-    single-pbf) log "Valhalla mode: build from a single .osm.pbf file" ;;
-    tiles) log "Valhalla mode: load existing tiles only" ;;
-    none) warn "Valhalla mode: no usable source data detected yet" ;;
-  esac
 }
 
 prepare_valhalla_data() {
+  validate_env_for_mode valhalla
   check_valhalla_data
   verify_valhalla_outputs
-  load_env_values
-  print_valhalla_plan
-  local mode
-  mode=$(valhalla_source_mode)
-  case "$mode" in
-    planet-rebuild|regional-rebuild)
-      if [[ "${VALHALLA_SMART_REPAIR,,}" == "true" ]]; then
-        warn "Smart repair is enabled. Existing generated tiles will be removed so Valhalla can rebuild from source PBF data."
-        remove_generated_valhalla_outputs
-      else
-        warn "PBF files and generated tiles both exist. VALHALLA_SMART_REPAIR is disabled, so existing tiles will be left in place."
-      fi
-      ;;
-  esac
-}
-
-is_git_checkout() {
-  [[ -d "$REPO_ROOT/.git" ]]
 }
 
 update_repo_if_git_checkout() {
-  if is_git_checkout; then
-    log "Git checkout detected. Pulling latest changes"
-    git -C "$REPO_ROOT" pull
+  if [[ -d "$REPO_ROOT/.git" ]] && command -v git >/dev/null 2>&1; then
+    log "Git checkout detected. Pulling latest changes."
+    git pull --ff-only || warn "git pull failed. Resolve manually if needed."
   else
-    log "Release ZIP detected. Skipping git pull"
+    log "Git metadata not found. Skipping git pull because this appears to be a ZIP release."
   fi
-}
-
-print_restart_help() {
-  echo
-  log "Useful follow-up commands:"
-  echo "  ./status.sh"
-  echo "  ./logs.sh"
-  echo "  ./logs-valhalla.sh"
-  echo "  ./verify-valhalla.sh"
-  echo "  ./repair-valhalla.sh"
 }

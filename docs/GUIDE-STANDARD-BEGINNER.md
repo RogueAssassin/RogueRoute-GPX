@@ -33,18 +33,18 @@ Unzip the release, then enter the extracted folder.
 
 ```bash
 cd /opt/media-server
-unzip RogueRoute-GPX-v8.0.0.zip
+unzip RogueRoute-GPX-v8.zip
 cd RogueRoute-GPX
 ```
 
 ## Step 2: Fix script permissions
 ```bash
-bash fix-permissions.sh
+bash ./fix-permissions.sh
 ```
 
 ## Step 3: Run first-time setup
 ```bash
-bash first-run.sh
+bash ./first-run.sh
 ```
 
 When asked which mode to use, choose **Standard**.

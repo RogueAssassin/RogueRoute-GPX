@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     service: "rogueroute-gpx",
-    version: "8.0.0",
+    version: "8",
     timestamp: new Date().toISOString(),
   });
 }

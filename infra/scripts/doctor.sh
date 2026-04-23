@@ -39,9 +39,14 @@ fi
 if [[ -n "${VALHALLA_DATA_PATH:-}" ]]; then
   if [[ -d "$VALHALLA_DATA_PATH" ]]; then pass "VALHALLA_DATA_PATH exists: $VALHALLA_DATA_PATH"; else issue "VALHALLA_DATA_PATH is missing: $VALHALLA_DATA_PATH"; fi
 fi
+if [[ -n "${ROUTER_MODE:-}" ]]; then
+  pass "ROUTER_MODE detected: ${ROUTER_MODE}"
+fi
 if command -v curl >/dev/null 2>&1; then
-  if curl -fsS http://127.0.0.1:9080/api/health >/dev/null 2>&1; then pass "web health endpoint is responding"; else issue "web health endpoint is not responding on 127.0.0.1:9080"; fi
-  if curl -fsS http://127.0.0.1:8002/status >/dev/null 2>&1; then pass "Valhalla status endpoint is responding"; else issue "Valhalla status endpoint is not responding on 127.0.0.1:8002"; fi
+  if curl -fsS "http://127.0.0.1:${HOST_PORT:-9080}/api/health" >/dev/null 2>&1; then pass "web health endpoint is responding"; else issue "web health endpoint is not responding on 127.0.0.1:${HOST_PORT:-9080}"; fi
+  if [[ "${ROUTER_MODE,,}" == "valhalla" ]]; then
+    if curl -fsS http://127.0.0.1:8002/status >/dev/null 2>&1; then pass "Valhalla status endpoint is responding"; else issue "Valhalla status endpoint is not responding on 127.0.0.1:8002"; fi
+  fi
 else
   issue "curl is not installed"
 fi

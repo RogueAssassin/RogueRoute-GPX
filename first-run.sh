@@ -4,45 +4,58 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/infra/scripts/_common.sh"
 
-if [ ! -x "$SCRIPT_DIR/install.sh" ] || [ ! -x "$SCRIPT_DIR/deploy.sh" ]; then
+if [[ ! -x "$SCRIPT_DIR/fix-permissions.sh" ]]; then
+  chmod +x "$SCRIPT_DIR/fix-permissions.sh" 2>/dev/null || true
+fi
+
+if [ ! -x "$SCRIPT_DIR/install.sh" ] || [ ! -x "$SCRIPT_DIR/deploy.sh" ] || [ ! -x "$SCRIPT_DIR/deploy-valhalla.sh" ]; then
   bash "$SCRIPT_DIR/fix-permissions.sh" "$SCRIPT_DIR"
 fi
 
-choose_mode() {
-  if [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
-    normalize_mode "$ROGUEROUTE_MODE" || fail "Invalid ROGUEROUTE_MODE: $ROGUEROUTE_MODE. Use Standard or Valhalla."
-    return 0
-  fi
+MODE=""
+MODE_LABEL="Standard"
+DEPLOY_CMD="./deploy.sh"
 
-  if [[ -t 0 ]]; then
+choose_mode() {
+  local input normalized
+  if [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
+    normalized="$(normalize_mode "$ROGUEROUTE_MODE")" || fail "Invalid ROGUEROUTE_MODE: $ROGUEROUTE_MODE. Use Standard or Valhalla."
+    MODE="$normalized"
+  elif [[ -t 0 ]]; then
     echo
     echo "Choose deployment mode:"
     echo "  • Standard  - recommended for most users"
     echo "  • Valhalla  - advanced routing / self-hosted map engine"
     echo
     while true; do
-      read -r -p "Type Standard or Valhalla [Standard]: " choice
-      choice="${choice:-Standard}"
-      if normalize_mode "$choice" >/dev/null; then
-        normalize_mode "$choice"
-        return 0
+      read -r -p "Type Standard or Valhalla [Standard]: " input
+      input="${input:-Standard}"
+      if normalized="$(normalize_mode "$input" 2>/dev/null)"; then
+        MODE="$normalized"
+        break
       fi
       warn "Invalid choice. Please type Standard or Valhalla."
     done
+  else
+    MODE="standard"
   fi
 
-  echo "standard"
+  if [[ "$MODE" == "valhalla" ]]; then
+    MODE_LABEL="Valhalla"
+    DEPLOY_CMD="./deploy-valhalla.sh"
+  else
+    MODE="standard"
+    MODE_LABEL="Standard"
+    DEPLOY_CMD="./deploy.sh"
+  fi
 }
 
-MODE="$(choose_mode)"
-MODE_LABEL="Standard"
-DEPLOY_CMD="./deploy.sh"
-if [[ "$MODE" == "valhalla" ]]; then
-  MODE_LABEL="Valhalla"
-  DEPLOY_CMD="./deploy-valhalla.sh"
-fi
+print_intro() {
+  print_header "RogueRoute GPX v8 Installer"
+}
 
-print_header "RogueRoute GPX v8.0.0 Installer"
+choose_mode
+print_intro
 print_step 1 6 "Select deployment mode"
 print_mode_summary "$MODE"
 
@@ -51,6 +64,7 @@ bootstrap_env_file "$MODE"
 log "Env file location: $ENV_FILE"
 
 print_step 3 6 "Check host requirements"
+log "Before running this installer, use: bash ./fix-permissions.sh"
 log "Supported runtime for local install/build tasks: Node.js $EXPECTED_NODE_VERSION"
 log "Supported package manager: pnpm $EXPECTED_PNPM_VERSION via Corepack $EXPECTED_COREPACK_VERSION"
 log "Supported Docker baseline: docker $EXPECTED_DOCKER_VERSION with docker compose"
@@ -72,5 +86,6 @@ if [[ "$MODE" == "valhalla" ]]; then
 else
   validate_env_for_mode standard || true
 fi
+log "Mode selected: $MODE_LABEL"
 log "Next command: $DEPLOY_CMD"
 log "After a reboot or crash, use ./restart.sh or ./restart-valhalla.sh"

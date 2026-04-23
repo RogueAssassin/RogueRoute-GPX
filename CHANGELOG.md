@@ -1,9 +1,9 @@
 # Changelog
 
-## v8.0.0
+## v8
 - promoted the split guide system into the main README with direct markdown links for Standard, Valhalla, requirements, deployment, and troubleshooting
 - added official environment template handling with `infra/docker/.env.standard` and `infra/docker/.env.valhalla` feeding first-run setup
-- aligned the web UI title and landing page banner to `v8.0.0` so the app no longer shows legacy `v6` branding
+- aligned the web UI title and landing page banner to `v8` so the app no longer shows legacy `v6` branding
 - standardized the documented support baseline to Node.js 24.15.0, pnpm 10.33.1, Corepack 0.34.7, and Docker 29.4.1
 - updated helper scripts and diagnostics to validate the new runtime standard more clearly
 - kept Standard mode release-safe for ZIP installs and beginner-friendly docs while retaining the Valhalla intermediate workflow
