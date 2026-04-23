@@ -8,7 +8,6 @@ bootstrap_env_file standard
 
 print_step 2 7 "Check Docker and Node.js"
 ensure_core_tools
-ensure_node_version
 ensure_env_file
 validate_env_for_mode standard
 ensure_media_net

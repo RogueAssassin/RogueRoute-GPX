@@ -68,6 +68,88 @@ normalize_mode() {
   esac
 }
 
+get_env_router_mode() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    echo ""
+    return 0
+  fi
+  local raw
+  raw="$(grep -E '^ROUTER_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)"
+  raw="$(trim_value "$raw")"
+  case "${raw,,}" in
+    valhalla|val) echo "valhalla" ;;
+    direct|standard|std) echo "standard" ;;
+    *) echo "" ;;
+  esac
+}
+
+resolve_requested_mode() {
+  local requested="${1:-}"
+  local normalized=""
+
+  if [[ -n "$requested" ]]; then
+    normalize_mode "$requested"
+    return 0
+  fi
+
+  if [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
+    normalize_mode "$ROGUEROUTE_MODE"
+    return 0
+  fi
+
+  normalized="$(get_env_router_mode)"
+  if [[ -n "$normalized" ]]; then
+    echo "$normalized"
+    return 0
+  fi
+
+  echo "standard"
+}
+
+find_editor() {
+  local candidate
+  for candidate in "${EDITOR:-}" nano vi vim; do
+    [[ -n "$candidate" ]] || continue
+    if command -v "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+maybe_edit_env_file() {
+  local mode
+  mode="$(normalize_mode "${1:-standard}")" || fail "Invalid mode for env edit: ${1:-}"
+
+  [[ -f "$ENV_FILE" ]] || return 0
+  [[ -t 0 ]] || return 0
+
+  local prompt default_reply reply editor
+  if [[ "$mode" == "valhalla" ]]; then
+    prompt="Edit infra/docker/.env now so you can confirm VALHALLA_DATA_PATH before continuing? [Y/n]: "
+    default_reply="Y"
+  else
+    prompt="Edit infra/docker/.env now before continuing? [y/N]: "
+    default_reply="N"
+  fi
+
+  read -r -p "$prompt" reply || true
+  reply="${reply:-$default_reply}"
+
+  case "${reply,,}" in
+    y|yes)
+      if editor="$(find_editor)"; then
+        "$editor" "$ENV_FILE"
+        load_env_values
+      else
+        warn "No terminal editor was found. Update $ENV_FILE manually, then rerun this command."
+      fi
+      ;;
+    *) ;;
+  esac
+}
+
 bootstrap_env_file() {
   local requested="${1:-standard}"
   local mode
