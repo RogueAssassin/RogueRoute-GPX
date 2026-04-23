@@ -25,7 +25,7 @@ sudo chown -R $USER:$USER /opt/media-server
 
 ```bash
 cd /opt/media-server
-git clone https://github.com/RogueAssassin/RogueRoute-GPX.git RogueRoute-GPX
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 ```
 
@@ -43,8 +43,8 @@ bash ./first-run.sh
 
 The installer will guide you through:
 
-* Standard mode (recommended)
-* Valhalla mode (advanced routing)
+- Standard mode (recommended)
+- Valhalla mode (advanced routing)
 
 ### 5. Deploy
 
@@ -64,48 +64,48 @@ The installer will guide you through:
 
 ## 📦 Installation Modes
 
-| Mode     | Best For                            | Difficulty   | Requirements                |
-| -------- | ----------------------------------- | ------------ | --------------------------- |
-| Standard | Most users                          | Beginner     | Docker                      |
-| Valhalla | Advanced routing / land-safe routes | Intermediate | Docker + More RAM + Storage |
+| Mode | Best For | Difficulty | Requirements |
+|------|----------|------------|--------------|
+| Standard | Most users | Beginner | Docker |
+| Valhalla | Advanced routing / land-safe routes | Intermediate | Docker + more RAM + storage |
 
 ---
 
 ## 🖥️ System Requirements
 
-## Standard Mode
+### Standard Mode
 
 Recommended:
 
-* 2 CPU cores
-* 4 GB RAM
-* 10 GB free disk
-* Docker Engine + Compose
+- 2 CPU cores
+- 4 GB RAM
+- 10 GB free disk
+- Docker Engine + Docker Compose
 
-Better Performance:
+Better performance:
 
-* 4 CPU cores
-* 8 GB RAM
+- 4 CPU cores
+- 8 GB RAM
 
-## Valhalla Mode
+### Valhalla Mode
 
 Recommended:
 
-* 4 CPU cores
-* 8–16 GB RAM
-* 50+ GB SSD storage
-* Docker Engine + Compose
+- 4 CPU cores
+- 8–16 GB RAM
+- 50+ GB SSD storage
+- Docker Engine + Docker Compose
 
 Large regional datasets:
 
-* 8 CPU cores
-* 16+ GB RAM
+- 8 CPU cores
+- 16+ GB RAM
 
-Full world routing:
+Full-world routing:
 
-* 8+ CPU cores
-* 32–64 GB RAM
-* 300+ GB SSD
+- 8+ CPU cores
+- 32–64 GB RAM
+- 300+ GB SSD
 
 ---
 
@@ -113,38 +113,38 @@ Full world routing:
 
 This release is tested with:
 
-* Node.js **24.15.0** (Krypton)
-* pnpm **10.33.1**
-* Corepack **0.34.7**
-* Docker **29.4.1**
+- Node.js **24.15.0** (Krypton)
+- pnpm **10.33.1**
+- Corepack **0.34.7**
+- Docker **29.4.1**
 
 ---
 
 ## 📘 Guides
 
-## Start Here
+### Start Here
 
-* [Standard Beginner Guide](docs/GUIDE-STANDARD-BEGINNER.md)
-* [Valhalla Intermediate Guide](docs/GUIDE-VALHALLA-INTERMEDIATE.md)
-* [System Requirements](docs/SYSTEM-REQUIREMENTS.md)
+- [Standard Beginner Guide](docs/GUIDE-STANDARD-BEGINNER.md)
+- [Valhalla Intermediate Guide](docs/GUIDE-VALHALLA-INTERMEDIATE.md)
+- [System Requirements](docs/SYSTEM-REQUIREMENTS.md)
 
-## Setup & Operations
+### Setup & Operations
 
-* [Installation](docs/INSTALLATION.md)
-* [Docker Deployment](docs/DOCKER-DEPLOYMENT.md)
-* [Troubleshooting](docs/TROUBLESHOOTING.md)
-* [Dependencies](docs/DEPENDENCIES.md)
+- [Installation](docs/INSTALLATION.md)
+- [Docker Deployment](docs/DOCKER-DEPLOYMENT.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Dependencies](docs/DEPENDENCIES.md)
 
-## Advanced
+### Advanced
 
-* [Valhalla Build Notes](docs/VALHALLA.md)
-* [Architecture](docs/ARCHITECTURE.md)
+- [Valhalla Build Notes](docs/VALHALLA.md)
+- [Architecture](docs/ARCHITECTURE.md)
 
 ---
 
 ## 🔄 Updating
 
-## Git Install
+### Git Install
 
 ```bash
 cd /opt/media-server/RogueRoute-GPX
@@ -152,7 +152,7 @@ git pull
 ./update.sh
 ```
 
-## ZIP Install
+### ZIP Install
 
 Download the latest release and replace the folder contents, then run:
 
@@ -172,12 +172,12 @@ Run:
 
 This checks:
 
-* Docker availability
-* Node version
-* pnpm version
-* Port conflicts
-* Required folders
-* Routing mode config
+- Docker availability
+- Node version
+- pnpm version
+- Port conflicts
+- Required folders
+- Routing mode config
 
 ---
 
@@ -199,13 +199,14 @@ http://192.168.1.10:9080
 
 ## 📁 Folder Layout
 
-```bash
+```text
 /opt/media-server/
-└── rogueroute-gpx/
+└── RogueRoute-GPX/
     ├── apps/
     ├── docs/
     ├── infra/
     ├── first-run.sh
+    ├── fix-permissions.sh
     ├── deploy.sh
     ├── deploy-valhalla.sh
     ├── update.sh
@@ -218,7 +219,7 @@ http://192.168.1.10:9080
 
 ```bash
 cd /opt/media-server
-rm -rf rogueroute-gpx
+rm -rf RogueRoute-GPX
 ```
 
 If using Docker volumes:
@@ -231,12 +232,12 @@ docker compose down -v
 
 ## 🛠️ Troubleshooting
 
-## `.env` missing
+### `.env` missing
 
 Run:
 
 ```bash
-bash first-run.sh
+bash ./first-run.sh
 ```
 
 or simply:
@@ -245,9 +246,9 @@ or simply:
 ./deploy.sh
 ```
 
-The installer will recreate `.env`.
+The installer recreates `infra/docker/.env`.
 
-## Port 9080 already in use
+### Port 9080 already in use
 
 Change:
 
@@ -261,21 +262,32 @@ inside:
 infra/docker/.env
 ```
 
-## Git errors
+### Git errors
 
-If installed from ZIP, `git pull` is not required.
+If installed from a ZIP release, `git pull` is not required.
+
+### pnpm `sharp` approval
+
+This repo allows the required `sharp` build through `pnpm-workspace.yaml`.
+
+If you still see an ignored-build warning, run:
+
+```bash
+pnpm install
+pnpm ignored-builds
+```
 
 ---
 
 ## ⭐ Why RogueRoute GPX?
 
-* Self-hosted
-* Beginner friendly
-* Standard and advanced routing modes
-* Works well on home servers
-* Docker based deployment
-* Easy updates
-* Expandable architecture
+- Self-hosted
+- Beginner friendly
+- Standard and advanced routing modes
+- Works well on home servers
+- Docker-based deployment
+- Easy updates
+- Expandable architecture
 
 ---
 
@@ -289,6 +301,6 @@ Add your preferred license here.
 
 If this project helped you, please star the repo and share feedback.
 
-```bash
-⭐ GitHub Stars help the project grow
+```text
+⭐ GitHub stars help the project grow
 ```

@@ -76,6 +76,15 @@ enable_pnpm
 cd "$REPO_ROOT"
 pnpm install
 
+if command -v pnpm >/dev/null 2>&1; then
+  IGNORED_BUILDS="$(pnpm ignored-builds 2>/dev/null || true)"
+  if printf '%s\n' "$IGNORED_BUILDS" | grep -qi 'sharp'; then
+    warn "sharp still appears in ignored builds. Ensure pnpm-workspace.yaml contains onlyBuiltDependencies: [sharp]."
+  else
+    log "sharp build approval is configured via pnpm-workspace.yaml"
+  fi
+fi
+
 print_step 5 6 "Build RogueRoute GPX"
 pnpm build
 
