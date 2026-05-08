@@ -1,306 +1,98 @@
-# RogueRoute GPX v8
+# RogueRoute-GPX
 
-Self-hosted GPX route generation built for home lab, media server, and private infrastructure setups.
+Cyber Neon Wolf GPX route generation rebuilt as an OSRM-only routing system. The install flow remains the same style as the earlier pack while adding regional OSM downloads, prepared OSRM graphs, one-container region switching, GitHub update checks, and IITC plugin updates.
 
-Create realistic GPX walking, driving, and advanced routed tracks using a simple web interface or integrated workflows.
+## Runtime pins
 
----
+- Host/local build Node.js: `24.15.0`
+- Docker web runtime: `node:24.15.0-alpine`
+- pnpm: `10.33.4`
+- Next.js / React web app via pnpm workspace
+- Docker + Docker Compose
+- OSRM backend container for routing
 
-## 🚀 Quick Start (Recommended)
-
-Install RogueRoute GPX under:
-
-```bash
-/opt/media-server/RogueRoute-GPX
-```
-
-### 1. Prepare folder
-
-```bash
-sudo mkdir -p /opt/media-server
-sudo chown -R $USER:$USER /opt/media-server
-```
-
-### 2. Clone repository
-
-```bash
-cd /opt/media-server
-git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
-cd RogueRoute-GPX
-```
-
-### 3. Fix permissions
-
-```bash
-bash ./fix-permissions.sh
-```
-
-### 4. Run first-time setup
-
-```bash
-bash ./first-run.sh
-```
-
-The installer will guide you through:
-
-- Standard mode (recommended)
-- Valhalla mode (advanced routing)
-
-### 5. Deploy
-
-#### Standard
-
-```bash
-./deploy.sh
-```
-
-#### Valhalla
-
-```bash
-./deploy-valhalla.sh
-```
-
----
-
-## 📦 Installation Modes
-
-| Mode | Best For | Difficulty | Requirements |
-|------|----------|------------|--------------|
-| Standard | Most users | Beginner | Docker |
-| Valhalla | Advanced routing / land-safe routes | Intermediate | Docker + more RAM + storage |
-
----
-
-## 🖥️ System Requirements
-
-### Standard Mode
-
-Recommended:
-
-- 2 CPU cores
-- 4 GB RAM
-- 10 GB free disk
-- Docker Engine + Docker Compose
-
-Better performance:
-
-- 4 CPU cores
-- 8 GB RAM
-
-### Valhalla Mode
-
-Recommended:
-
-- 4 CPU cores
-- 8–16 GB RAM
-- 50+ GB SSD storage
-- Docker Engine + Docker Compose
-
-Large regional datasets:
-
-- 8 CPU cores
-- 16+ GB RAM
-
-Full-world routing:
-
-- 8+ CPU cores
-- 32–64 GB RAM
-- 300+ GB SSD
-
----
-
-## 🧰 Official Runtime Versions
-
-This release is tested with:
-
-- Node.js **24.15.0** (Krypton)
-- pnpm **10.33.1**
-- Corepack **0.34.7**
-- Docker **29.4.1**
-
----
-
-## 📘 Guides
-
-### Start Here
-
-- [Standard Beginner Guide](docs/GUIDE-STANDARD-BEGINNER.md)
-- [Valhalla Intermediate Guide](docs/GUIDE-VALHALLA-INTERMEDIATE.md)
-- [System Requirements](docs/SYSTEM-REQUIREMENTS.md)
-
-### Setup & Operations
-
-- [Installation](docs/INSTALLATION.md)
-- [Docker Deployment](docs/DOCKER-DEPLOYMENT.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Dependencies](docs/DEPENDENCIES.md)
-
-### Advanced
-
-- [Valhalla Build Notes](docs/VALHALLA.md)
-- [Architecture](docs/ARCHITECTURE.md)
-
----
-
-## 🔄 Updating
-
-### Git Install
+## Quick install
 
 ```bash
 cd /opt/media-server/RogueRoute-GPX
-git pull
-./update.sh
+nvm install 24.15.0
+nvm use 24.15.0
+bash install.sh osrm
 ```
 
-### ZIP Install
-
-Download the latest release and replace the folder contents, then run:
+## Download map extracts
 
 ```bash
-./update.sh
+./download-osm.sh list
+./download-osm.sh core
+# or:
+./download-osm.sh australia
+./download-osm.sh japan
+./download-osm.sh europe
 ```
 
----
+Every download is registered in `infra/docker/.env` as an `OSRM_REGION_*` entry, so first-run setup does not require manual `.env` editing.
 
-## 🩺 Health Check
-
-Run:
+## Prepare OSRM graphs
 
 ```bash
-./doctor.sh
+./prepare-osrm.sh region australia
+./prepare-osrm.sh region japan
+./prepare-osrm.sh all-downloaded
 ```
 
-This checks:
+OSRM serves one active graph at a time. This avoids the RAM crash you hit while trying to process `planet.osm.pbf`.
 
-- Docker availability
-- Node version
-- pnpm version
-- Port conflicts
-- Required folders
-- Routing mode config
-
----
-
-## 🌐 Default Access URL
-
-After deployment:
+## Switch active routing region
 
 ```bash
+./switch-osrm-region.sh japan
+```
+
+The website also includes an OSRM Region Switcher. It updates `.env`, restarts only the OSRM service, waits for health, and keeps the web container running.
+
+## Start
+
+```bash
+./deploy.sh osrm
+```
+
+Open:
+
+```text
 http://SERVER-IP:9080
 ```
 
-Example:
+## GitHub update check
 
 ```bash
-http://192.168.1.10:9080
+./version-check.sh
+./update.sh
 ```
 
----
-
-## 📁 Folder Layout
-
-```text
-/opt/media-server/
-└── RogueRoute-GPX/
-    ├── apps/
-    ├── docs/
-    ├── infra/
-    ├── first-run.sh
-    ├── fix-permissions.sh
-    ├── deploy.sh
-    ├── deploy-valhalla.sh
-    ├── update.sh
-    └── doctor.sh
-```
-
----
-
-## 🧼 Uninstall
+## Release helper
 
 ```bash
-cd /opt/media-server
-rm -rf RogueRoute-GPX
+./release.sh v10.0.0
 ```
 
-If using Docker volumes:
+## Notes on planet.osm.pbf
+
+Planet preprocessing is still possible in theory, but it can require far more RAM/swap than a 128GB server has available, especially with `foot.lua`. For public use, this pack is designed around many regional extracts stored under `/mnt/h/osrm` and one active OSRM graph at a time.
+
+## OSRM repair workflow
+
+For first startup after interrupted map preparation, inspect and repair OSRM data without deleting downloaded `.osm.pbf` files:
 
 ```bash
-docker compose down -v
+./prepare-osrm.sh repair list
+./prepare-osrm.sh repair 3
+./prepare-osrm.sh repair all --yes
 ```
 
----
-
-## 🛠️ Troubleshooting
-
-### `.env` missing
-
-Run:
+Repair moves stale/partial `.osrm*` outputs to `_osrm-backups/` before rebuilding. Ready graphs are skipped unless `--force` is supplied.
 
 ```bash
-bash ./first-run.sh
-```
-
-or simply:
-
-```bash
-./deploy.sh
-```
-
-The installer recreates `infra/docker/.env`.
-
-### Port 9080 already in use
-
-Change:
-
-```bash
-HOST_PORT=9080
-```
-
-inside:
-
-```bash
-infra/docker/.env
-```
-
-### Git errors
-
-If installed from a ZIP release, `git pull` is not required.
-
-### pnpm `sharp` approval
-
-This repo allows the required `sharp` build through `pnpm-workspace.yaml`.
-
-If you still see an ignored-build warning, run:
-
-```bash
-pnpm install
-pnpm ignored-builds
-```
-
----
-
-## ⭐ Why RogueRoute GPX?
-
-- Self-hosted
-- Beginner friendly
-- Standard and advanced routing modes
-- Works well on home servers
-- Docker-based deployment
-- Easy updates
-- Expandable architecture
-
----
-
-## 📜 License
-
-Add your preferred license here.
-
----
-
-## 🙌 Support
-
-If this project helped you, please star the repo and share feedback.
-
-```text
-⭐ GitHub stars help the project grow
+./prepare-osrm.sh repair all --force --yes
+./prepare-osrm.sh cleanup-backups --days 14 --yes
 ```

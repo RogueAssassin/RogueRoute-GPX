@@ -11,7 +11,9 @@ export async function generateRoute(input: {
   request: RouteRequest;
   env: {
     ROUTER_MODE?: string;
-    VALHALLA_URL?: string;
+    OSRM_URL?: string;
+    OSRM_PROFILE?: string;
+    OSRM_SNAP_RADIUS_METERS?: string;
   };
 }) {
   const normalized = normalizeWaypoints(input.rawWaypoints);

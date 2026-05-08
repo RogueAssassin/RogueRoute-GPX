@@ -16,7 +16,7 @@ export type RoutePlan = {
   legs: RouteLeg[];
   totalDistanceMeters: number;
   totalDurationSeconds: number;
-  mode: "direct" | "valhalla";
+  mode: "direct" | "osrm";
   routeMode: RouteMode;
   bounds: {
     minLat: number;

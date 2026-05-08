@@ -7,6 +7,17 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env
+    environment:
+      OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
+      OSRM_SWITCH_SCRIPT: ${OSRM_SWITCH_SCRIPT:-/host/rogueroute/switch-osrm-region.sh}
+      ROGUEROUTE_HOST_ROOT: /host/rogueroute
+    volumes:
+      - ../..:/host/rogueroute
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Required for in-app OSRM region switching. The switch script runs inside
+      # the gpx-web container, so it must see the same prepared OSRM files that
+      # exist on the host and inside the OSRM container.
+      - ${OSRM_DATA_DIR:-/mnt/h/osrm}:${OSRM_DATA_DIR:-/mnt/h/osrm}
     ports:
       - "${HOST_PORT:-9080}:9080"
     networks:

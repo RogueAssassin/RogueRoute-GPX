@@ -8,7 +8,7 @@ export class DirectRouter implements Router {
   async route(waypoints: Waypoint[], request: RouteRequest): Promise<RoutePlan> {
     if (request.strictLandRouting && !request.allowManualOverride) {
       throw new Error(
-        "Strict land routing is enabled, but the app is running in direct mode. Enable Valhalla or allow manual override."
+        "Strict land routing is enabled, but the app is running in direct mode. Enable OSRM or allow manual override."
       );
     }
 

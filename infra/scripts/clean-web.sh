@@ -2,5 +2,6 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 ensure_core_tools
-cd "$DOCKER_DIR"
-docker compose -f docker-compose.yml -f docker-compose.valhalla.yml logs -f gpx-web valhalla
+clean_web_build_artifacts true
+clean_stale_docker_builders
+log "Web cleanup complete"

@@ -8,7 +8,7 @@ if [[ ! -x "$SCRIPT_DIR/fix-permissions.sh" ]]; then
   chmod +x "$SCRIPT_DIR/fix-permissions.sh" 2>/dev/null || true
 fi
 
-if [ ! -x "$SCRIPT_DIR/install.sh" ] || [ ! -x "$SCRIPT_DIR/deploy.sh" ] || [ ! -x "$SCRIPT_DIR/deploy-valhalla.sh" ]; then
+if [ ! -x "$SCRIPT_DIR/install.sh" ] || [ ! -x "$SCRIPT_DIR/deploy.sh" ]; then
   bash "$SCRIPT_DIR/fix-permissions.sh" "$SCRIPT_DIR"
 fi
 
@@ -19,30 +19,30 @@ DEPLOY_CMD="./deploy.sh"
 choose_mode() {
   local input normalized
   if [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
-    normalized="$(normalize_mode "$ROGUEROUTE_MODE")" || fail "Invalid ROGUEROUTE_MODE: $ROGUEROUTE_MODE. Use Standard or Valhalla."
+    normalized="$(normalize_mode "$ROGUEROUTE_MODE")" || fail "Invalid ROGUEROUTE_MODE: $ROGUEROUTE_MODE. Use Standard or OSRM."
     MODE="$normalized"
   elif [[ -t 0 ]]; then
     echo
     echo "Choose deployment mode:"
     echo "  • Standard  - recommended for most users"
-    echo "  • Valhalla  - advanced routing / self-hosted map engine"
+    echo "  • OSRM  - advanced routing / self-hosted map engine"
     echo
     while true; do
-      read -r -p "Type Standard or Valhalla [Standard]: " input
+      read -r -p "Type Standard or OSRM [Standard]: " input
       input="${input:-Standard}"
       if normalized="$(normalize_mode "$input" 2>/dev/null)"; then
         MODE="$normalized"
         break
       fi
-      warn "Invalid choice. Please type Standard or Valhalla."
+      warn "Invalid choice. Please type Standard or OSRM."
     done
   else
     MODE="standard"
   fi
 
-  if [[ "$MODE" == "valhalla" ]]; then
-    MODE_LABEL="Valhalla"
-    DEPLOY_CMD="./deploy-valhalla.sh"
+  if [[ "$MODE" == "osrm" ]]; then
+    MODE_LABEL="OSRM"
+    DEPLOY_CMD="./deploy.sh osrm"
   else
     MODE="standard"
     MODE_LABEL="Standard"
@@ -51,7 +51,7 @@ choose_mode() {
 }
 
 print_intro() {
-  print_header "RogueRoute GPX v8 Installer"
+  print_header "RogueRoute GPX v10 Installer"
 }
 
 choose_mode
@@ -90,12 +90,12 @@ print_step 5 6 "Build RogueRoute GPX"
 pnpm build
 
 print_step 6 6 "Ready for deployment"
-if [[ "$MODE" == "valhalla" ]]; then
-  validate_env_for_mode valhalla || true
-  warn "Before first Valhalla deploy, confirm VALHALLA_DATA_PATH points to your real map-data folder and place your .osm.pbf files or existing tiles there."
+if [[ "$MODE" == "osrm" ]]; then
+  validate_env_for_mode osrm || true
+  warn "Before first OSRM deploy, confirm OSRM_DATA_DIR points to your real map-data folder and place your .osm.pbf files or existing tiles there."
 else
   validate_env_for_mode standard || true
 fi
 log "Mode selected: $MODE_LABEL"
 log "Next command: $DEPLOY_CMD"
-log "After a reboot or crash, use ./restart.sh or ./restart-valhalla.sh"
+log "After a reboot or crash, use ./restart.sh"

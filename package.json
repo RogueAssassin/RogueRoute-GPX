@@ -1,10 +1,10 @@
 {
   "name": "gpx-route-generator",
   "private": true,
-  "packageManager": "pnpm@10.33.1",
+  "packageManager": "pnpm@10.33.4",
   "engines": {
     "node": "24.15.0",
-    "pnpm": "10.33.1"
+    "pnpm": "10.33.4"
   },
   "scripts": {
     "dev": "pnpm --filter @rogue/gpx-web dev",
@@ -15,6 +15,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
-    "typescript": "^5.7.3"
+    "typescript": "^6.0.3"
   }
 }

@@ -15,6 +15,9 @@
       {
         "name": "next"
       }
+    ],
+    "types": [
+      "node"
     ]
   },
   "include": [

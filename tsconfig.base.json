@@ -7,11 +7,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@rogue/gpx-core": [
-        "packages/gpx-core/src/index.ts"
-      ]
-    }
+    "ignoreDeprecations": "6.0"
   }
 }
