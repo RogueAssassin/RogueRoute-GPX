@@ -7,205 +7,143 @@ DOCKER_DIR="$REPO_ROOT/infra/docker"
 ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
 ENV_STANDARD="$DOCKER_DIR/.env.standard"
-ENV_VALHALLA="$DOCKER_DIR/.env.valhalla"
-APP_VERSION="v8"
+ENV_OSRM="$DOCKER_DIR/.env.osrm"
+APP_VERSION="v10.0.0"
 EXPECTED_NODE_MAJOR="24"
 EXPECTED_NODE_VERSION="24.15.0"
 EXPECTED_COREPACK_VERSION="0.34.7"
 EXPECTED_DOCKER_VERSION="29.4.1"
-EXPECTED_PNPM_VERSION="10.33.1"
+EXPECTED_PNPM_VERSION="10.33.4"
+EXPECTED_TYPESCRIPT_VERSION="6.0.3"
 
 log() { echo "[INFO] $*"; }
 warn() { echo "[WARN] $*"; }
 fail() { echo "[ERROR] $*"; exit 1; }
 
-print_header() {
-  local title="${1:-RogueRoute GPX}"
-  printf '\n'
-  printf '╔════════════════════════════════════════════╗\n'
-  printf '║ %-42s ║\n' "$title"
-  printf '╚════════════════════════════════════════════╝\n'
-}
-
-print_step() {
-  local current="$1"
-  local total="$2"
-  local message="$3"
-  printf '\n[%s/%s] %s\n' "$current" "$total" "$message"
-}
+print_header() { local title="${1:-RogueRoute GPX}"; printf '\n╔════════════════════════════════════════════╗\n║ %-42s ║\n╚════════════════════════════════════════════╝\n' "$title"; }
+print_step() { printf '\n[%s/%s] %s\n' "$1" "$2" "$3"; }
 
 print_mode_summary() {
-  local mode="${1:-standard}"
+  local mode="${1:-osrm}"
   case "$mode" in
-    valhalla)
-      echo "Mode selected: Valhalla"
-      echo "Audience: intermediate / advanced users"
-      echo "Focus: land-aware routing with self-hosted Valhalla"
+    osrm)
+      echo "Mode selected: OSRM"
+      echo "Audience: advanced / quality routing users"
+      echo "Focus: road, sidewalk, path, and footway-following GPX using local OSM data"
       ;;
     *)
       echo "Mode selected: Standard"
-      echo "Audience: beginner / most self-host users"
-      echo "Focus: easiest setup and lowest resource usage"
+      echo "Audience: web-only testing / emergency fallback"
+      echo "Focus: lowest resource use; direct routing only"
       ;;
   esac
 }
 
-trim_value() {
-  local raw="${1:-}"
-  raw="${raw#"${raw%%[![:space:]]*}"}"
-  raw="${raw%"${raw##*[![:space:]]}"}"
-  printf '%s' "$raw"
-}
+trim_value() { local raw="${1:-}"; raw="${raw#"${raw%%[![:space:]]*}"}"; raw="${raw%"${raw##*[![:space:]]}"}"; printf '%s' "$raw"; }
 
 normalize_mode() {
   local raw normalized
-  raw="$(trim_value "${1:-standard}")"
-  normalized="${raw,,}"
+  raw="$(trim_value "${1:-osrm}")"; normalized="${raw,,}"
   case "$normalized" in
-    ""|standard|std) echo "standard" ;;
-    valhalla|val) echo "valhalla" ;;
+    ""|osrm|routing) echo "osrm" ;;
+    standard|std|direct) echo "standard" ;;
     *) return 1 ;;
   esac
 }
 
 get_env_router_mode() {
-  if [[ ! -f "$ENV_FILE" ]]; then
-    echo ""
-    return 0
-  fi
-  local raw
-  raw="$(grep -E '^ROUTER_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)"
-  raw="$(trim_value "$raw")"
-  case "${raw,,}" in
-    valhalla|val) echo "valhalla" ;;
-    direct|standard|std) echo "standard" ;;
-    *) echo "" ;;
-  esac
+  [[ -f "$ENV_FILE" ]] || { echo ""; return 0; }
+  local raw; raw="$(grep -E '^ROUTER_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)"; raw="$(trim_value "$raw")"
+  case "${raw,,}" in osrm) echo osrm ;; direct|standard|std) echo standard ;; *) echo "" ;; esac
 }
 
 resolve_requested_mode() {
-  local requested="${1:-}"
-  local normalized=""
-
-  if [[ -n "$requested" ]]; then
-    normalize_mode "$requested"
-    return 0
-  fi
-
-  if [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
-    normalize_mode "$ROGUEROUTE_MODE"
-    return 0
-  fi
-
-  normalized="$(get_env_router_mode)"
-  if [[ -n "$normalized" ]]; then
-    echo "$normalized"
-    return 0
-  fi
-
-  echo "standard"
+  [[ -n "${1:-}" ]] && { normalize_mode "$1"; return 0; }
+  [[ -n "${ROGUEROUTE_MODE:-}" ]] && { normalize_mode "$ROGUEROUTE_MODE"; return 0; }
+  local detected; detected="$(get_env_router_mode)"; [[ -n "$detected" ]] && echo "$detected" || echo osrm
 }
 
-find_editor() {
-  local candidate
-  for candidate in "${EDITOR:-}" nano vi vim; do
-    [[ -n "$candidate" ]] || continue
-    if command -v "$candidate" >/dev/null 2>&1; then
-      echo "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
+find_editor() { for candidate in "${EDITOR:-}" nano vi vim; do [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1 && { echo "$candidate"; return 0; }; done; return 1; }
 
 maybe_edit_env_file() {
-  local mode
-  mode="$(normalize_mode "${1:-standard}")" || fail "Invalid mode for env edit: ${1:-}"
+  [[ -f "$ENV_FILE" && -t 0 ]] || return 0
+  local mode; mode="$(normalize_mode "${1:-osrm}")" || fail "Invalid mode for env edit: ${1:-}"
+  local prompt="Edit infra/docker/.env now before continuing? [y/N]: " default_reply="N"
+  if [[ "$mode" == "osrm" ]]; then prompt="Edit infra/docker/.env now to confirm OSRM_DATA_DIR / OSRM_PBF? [Y/n]: "; default_reply="Y"; fi
+  local reply editor; read -r -p "$prompt" reply || true; reply="${reply:-$default_reply}"
+  case "${reply,,}" in y|yes) if editor="$(find_editor)"; then "$editor" "$ENV_FILE"; load_env_values; else warn "No terminal editor found. Update $ENV_FILE manually."; fi ;; esac
+}
 
-  [[ -f "$ENV_FILE" ]] || return 0
-  [[ -t 0 ]] || return 0
 
-  local prompt default_reply reply editor
-  if [[ "$mode" == "valhalla" ]]; then
-    prompt="Edit infra/docker/.env now so you can confirm VALHALLA_DATA_PATH before continuing? [Y/n]: "
-    default_reply="Y"
+set_env_var() {
+  local key="$1" value="$2" file="${3:-$ENV_FILE}"
+  mkdir -p "$(dirname "$file")"
+  touch "$file"
+  if grep -qE "^${key}=" "$file"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$file"
   else
-    prompt="Edit infra/docker/.env now before continuing? [y/N]: "
-    default_reply="N"
+    printf '%s=%s\n' "$key" "$value" >> "$file"
   fi
+}
 
-  read -r -p "$prompt" reply || true
-  reply="${reply:-$default_reply}"
-
-  case "${reply,,}" in
-    y|yes)
-      if editor="$(find_editor)"; then
-        "$editor" "$ENV_FILE"
-        load_env_values
-      else
-        warn "No terminal editor was found. Update $ENV_FILE manually, then rerun this command."
-      fi
-      ;;
-    *) ;;
-  esac
+ensure_osm_region_env_catalog() {
+  [[ -f "$REPO_ROOT/scripts/osm-region-catalog.sh" ]] || return 0
+  # shellcheck disable=SC1091
+  source "$REPO_ROOT/scripts/osm-region-catalog.sh"
+  set_env_var OSRM_ACTIVE_REGION "${OSRM_ACTIVE_REGION:-australia}"
+  set_env_var OSRM_SWITCH_ENABLED "${OSRM_SWITCH_ENABLED:-true}"
+  set_env_var OSRM_SWITCH_SCRIPT "${OSRM_SWITCH_SCRIPT:-/host/rogueroute/switch-osrm-region.sh}"
+  echo "$OSM_REGION_CATALOG" | while IFS='|' read -r key label url graph rough expanded priority; do
+    [[ -z "$key" ]] && continue
+    local var_name
+    var_name="$(region_env_name "$key")"
+    set_env_var "$var_name" "${graph}-latest.osm.pbf"
+  done
 }
 
 bootstrap_env_file() {
-  local requested="${1:-standard}"
-  local mode
-  mode="$(normalize_mode "$requested")" || fail "Invalid mode: $requested. Use Standard or Valhalla."
-
-  if [[ -f "$ENV_FILE" ]]; then
-    log "Reusing existing env file: $ENV_FILE"
-    return 0
-  fi
-
-  local template
-  case "$mode" in
-    standard) template="$ENV_STANDARD" ;;
-    valhalla) template="$ENV_VALHALLA" ;;
-  esac
-
+  local mode; mode="$(normalize_mode "${1:-osrm}")" || fail "Invalid mode: ${1:-}. Use osrm or standard."
+  [[ -f "$ENV_FILE" ]] && { ensure_osm_region_env_catalog; configure_env_for_mode "$mode"; log "Reusing existing env file: $ENV_FILE"; return 0; }
+  local template="$ENV_OSRM"; [[ "$mode" == "standard" ]] && template="$ENV_STANDARD"
   [[ -f "$template" ]] || fail "Missing env template: $template"
   cp "$template" "$ENV_FILE"
+  ensure_osm_region_env_catalog
+  configure_env_for_mode "$mode"
   log "Created $ENV_FILE from $(basename "$template")"
-  if [[ "$mode" == "valhalla" ]]; then
-    warn "Review VALHALLA_DATA_PATH in $ENV_FILE before the first Valhalla deploy."
-  fi
 }
 
-ensure_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
+configure_env_for_mode() {
+  local mode; mode="$(normalize_mode "${1:-osrm}")" || fail "Invalid mode: ${1:-}"
+  case "$mode" in
+    osrm)
+      set_env_var ROUTER_MODE osrm
+      set_env_var OSRM_URL "${OSRM_URL:-http://osrm:5000}"
+      ;;
+    standard)
+      set_env_var ROUTER_MODE direct
+      ;;
+  esac
 }
 
-ensure_core_tools() {
-  ensure_command docker
-  docker compose version >/dev/null 2>&1 || fail "docker compose is not available"
-}
+ensure_command() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"; }
+ensure_core_tools() { ensure_command docker; docker compose version >/dev/null 2>&1 || fail "docker compose is not available"; }
+ensure_env_file() { [[ -f "$ENV_FILE" ]] || fail "Missing $ENV_FILE. Run ./first-run.sh or ./deploy.sh."; }
+ensure_media_net() { if ! docker network inspect media-net >/dev/null 2>&1; then warn "Docker network 'media-net' does not exist yet. Creating it now."; docker network create media-net >/dev/null; fi; }
 
-ensure_env_file() {
-  if [[ ! -f "$ENV_FILE" ]]; then
-    fail "Missing $ENV_FILE . Run bash ./fix-permissions.sh, then ./first-run.sh, or let the deploy script bootstrap it from .env.standard / .env.valhalla."
-  fi
-}
-
-ensure_media_net() {
-  if ! docker network inspect media-net >/dev/null 2>&1; then
-    warn "Docker network 'media-net' does not exist yet. Creating it now."
-    docker network create media-net >/dev/null
-  fi
+load_nvm_if_available() {
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  [[ -s "$NVM_DIR/nvm.sh" ]] && . "$NVM_DIR/nvm.sh"
 }
 
 ensure_node_version() {
-  ensure_command node
-  local detected major
-  detected="$(node -v 2>/dev/null || true)"
-  major="${detected#v}"
-  major="${major%%.*}"
-  [[ -n "$major" ]] || fail "Unable to determine Node.js version."
-  if [[ "$major" != "$EXPECTED_NODE_MAJOR" ]]; then
-    fail "Node.js v$EXPECTED_NODE_MAJOR is required. Supported standard: Node.js $EXPECTED_NODE_VERSION. Detected: ${detected:-unknown}. Install Node $EXPECTED_NODE_VERSION and try again."
+  load_nvm_if_available
+  if command -v nvm >/dev/null 2>&1; then
+    nvm install "$EXPECTED_NODE_VERSION" >/dev/null
+    nvm use "$EXPECTED_NODE_VERSION" >/dev/null
   fi
+  ensure_command node
+  local detected; detected="$(node -v 2>/dev/null || true)"
+  [[ "$detected" == "v$EXPECTED_NODE_VERSION" ]] || fail "Node.js v$EXPECTED_NODE_VERSION is required exactly. Detected: ${detected:-unknown}. Run: nvm install $EXPECTED_NODE_VERSION && nvm use $EXPECTED_NODE_VERSION. Avoid sudo because sudo usually hides nvm."
 }
 
 enable_pnpm() {
@@ -214,177 +152,101 @@ enable_pnpm() {
     corepack enable >/dev/null 2>&1 || true
     corepack prepare "pnpm@$EXPECTED_PNPM_VERSION" --activate >/dev/null 2>&1 || true
   else
-    warn "Corepack was not found. pnpm must already be installed manually."
+    warn "Corepack not found. pnpm must already be installed manually."
   fi
-
-  if ! command -v pnpm >/dev/null 2>&1; then
-    fail "pnpm is not available. Install Node.js $EXPECTED_NODE_VERSION with Corepack enabled, or run: sudo npm install -g pnpm@$EXPECTED_PNPM_VERSION"
-  fi
+  command -v pnpm >/dev/null 2>&1 || fail "pnpm is not available. Run: sudo npm install -g pnpm@$EXPECTED_PNPM_VERSION"
 }
 
 load_env_values() {
   [[ -f "$ENV_FILE" ]] || return 0
-  VALHALLA_DATA_PATH=$(grep -E '^VALHALLA_DATA_PATH=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   HOST_PORT=$(grep -E '^HOST_PORT=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   PORT=$(grep -E '^PORT=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   ROUTER_MODE=$(grep -E '^ROUTER_MODE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
-  VALHALLA_URL=$(grep -E '^VALHALLA_URL=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
-  VALHALLA_PREFER_PBF_REBUILD=$(grep -E '^VALHALLA_PREFER_PBF_REBUILD=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
-  VALHALLA_SMART_REPAIR=$(grep -E '^VALHALLA_SMART_REPAIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_URL=$(grep -E '^OSRM_URL=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_PROFILE=$(grep -E '^OSRM_PROFILE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_DATA_DIR=$(grep -E '^OSRM_DATA_DIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_PBF=$(grep -E '^OSRM_PBF=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_GRAPH=$(grep -E '^OSRM_GRAPH=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_SNAP_RADIUS_METERS=$(grep -E '^OSRM_SNAP_RADIUS_METERS=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_THREADS=$(grep -E '^OSRM_THREADS=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  OSRM_ACTIVE_REGION=$(grep -E '^OSRM_ACTIVE_REGION=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   NEXT_PUBLIC_APP_NAME=$(grep -E '^NEXT_PUBLIC_APP_NAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
-
-  VALHALLA_DATA_PATH="$(trim_value "${VALHALLA_DATA_PATH:-}")"
-  HOST_PORT="$(trim_value "${HOST_PORT:-}")"
-  PORT="$(trim_value "${PORT:-}")"
-  ROUTER_MODE="$(trim_value "${ROUTER_MODE:-}")"
-  VALHALLA_URL="$(trim_value "${VALHALLA_URL:-}")"
-  VALHALLA_PREFER_PBF_REBUILD="$(trim_value "${VALHALLA_PREFER_PBF_REBUILD:-true}")"
-  VALHALLA_SMART_REPAIR="$(trim_value "${VALHALLA_SMART_REPAIR:-true}")"
-  NEXT_PUBLIC_APP_NAME="$(trim_value "${NEXT_PUBLIC_APP_NAME:-RogueRoute GPX}")"
-
-  : "${VALHALLA_PREFER_PBF_REBUILD:=true}"
-  : "${VALHALLA_SMART_REPAIR:=true}"
-  : "${ROUTER_MODE:=direct}"
-  : "${HOST_PORT:=9080}"
-  : "${NEXT_PUBLIC_APP_NAME:=RogueRoute GPX}"
-}
-
-validate_boolean_env() {
-  local name="$1"
-  local value="${2:-}"
-  case "${value,,}" in
-    true|false|'') return 0 ;;
-    *) fail "$name must be true or false in $ENV_FILE. Current value: $value" ;;
-  esac
+  HOST_PORT="$(trim_value "${HOST_PORT:-9080}")"; PORT="$(trim_value "${PORT:-9080}")"; ROUTER_MODE="$(trim_value "${ROUTER_MODE:-osrm}")"
+  OSRM_URL="$(trim_value "${OSRM_URL:-http://osrm:5000}")"; OSRM_PROFILE="$(trim_value "${OSRM_PROFILE:-foot}")"; OSRM_DATA_DIR="$(trim_value "${OSRM_DATA_DIR:-/mnt/h/osrm}")"
+  OSRM_PBF="$(trim_value "${OSRM_PBF:-planet.osm.pbf}")"; OSRM_GRAPH="$(trim_value "${OSRM_GRAPH:-planet.osrm}")"; OSRM_SNAP_RADIUS_METERS="$(trim_value "${OSRM_SNAP_RADIUS_METERS:-150}")"; OSRM_THREADS="$(trim_value "${OSRM_THREADS:-8}")"; OSRM_ACTIVE_REGION="$(trim_value "${OSRM_ACTIVE_REGION:-australia}")"
+  NEXT_PUBLIC_APP_NAME="$(trim_value "${NEXT_PUBLIC_APP_NAME:-RogueRoute-GPX}")"
 }
 
 validate_env_for_mode() {
-  local mode
-  mode="$(normalize_mode "${1:-standard}")" || fail "Invalid mode requested for validation: ${1:-}"
-
+  local mode; mode="$(normalize_mode "${1:-osrm}")" || fail "Invalid mode requested: ${1:-}"
   load_env_values
-
-  [[ -n "${HOST_PORT:-}" ]] || HOST_PORT="9080"
-  [[ "$HOST_PORT" =~ ^[0-9]+$ ]] || fail "HOST_PORT must be numeric in $ENV_FILE. Current value: ${HOST_PORT:-unset}"
-
-  if [[ -n "${PORT:-}" && ! "$PORT" =~ ^[0-9]+$ ]]; then
-    fail "PORT must be numeric in $ENV_FILE. Current value: ${PORT:-unset}"
-  fi
-
-  local router_mode_normalized
-  router_mode_normalized="$(normalize_mode "${ROUTER_MODE:-standard}" 2>/dev/null || true)"
-
+  [[ "$HOST_PORT" =~ ^[0-9]+$ ]] || fail "HOST_PORT must be numeric in $ENV_FILE. Current: ${HOST_PORT:-unset}"
+  [[ -z "${PORT:-}" || "$PORT" =~ ^[0-9]+$ ]] || fail "PORT must be numeric in $ENV_FILE. Current: ${PORT:-unset}"
   case "$mode" in
-    standard)
-      if [[ -n "${ROUTER_MODE:-}" && "${ROUTER_MODE,,}" != "direct" && "$router_mode_normalized" == "valhalla" ]]; then
-        warn "Standard mode deploy was chosen, but ROUTER_MODE in $ENV_FILE is set for Valhalla. Standard mode usually uses ROUTER_MODE=direct."
-      elif [[ "${ROUTER_MODE,,}" != "direct" ]]; then
-        warn "Standard mode usually uses ROUTER_MODE=direct. Current value: ${ROUTER_MODE:-unset}"
-      fi
+    osrm)
+      [[ "${ROUTER_MODE,,}" == "osrm" ]] || fail "OSRM mode requires ROUTER_MODE=osrm in $ENV_FILE"
+      [[ "$OSRM_URL" =~ ^https?:// ]] || fail "OSRM_URL must start with http:// or https://"
+      [[ "$OSRM_PROFILE" =~ ^(foot|bike|car)$ ]] || fail "OSRM_PROFILE must be foot, bike, or car"
+      [[ -n "$OSRM_DATA_DIR" ]] || fail "OSRM_DATA_DIR is required"
+      [[ -n "$OSRM_PBF" ]] || fail "OSRM_PBF is required"
+      [[ -n "$OSRM_GRAPH" ]] || fail "OSRM_GRAPH is required"
+      [[ "$OSRM_THREADS" =~ ^[0-9]+$ ]] || fail "OSRM_THREADS must be numeric"
       ;;
-    valhalla)
-      [[ "$router_mode_normalized" == "valhalla" ]] || fail "Valhalla mode requires ROUTER_MODE=valhalla in $ENV_FILE"
-      [[ -n "${VALHALLA_URL:-}" ]] || fail "VALHALLA_URL is required in $ENV_FILE for Valhalla mode"
-      [[ "$VALHALLA_URL" =~ ^https?:// ]] || fail "VALHALLA_URL must start with http:// or https:// in $ENV_FILE"
-      [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is required in $ENV_FILE for Valhalla mode"
-      validate_boolean_env "VALHALLA_PREFER_PBF_REBUILD" "${VALHALLA_PREFER_PBF_REBUILD:-}"
-      validate_boolean_env "VALHALLA_SMART_REPAIR" "${VALHALLA_SMART_REPAIR:-}"
+    standard)
+      [[ "${ROUTER_MODE,,}" == "direct" ]] || warn "Standard mode usually uses ROUTER_MODE=direct. Current: ${ROUTER_MODE:-unset}"
       ;;
   esac
 }
 
-check_port_free() {
-  local port="$1"
-  [[ -n "$port" ]] || return 0
-  if ss -tulpn 2>/dev/null | grep -q ":$port\b"; then
-    warn "Port $port appears to be in use. Review with: sudo ss -tulpn | grep :$port"
-  fi
-}
+check_port_free() { local port="$1"; [[ -n "$port" ]] || return 0; ss -tulpn 2>/dev/null | grep -q ":$port\b" && warn "Port $port appears to be in use. Review with: sudo ss -tulpn | grep :$port" || true; }
 
-ensure_mount_available() {
-  [[ -n "${VALHALLA_DATA_PATH:-}" ]] || load_env_values
-  [[ -n "${VALHALLA_DATA_PATH:-}" ]] || fail "VALHALLA_DATA_PATH is not set in $ENV_FILE"
-  [[ -d "$VALHALLA_DATA_PATH" ]] || fail "VALHALLA_DATA_PATH does not exist: $VALHALLA_DATA_PATH"
-  if command -v findmnt >/dev/null 2>&1; then
-    if ! findmnt "$VALHALLA_DATA_PATH" >/dev/null 2>&1; then
-      warn "VALHALLA_DATA_PATH exists but does not appear as a mounted filesystem. If this path should be on another drive, confirm the mount is active before starting Valhalla."
-    fi
-  fi
-}
-
-check_valhalla_data() {
+ensure_osrm_mount_available() {
   load_env_values
-  ensure_mount_available
-  local pbf_count
-  pbf_count=$(find "$VALHALLA_DATA_PATH" -maxdepth 1 -type f -name '*.osm.pbf' | wc -l | tr -d ' ')
-  if [[ "$pbf_count" == "0" && ! -e "$VALHALLA_DATA_PATH/valhalla_tiles.tar" && ! -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
-    fail "No .osm.pbf files, valhalla_tiles.tar, or valhalla_tiles directory found in $VALHALLA_DATA_PATH"
+  [[ -d "$OSRM_DATA_DIR" ]] || fail "OSRM_DATA_DIR does not exist: $OSRM_DATA_DIR"
+  if command -v findmnt >/dev/null 2>&1 && ! findmnt "$OSRM_DATA_DIR" >/dev/null 2>&1; then
+    warn "OSRM_DATA_DIR exists but does not appear as its own mounted filesystem. Confirm /mnt/h is active before planet builds."
   fi
 }
 
-valhalla_source_mode() {
-  load_env_values
-  [[ -n "${VALHALLA_DATA_PATH:-}" ]] || { echo none; return 0; }
-  local pbf_count planet_count
-  pbf_count=$(find "$VALHALLA_DATA_PATH" -maxdepth 1 -type f -name '*.osm.pbf' | wc -l | tr -d ' ')
-  planet_count=$(find "$VALHALLA_DATA_PATH" -maxdepth 1 -type f -name 'planet-latest.osm.pbf' | wc -l | tr -d ' ')
-
-  if [[ -d "$VALHALLA_DATA_PATH/valhalla_tiles" || -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" ]]; then
-    if [[ "$pbf_count" -gt 0 && "${VALHALLA_PREFER_PBF_REBUILD,,}" == "true" ]]; then
-      if [[ "$planet_count" -gt 0 ]]; then echo planet-rebuild; else echo regional-rebuild; fi
-    else
-      echo tiles
-    fi
-    return 0
-  fi
-
-  if [[ "$planet_count" -gt 0 ]]; then echo planet; return 0; fi
-  if [[ "$pbf_count" -gt 1 ]]; then echo regional; return 0; fi
-  if [[ "$pbf_count" -eq 1 ]]; then echo single-pbf; return 0; fi
-  echo none
+check_osrm_data() {
+  load_env_values; ensure_osrm_mount_available
+  [[ -f "$OSRM_DATA_DIR/$OSRM_PBF" ]] || fail "Missing OSRM input PBF: $OSRM_DATA_DIR/$OSRM_PBF"
 }
 
-verify_valhalla_outputs() {
-  load_env_values
-  ensure_mount_available
-
-  local pbf_count tile_dir_count tar_size json_exists mode
-  pbf_count=$(find "$VALHALLA_DATA_PATH" -maxdepth 1 -type f -name '*.osm.pbf' -size +0c | wc -l | tr -d ' ')
-  tile_dir_count=0
-  if [[ -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
-    tile_dir_count=$(find "$VALHALLA_DATA_PATH/valhalla_tiles" -mindepth 1 | wc -l | tr -d ' ')
-  fi
-  tar_size=0
-  if [[ -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" ]]; then
-    tar_size=$(wc -c < "$VALHALLA_DATA_PATH/valhalla_tiles.tar" | tr -d ' ')
-  fi
-  json_exists=false
-  [[ -f "$VALHALLA_DATA_PATH/valhalla.json" ]] && json_exists=true
-  mode=$(valhalla_source_mode)
-
-  log "Valhalla data path: $VALHALLA_DATA_PATH"
-  log "Detected mode: $mode"
-  log "Detected .osm.pbf files: $pbf_count"
-  [[ -f "$VALHALLA_DATA_PATH/planet-latest.osm.pbf" ]] && log "planet-latest.osm.pbf detected"
-  if [[ -f "$VALHALLA_DATA_PATH/valhalla_tiles.tar" ]]; then
-    log "valhalla_tiles.tar detected (${tar_size} bytes)"
-    [[ "$tar_size" -gt 0 ]] || warn "valhalla_tiles.tar exists but is empty."
-  fi
-  if [[ -d "$VALHALLA_DATA_PATH/valhalla_tiles" ]]; then
-    log "valhalla_tiles directory detected ($tile_dir_count entries)"
-    [[ "$tile_dir_count" -gt 0 ]] || warn "valhalla_tiles directory exists but is empty."
-  fi
-  if [[ "$json_exists" == true ]]; then
-    log "valhalla.json detected"
+verify_osrm_outputs() {
+  load_env_values; ensure_osrm_mount_available
+  log "OSRM data dir: $OSRM_DATA_DIR"
+  log "Input PBF: $OSRM_PBF"
+  log "Graph: $OSRM_GRAPH"
+  [[ -f "$OSRM_DATA_DIR/$OSRM_PBF" ]] && log "PBF detected: $(du -h "$OSRM_DATA_DIR/$OSRM_PBF" | awk '{print $1}')" || warn "PBF missing: $OSRM_DATA_DIR/$OSRM_PBF"
+  if [[ -f "$OSRM_DATA_DIR/$OSRM_GRAPH" ]]; then
+    log "OSRM graph detected: $(du -h "$OSRM_DATA_DIR/$OSRM_GRAPH" | awk '{print $1}')"
   else
-    warn "valhalla.json not found in $VALHALLA_DATA_PATH"
+    warn "OSRM graph missing: $OSRM_DATA_DIR/$OSRM_GRAPH. Run ./prepare-osrm.sh"
   fi
+  local count; count=$(find "$OSRM_DATA_DIR" -maxdepth 1 -name "${OSRM_GRAPH%.osrm}.osrm*" | wc -l | tr -d ' ')
+  log "OSRM sidecar files detected: $count"
 }
 
-prepare_valhalla_data() {
-  validate_env_for_mode valhalla
-  check_valhalla_data
-  verify_valhalla_outputs
+prepare_osrm_data() { validate_env_for_mode osrm; check_osrm_data; verify_osrm_outputs; }
+
+clean_web_build_artifacts() {
+  local stopped_only="${1:-true}"
+  if [[ "$stopped_only" == "true" ]] && docker ps --format '{{.Names}}' | grep -qx 'gpx-web'; then
+    fail "gpx-web is still running. Stop it first with ./stop.sh, then rerun cleanup."
+  fi
+  log "Removing stale web build artifacts"
+  rm -rf "$REPO_ROOT/apps/gpx-web/.next" "$REPO_ROOT/apps/gpx-web/out"
+  rm -rf "$REPO_ROOT/apps/gpx-web/tsconfig.tsbuildinfo"
+}
+
+clean_stale_docker_builders() {
+  log "Pruning dangling RogueRoute GPX Docker build cache"
+  docker builder prune -f --filter type=exec.cachemount >/dev/null 2>&1 || true
+}
+
+print_restart_help() {
+  log "Restart complete. Open http://SERVER-IP:${HOST_PORT:-9080} or run ./status.sh to verify containers."
 }
 
 update_repo_if_git_checkout() {

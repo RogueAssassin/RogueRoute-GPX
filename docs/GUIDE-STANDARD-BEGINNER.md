@@ -3,7 +3,7 @@
 Use this guide if you want the easiest self-hosted setup.
 
 ## What this mode is for
-Standard mode runs the RogueRoute GPX web app without Valhalla. It is the best choice for:
+Standard mode runs the RogueRoute GPX web app without OSRM. It is the best choice for:
 - first-time users
 - home server users
 - low-maintenance deployments
@@ -17,7 +17,7 @@ You need:
 - `docker compose`
 - Node.js 24.15.0
 - Corepack 0.34.7
-- pnpm 10.33.1
+- pnpm 10.33.4
 - port `9080` available
 
 ## Step 1: Get the release onto your server
@@ -33,7 +33,7 @@ Unzip the release, then enter the extracted folder.
 
 ```bash
 cd /opt/media-server
-unzip RogueRoute-GPX-v8.zip
+unzip RogueRoute-GPX-v10.zip
 cd RogueRoute-GPX
 ```
 

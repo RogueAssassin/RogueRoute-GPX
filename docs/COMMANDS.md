@@ -1,31 +1,29 @@
-# Commands Reference
+# RogueRoute-GPX Commands
 
-## Standard
 ```bash
 ./first-run.sh
-./install.sh
-./deploy.sh
-./restart.sh
-./logs.sh
+./install.sh osrm
+./prepare-osrm.sh
+./deploy.sh osrm
 ./status.sh
+./logs.sh
+./verify-osrm.sh
+./version-check.sh
+./update.sh osrm
 ./stop.sh
-./update.sh
-./refresh.sh
 ```
 
-## Valhalla Enhanced
+Use `./deploy.sh standard` only for direct fallback testing.
+
+## OSRM repair commands
+
 ```bash
-./deploy-valhalla.sh
-./restart-valhalla.sh
-./verify-valhalla.sh
-./repair-valhalla.sh
-./logs-valhalla.sh
-./refresh-valhalla.sh
+./prepare-osrm.sh repair list
+./prepare-osrm.sh repair 3
+./prepare-osrm.sh repair australia-latest.osm.pbf
+./prepare-osrm.sh repair all --yes
+./prepare-osrm.sh repair all --force --yes
+./prepare-osrm.sh cleanup-backups --days 14 --yes
 ```
 
-## Diagnostics
-```bash
-./doctor.sh
-curl -v http://127.0.0.1:9080/api/health
-curl -v http://127.0.0.1:8002/status
-```
+`repair list` shows every `.osm.pbf` under `OSRM_DATA_DIR` and marks each item as `ready`, `partial`, or `missing`. Repair never deletes `.osm.pbf` inputs. Old matching `.osrm*` outputs are moved to `_osrm-backups/` before rebuild.

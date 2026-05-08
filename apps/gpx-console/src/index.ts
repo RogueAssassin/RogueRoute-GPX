@@ -16,7 +16,9 @@ async function main() {
     },
     env: {
       ROUTER_MODE: process.env.ROUTER_MODE,
-      VALHALLA_URL: process.env.VALHALLA_URL
+      OSRM_URL: process.env.OSRM_URL,
+      OSRM_PROFILE: process.env.OSRM_PROFILE,
+      OSRM_SNAP_RADIUS_METERS: process.env.OSRM_SNAP_RADIUS_METERS
     }
   });
 

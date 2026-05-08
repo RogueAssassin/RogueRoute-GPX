@@ -1,30 +1,46 @@
-# Troubleshooting
-
-## fatal: not a git repository
-You are probably running from a release ZIP instead of a Git clone.
-
-Newer deploy scripts skip Git pull automatically for release ZIP installs. If you are using an older script version, switch to the updated release or use a Git clone.
-
-## network media-net not found
-The updated deploy scripts create `media-net` automatically. If you still need to create it manually:
+### OSRM container is unhealthy
 
 ```bash
-docker network create media-net
+sudo ./verify-osrm.sh
+sudo docker logs rogueroute-osrm --tail=200
 ```
 
-## HOST_PORT changed but the app still uses 9080
-Use a release that maps Docker like this:
+Common causes:
 
-```yaml
-${HOST_PORT:-9080}:9080
+- `OSRM_DATA_DIR` is wrong.
+- `planet.osrm` has not been created yet.
+- `prepare-osrm.sh` was interrupted.
+- The `.osrm*` files were built with a different profile or incomplete output.
+
+### Route generation errors
+
+- Confirm the web health endpoint:
+
+```bash
+curl http://127.0.0.1:9080/api/health
 ```
 
-Older releases hardcode `9080:9080`.
+- Confirm OSRM is responding:
 
-## Valhalla says Nothing to do
-Your `VALHALLA_DATA_PATH` does not contain any valid source data.
+```bash
+curl 'http://127.0.0.1:5000/nearest/v1/foot/144.9631,-37.8136'
+```
 
-Add one of these:
-- one or more `.osm.pbf` files
-- `valhalla_tiles.tar`
-- a `valhalla_tiles` directory
+- Check logs:
+
+```bash
+sudo ./logs.sh
+sudo docker logs rogueroute-osrm --tail=200
+```
+
+### Route still looks like it crosses water or buildings
+
+- Confirm `ROUTER_MODE=osrm`.
+- Confirm manual override is off.
+- Confirm the selected points are inside your processed OSRM extract.
+- Increase `OSRM_SNAP_RADIUS_METERS` slightly, for example `250`.
+- Use closer waypoints where OSM path coverage is sparse.
+
+### Planet build is too heavy
+
+Use a regional extract instead. Planet is supported, but it is not the recommended default for most installs.

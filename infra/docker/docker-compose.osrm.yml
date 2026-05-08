@@ -1,0 +1,29 @@
+services:
+  gpx-web:
+    environment:
+      ROUTER_MODE: osrm
+      OSRM_URL: http://osrm:5000
+      OSRM_PROFILE: ${OSRM_PROFILE:-foot}
+      OSRM_SNAP_RADIUS_METERS: ${OSRM_SNAP_RADIUS_METERS:-150}
+    depends_on:
+      osrm:
+        condition: service_started
+
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: rogueroute-osrm
+    restart: unless-stopped
+    command: >
+      osrm-routed
+      --algorithm mld
+      /data/${OSRM_GRAPH:-australia-latest.osrm}
+    volumes:
+      - ${OSRM_DATA_DIR:-/mnt/h/osrm}:/data
+    ports:
+      - "${OSRM_HOST_PORT:-5000}:5000"
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    external: true

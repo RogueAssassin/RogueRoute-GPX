@@ -8,7 +8,7 @@ export * from "./input/parse-waypoints";
 export * from "./optimization/order-waypoints";
 export * from "./routing/router";
 export * from "./routing/direct-router";
-export * from "./routing/valhalla-router";
+export * from "./routing/osrm-router";
 export * from "./routing/create-router";
 export * from "./stats/compute-route-stats";
 export * from "./gpx/build-gpx";

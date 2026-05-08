@@ -3,8 +3,8 @@
 // @name           IITC Plugin: RogueRoute GPX Exporter
 // @namespace      https://github.com/RogueAssassin/RogueRoute-GPX
 // @category       Layer
-// @version        8.0.0
-// @description    Smart IITC exporter for RogueRoute GPX v8 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
+// @version        10.0.0
+// @description    Smart IITC exporter for RogueRoute GPX V10 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
 // @author         RogueAssassin
 // @homepageURL    https://github.com/RogueAssassin/RogueRoute-GPX
 // @supportURL     https://github.com/RogueAssassin/RogueRoute-GPX/issues
@@ -31,7 +31,7 @@ function wrapper(plugin_info) {
   };
 
   const plugin = {
-    pluginVersion: "8.0.0",
+    pluginVersion: "10.0.0",
     polyline: null,
 
     loadSelected() {
@@ -80,6 +80,37 @@ function wrapper(plugin_info) {
       window.alert(message);
     },
 
+    getPortalFaction(portal) {
+      const data = portal?.options?.data || {};
+      const raw = String(
+        portal?.options?.team ||
+        portal?.team ||
+        portal?.faction ||
+        data.team ||
+        data.faction ||
+        data.controllingTeam ||
+        ""
+      ).toLowerCase();
+
+      if (raw.includes("enl") || raw.includes("green")) return "enlightened";
+      if (raw.includes("res") || raw.includes("blue")) return "resistance";
+      if (raw.includes("mac") || raw.includes("red")) return "machina";
+      if (raw.includes("neutral") || raw.includes("none") || raw === "n") return "neutral";
+
+      const styleColor = String(portal?.options?.color || portal?.options?.fillColor || "").toLowerCase();
+      if (styleColor.includes("green") || styleColor.includes("#03") || styleColor.includes("#0f")) return "enlightened";
+      if (styleColor.includes("blue") || styleColor.includes("#00") || styleColor.includes("#08")) return "resistance";
+      if (styleColor.includes("red") || styleColor.includes("#f") || styleColor.includes("#c")) return "machina";
+      return "neutral";
+    },
+
+    factionColor(faction) {
+      if (faction === "enlightened") return "#22c55e";
+      if (faction === "resistance") return "#38bdf8";
+      if (faction === "machina") return "#ef4444";
+      return "#94a3b8";
+    },
+
     portalToEntry(portal) {
       const data = portal?.options?.data || {};
       const lat = data.latE6 != null ? data.latE6 / 1e6 : portal.getLatLng().lat;
@@ -90,6 +121,7 @@ function wrapper(plugin_info) {
         lng,
         name: data.title || portal.options?.data?.title || "Portal",
         image: data.image || "",
+        faction: this.getPortalFaction(portal),
       };
     },
 
@@ -492,7 +524,7 @@ function wrapper(plugin_info) {
       const html = list.length
         ? list.map((portal, index) => `
             <div class="rogue-selected-item" style="display:flex;align-items:center;gap:8px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:6px;">
-              <div style="width:22px;height:22px;border-radius:999px;background:${index === 0 ? "#a855f7" : "#1e293b"};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">${index + 1}</div>
+              <div style="width:22px;height:22px;border-radius:999px;background:${this.factionColor(portal.faction)};color:#020617;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">${index + 1}</div>
               <img src="${portal.image || ""}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;border:1px solid #334155;background:#020617;" onerror="this.style.display='none'">
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${portal.name}</span>
               <a onclick="window.plugin.rogueRouteGpx.setStartPortal('${portal.guid}')" title="Set as start" style="cursor:pointer;color:${index === 0 ? "#c084fc" : "#93c5fd"};text-decoration:none;">★</a>
@@ -501,7 +533,7 @@ function wrapper(plugin_info) {
               <a onclick="window.plugin.rogueRouteGpx.removeFromList('${portal.guid}')" title="Remove" style="cursor:pointer;color:#f87171;text-decoration:none;">✖</a>
             </div>
           `).join("")
-        : '<div style="color:#94a3b8;">No selected portals yet. Alt-click portals to add/remove. Shift+Alt-click sets a selected portal as the start.</div>';
+        : '<div style="color:#94a3b8;">No selected portals yet. Alt-click portals to add/remove. Shift+Alt-click sets start. Green/Blue/Red/Grey factions are preserved.</div>';
       container.html(html);
       this.drawPolyline();
     },
@@ -550,7 +582,9 @@ function wrapper(plugin_info) {
             </div>
           </div>
           <div style="padding-top:8px;border-top:1px solid #1e293b;color:#94a3b8;">
-            Alt-click: add/remove portal • Shift+Alt-click: set selected portal as start
+            <div style="font-weight:700;color:#e2e8f0;margin-bottom:6px;">Alt-click legend</div>
+            <div>Alt + green: add Enlightened • Alt + blue: add Resistance • Alt + red: add Machina • Alt + grey: add Neutral</div>
+            <div>Shift + Alt: set selected portal as start • List arrows: reorder • ✖ remove</div>
           </div>
         </div>
       `;
@@ -586,6 +620,7 @@ function wrapper(plugin_info) {
     const box = `
       <div id="rogueRouteSelectedBox" style="background:#020617;color:#e2e8f0;padding:10px;border:1px solid #334155;border-radius:12px;margin-bottom:10px;box-shadow:0 0 0 1px rgba(34,211,238,.08),0 0 18px rgba(168,85,247,.14);">
         <p style="margin:0 0 6px 0;"><b>RogueRoute Selected Portals</b></p>
+        <p style="margin:0 0 8px 0;font-size:11px;color:#cbd5e1;line-height:1.4;">Alt+green ENL · Alt+blue RES · Alt+red Machina · Alt+grey Neutral · Shift+Alt=start</p>
         <p id="rogueroute-status-line" style="margin:0 0 8px 0;font-size:12px;color:#94a3b8;"></p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
           <a onclick="window.plugin.rogueRouteGpx.showMenu()" style="cursor:pointer;color:#22d3ee;">Export</a>

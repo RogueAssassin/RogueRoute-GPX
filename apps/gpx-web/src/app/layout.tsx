@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "RogueRoute GPX v8",
-  description: "Cyber neon GPX route generation with IITC export, strict land routing, and RogueAssassin branding.",
+  title: "RogueRoute-GPX",
+  description:
+    "Cyber Neon Wolf OSRM-first GPX route generation with IITC export, road/path-following geometry, strict land routing, and RogueAssassin branding.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

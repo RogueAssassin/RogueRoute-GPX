@@ -1,12 +1,12 @@
 # System Requirements
 
-This page explains the base requirements for all installs, then the extra requirements for Standard mode and Valhalla mode.
+This page explains the base requirements for all installs, then the extra requirements for Standard mode and OSRM mode.
 
 ## Supported software standard
 Use these versions for a supported setup:
 
 - **Node.js:** 24.15.0
-- **Package manager:** pnpm 10.33.1
+- **Package manager:** pnpm 10.33.4
 - **Package manager activation:** Corepack 0.34.7
 - **Docker:** Docker Engine / CLI 29.4.1 with `docker compose`
 - **Git:** needed for Git clone installs and Git-based updates
@@ -14,14 +14,14 @@ Use these versions for a supported setup:
 `npm install` is not the supported workspace install method for this project.
 
 ## Base requirements for all modes
-These are required for both Standard and Valhalla installs.
+These are required for both Standard and OSRM installs.
 
 ### Software
 - Docker Engine / CLI 29.4.1
 - Docker Compose plugin (`docker compose`)
 - Node.js 24.15.0
 - Corepack 0.34.7
-- pnpm 10.33.1
+- pnpm 10.33.4
 - Bash shell
 
 ### Network and ports
@@ -45,31 +45,31 @@ Standard mode is the simplest setup and the recommended starting point.
 - **Disk:** 10 GB to 20 GB free space
 
 ### What Standard mode does not need
-- No Valhalla routing dataset
+- No OSRM routing dataset
 - No `.osm.pbf` downloads
 - No extra port `8002`
 
-## Valhalla mode requirements
-Valhalla mode adds land-aware routing and external map data.
+## OSRM mode requirements
+OSRM mode adds land-aware routing and external map data.
 
 ### Recommended for regional use
 - **CPU:** 4 cores or more
 - **RAM:** 8 GB minimum, 16 GB preferred
 - **Disk:** 50 GB+ free space depending on region size
-- **Port:** `8002` free for the Valhalla service
+- **Port:** `8002` free for the OSRM service
 
 ### Recommended for full-world builds
 - **CPU:** 8 cores or more
 - **RAM:** 32 GB minimum, 64 GB preferred
 - **Disk:** 300 GB to 500+ GB free SSD space
 
-### Valhalla data requirements
-Your `VALHALLA_DATA_PATH` must contain one of these:
+### OSRM data requirements
+Your `OSRM_DATA_DIR` must contain one of these:
 - one or more `.osm.pbf` files
-- `valhalla_tiles.tar`
-- a `valhalla_tiles` directory
+- `osrm_tiles.tar`
+- a `osrm_tiles` directory
 
-If none of those exist, Valhalla cannot start correctly.
+If none of those exist, OSRM cannot start correctly.
 
 
 ## Lockfile requirement for official releases
