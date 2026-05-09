@@ -8,12 +8,12 @@ ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
 ENV_STANDARD="$DOCKER_DIR/.env.standard"
 ENV_OSRM="$DOCKER_DIR/.env.osrm"
-APP_VERSION="v10.0.0"
+APP_VERSION="v10.13.0"
 EXPECTED_NODE_MAJOR="24"
 EXPECTED_NODE_VERSION="24.15.0"
 EXPECTED_COREPACK_VERSION="0.34.7"
 EXPECTED_DOCKER_VERSION="29.4.1"
-EXPECTED_PNPM_VERSION="10.33.4"
+EXPECTED_PNPM_VERSION="11.0.8"
 EXPECTED_TYPESCRIPT_VERSION="6.0.3"
 
 log() { echo "[INFO] $*"; }
@@ -173,7 +173,7 @@ load_env_values() {
   NEXT_PUBLIC_APP_NAME=$(grep -E '^NEXT_PUBLIC_APP_NAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   HOST_PORT="$(trim_value "${HOST_PORT:-9080}")"; PORT="$(trim_value "${PORT:-9080}")"; ROUTER_MODE="$(trim_value "${ROUTER_MODE:-osrm}")"
   OSRM_URL="$(trim_value "${OSRM_URL:-http://osrm:5000}")"; OSRM_PROFILE="$(trim_value "${OSRM_PROFILE:-foot}")"; OSRM_DATA_DIR="$(trim_value "${OSRM_DATA_DIR:-/mnt/h/osrm}")"
-  OSRM_PBF="$(trim_value "${OSRM_PBF:-planet.osm.pbf}")"; OSRM_GRAPH="$(trim_value "${OSRM_GRAPH:-planet.osrm}")"; OSRM_SNAP_RADIUS_METERS="$(trim_value "${OSRM_SNAP_RADIUS_METERS:-150}")"; OSRM_THREADS="$(trim_value "${OSRM_THREADS:-8}")"; OSRM_ACTIVE_REGION="$(trim_value "${OSRM_ACTIVE_REGION:-australia}")"
+  OSRM_PBF="$(trim_value "${OSRM_PBF:-planet.osm.pbf}")"; OSRM_GRAPH="$(trim_value "${OSRM_GRAPH:-planet.osrm}")"; OSRM_SNAP_RADIUS_METERS="$(trim_value "${OSRM_SNAP_RADIUS_METERS:-250}")"; OSRM_THREADS="$(trim_value "${OSRM_THREADS:-8}")"; OSRM_ACTIVE_REGION="$(trim_value "${OSRM_ACTIVE_REGION:-australia}")"
   NEXT_PUBLIC_APP_NAME="$(trim_value "${NEXT_PUBLIC_APP_NAME:-RogueRoute-GPX}")"
 }
 
@@ -249,9 +249,65 @@ print_restart_help() {
   log "Restart complete. Open http://SERVER-IP:${HOST_PORT:-9080} or run ./status.sh to verify containers."
 }
 
+runtime_sparse_paths() {
+  cat <<'EOF'
+apps
+packages
+plugins
+infra
+scripts
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+tsconfig.base.json
+.npmrc
+.nvmrc
+.node-version
+.dockerignore
+.gitignore
+VERSION
+first-run.sh
+install.sh
+deploy.sh
+update.sh
+restart.sh
+refresh.sh
+status.sh
+stop.sh
+logs.sh
+doctor.sh
+download-osm.sh
+prepare-osrm.sh
+prepare-osm.sh
+switch-osrm-region.sh
+verify-osrm.sh
+fix-permissions.sh
+clean-web.sh
+version-check.sh
+release.sh
+EOF
+}
+
+configure_runtime_sparse_checkout() {
+  [[ -d "$REPO_ROOT/.git" ]] || return 0
+  [[ "${ROGUEROUTE_FULL_CHECKOUT:-false}" == "true" ]] && { log "Full checkout requested; sparse checkout disabled."; return 0; }
+  command -v git >/dev/null 2>&1 || return 0
+  cd "$REPO_ROOT"
+  if ! git sparse-checkout list >/dev/null 2>&1; then
+    log "Enabling runtime-only sparse checkout. Docs/README/release workspace stay on GitHub."
+    git sparse-checkout init --cone >/dev/null 2>&1 || true
+  else
+    log "Refreshing runtime-only sparse checkout paths."
+  fi
+  mapfile -t _runtime_paths < <(runtime_sparse_paths)
+  git sparse-checkout set --cone "${_runtime_paths[@]}" >/dev/null 2>&1 || warn "Could not apply sparse checkout. Continuing with existing checkout."
+}
+
 update_repo_if_git_checkout() {
   if [[ -d "$REPO_ROOT/.git" ]] && command -v git >/dev/null 2>&1; then
-    log "Git checkout detected. Pulling latest changes."
+    log "Git checkout detected. Pulling latest runtime files."
+    configure_runtime_sparse_checkout
+    cd "$REPO_ROOT"
     git pull --ff-only || warn "git pull failed. Resolve manually if needed."
   else
     log "Git metadata not found. Skipping git pull because this appears to be a ZIP release."

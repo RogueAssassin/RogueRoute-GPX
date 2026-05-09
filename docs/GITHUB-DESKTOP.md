@@ -1,22 +1,18 @@
-# GitHub Desktop Guide
+# GitHub Desktop publishing checklist
 
-## Publishing the official RogueRoute GPX v10 release
-1. Open GitHub Desktop.
-2. Add or clone the `RogueRoute-GPX` repository.
-3. Copy the updated release files into the repo.
-4. Review the changed files.
-5. Enter a summary such as `Release v10`.
-6. Commit to `main`.
-7. Push origin.
-8. In GitHub, create a new release tagged `v10`.
-9. Upload the release ZIP and the IITC userscript as release assets.
+Before publishing:
 
-## Recommended release assets
-- `RogueRoute-GPX-v10.zip`
-- `gpx-route-generator.user.js`
-- optional notes or screenshots for first-time users
+1. Confirm `infra/docker/.env` is not staged.
+2. Confirm no `.osm.pbf`, `.osrm*`, backup folders, zip files, or logs are staged.
+3. Run `bash -n infra/scripts/*.sh *.sh scripts/*.sh`.
+4. Run `./version-check.sh` if this is an update release.
+5. Commit with a clear summary such as `Release v10.13.0 public cleanup`.
+6. Push to GitHub.
+7. Create a GitHub release tag such as `v10.13.0`.
+8. Attach the generated release zip if you want a downloadable archive.
 
-## Before publishing
-- confirm `apps/gpx-web` shows the RogueRoute-GPX title in the UI
-- confirm `README.md` links to the split guide structure
-- commit `pnpm-lock.yaml` after generating it on the supported toolchain
+Recommended public release asset name:
+
+```text
+RogueRoute-GPX-v10.13.0.zip
+```

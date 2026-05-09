@@ -17,7 +17,7 @@ You need:
 - `docker compose`
 - Node.js 24.15.0
 - Corepack 0.34.7
-- pnpm 10.33.4
+- pnpm 11.0.8
 - port `9080` available
 
 ## Step 1: Get the release onto your server
@@ -33,7 +33,7 @@ Unzip the release, then enter the extracted folder.
 
 ```bash
 cd /opt/media-server
-unzip RogueRoute-GPX-v10.zip
+unzip RogueRoute-GPX-v10.13.0.zip
 cd RogueRoute-GPX
 ```
 
@@ -71,7 +71,7 @@ If you want the app on another host port, change `HOST_PORT`.
 
 ## Step 5: Deploy the app
 ```bash
-./deploy.sh
+./deploy.sh standard
 ```
 
 The script will:
@@ -102,8 +102,8 @@ Use restart commands when you are bringing the same version back online.
 ## Update guidance
 ### Git installs
 ```bash
-./update.sh
-./deploy.sh
+./update.sh standard
+./deploy.sh standard
 ```
 
 ### Release ZIP installs

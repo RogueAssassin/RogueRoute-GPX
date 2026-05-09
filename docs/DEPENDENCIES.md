@@ -4,7 +4,7 @@ Supported stack:
 
 - Node.js `24.15.0` exactly for host-side builds
 - Docker web image `node:24.15.0-alpine`
-- pnpm `10.33.4`
+- pnpm `11.0.8`
 - Docker Engine + Docker Compose
 - OSRM backend Docker image
 - curl or wget for `.osm.pbf` downloads

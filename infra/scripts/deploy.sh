@@ -20,7 +20,7 @@ print_step 4 8 "Update git checkout if available"
 cd "$REPO_ROOT"
 update_repo_if_git_checkout
 print_step 5 8 "Install dependencies"
-pnpm install
+pnpm install --frozen-lockfile
 print_step 6 8 "Build workspace"
 pnpm build
 print_step 7 8 "Check routing data"
