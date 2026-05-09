@@ -2,6 +2,8 @@ services:
   gpx-web:
     environment:
       ROUTER_MODE: osrm
+      # Use the Compose service DNS name, not the container_name.
+      # container_name stays rogueroute-osrm for Dozzle/log readability.
       OSRM_URL: http://osrm:5000
       OSRM_PROFILE: ${OSRM_PROFILE:-foot}
       OSRM_SNAP_RADIUS_METERS: ${OSRM_SNAP_RADIUS_METERS:-150}

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
   generateRoute,
@@ -6,6 +7,9 @@ import {
   parseWaypointsFromJson,
   parseWaypointsFromText,
 } from "@rogue/gpx-core";
+
+const ROUTE_CACHE_LIMIT = Number(process.env.ROUTE_CACHE_LIMIT ?? "100");
+const routeCache = new Map<string, unknown>();
 
 function detectInputType(input: string): "payload" | "json" | "csv" | "text" {
   const trimmed = input.trim();
@@ -19,6 +23,27 @@ function detectInputType(input: string): "payload" | "json" | "csv" | "text" {
   }
 
   return "text";
+}
+
+function cacheKey(value: unknown) {
+  return createHash("sha1").update(JSON.stringify(value)).digest("hex");
+}
+
+function getCached(key: string) {
+  if (!routeCache.has(key)) return undefined;
+  const value = routeCache.get(key);
+  routeCache.delete(key);
+  routeCache.set(key, value);
+  return value;
+}
+
+function setCached(key: string, value: unknown) {
+  routeCache.set(key, value);
+  while (routeCache.size > ROUTE_CACHE_LIMIT) {
+    const oldest = routeCache.keys().next().value;
+    if (!oldest) break;
+    routeCache.delete(oldest);
+  }
 }
 
 export async function POST(request: Request) {
@@ -43,7 +68,7 @@ export async function POST(request: Request) {
             ? parseWaypointsFromCsv(input)
             : parseWaypointsFromText(input);
 
-    const result = await generateRoute({
+    const generationRequest = {
       rawWaypoints,
       request: {
         mode: routeMode,
@@ -59,11 +84,23 @@ export async function POST(request: Request) {
         OSRM_URL: process.env.OSRM_URL,
         OSRM_PROFILE: process.env.OSRM_PROFILE,
         OSRM_SNAP_RADIUS_METERS: process.env.OSRM_SNAP_RADIUS_METERS,
+        OSRM_MAX_PARALLEL_LEGS: process.env.OSRM_MAX_PARALLEL_LEGS,
       },
-    });
+    };
 
-    return NextResponse.json({
+    const key = cacheKey(generationRequest);
+    const cached = getCached(key);
+    if (cached) {
+      return NextResponse.json({
+        ...(cached as Record<string, unknown>),
+        cache: "hit",
+      });
+    }
+
+    const result = await generateRoute(generationRequest);
+    const responsePayload = {
       ...result,
+      cache: "miss",
       mapState: payload?.map,
       source: payload?.source,
       requestOptions: {
@@ -71,7 +108,10 @@ export async function POST(request: Request) {
         allowFerries,
         allowManualOverride,
       },
-    });
+    };
+    setCached(key, responsePayload);
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
     return NextResponse.json(
       {

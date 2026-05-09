@@ -6,7 +6,7 @@ This page explains the base requirements for all installs, then the extra requir
 Use these versions for a supported setup:
 
 - **Node.js:** 24.15.0
-- **Package manager:** pnpm 10.33.4
+- **Package manager:** pnpm 11.0.8
 - **Package manager activation:** Corepack 0.34.7
 - **Docker:** Docker Engine / CLI 29.4.1 with `docker compose`
 - **Git:** needed for Git clone installs and Git-based updates
@@ -21,7 +21,7 @@ These are required for both Standard and OSRM installs.
 - Docker Compose plugin (`docker compose`)
 - Node.js 24.15.0
 - Corepack 0.34.7
-- pnpm 10.33.4
+- pnpm 11.0.8
 - Bash shell
 
 ### Network and ports

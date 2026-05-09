@@ -1,21 +1,33 @@
+# Dependencies and build outputs
 node_modules/
 .pnpm-store/
 .next/
 dist/
 build/
-coverage/
 out/
 .turbo/
-*.log
-*.tsbuildinfo
+coverage/
+
+# Runtime env files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 infra/docker/.env
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
+infra/docker/.env.local
+
+# OSRM / OSM data - keep this outside git
+*.osm.pbf
+*.osrm*
+_osrm-backups/
+
+# Logs and archives
+*.log
 *.zip
 *.tar
 *.tar.gz
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

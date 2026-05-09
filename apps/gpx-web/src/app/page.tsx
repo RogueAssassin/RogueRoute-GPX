@@ -23,6 +23,7 @@ type GenerateResponse = {
     totalDurationMinutes: number;
     warnings?: string[];
   };
+  cache?: "hit" | "miss";
   gpx: string;
   plan: {
     orderedWaypoints: Array<{
@@ -553,7 +554,13 @@ export default function HomePage() {
             <a
               href="/downloads/iitc/rogueroute-exporter.user.js"
               style={{ ...buttonLink, background: "rgba(88,28,135,0.42)" }}
-              download
+            >
+              Install in Tampermonkey
+            </a>
+            <a
+              href="/downloads/iitc/rogueroute-exporter.user.js"
+              style={buttonLink}
+              download="rogueroute-exporter.user.js"
             >
               Download IITC Plugin
             </a>
@@ -747,6 +754,14 @@ export default function HomePage() {
                 >
                   {allowManualOverride ? "Allowed with warning" : "Blocked"}
                 </span>
+                <br />
+                Auto-snap recovery:{" "}
+                <span style={{ color: "#22d3ee" }}>Enabled</span>
+                <br />
+                Route cache:{" "}
+                <span style={{ color: result?.cache === "hit" ? "#22d3ee" : "#cbd5e1" }}>
+                  {result?.cache === "hit" ? "Hit" : result ? "Miss" : "Awaiting run"}
+                </span>
               </div>
             </div>
 
@@ -777,7 +792,7 @@ export default function HomePage() {
                           key: "australia",
                           label: "Australia",
                           pbf: "australia-latest.osm.pbf",
-                          graph: "australia.osrm",
+                          graph: "australia-latest.osrm",
                           group: "core",
                         },
                       ]
