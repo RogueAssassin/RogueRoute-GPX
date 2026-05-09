@@ -27,7 +27,7 @@ The project is designed for two audiences:
 ## Public GitHub install path
 
 ```bash
-git clone https://github.com/YOUR-USER/RogueRoute-GPX.git
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 bash fix-permissions.sh
 ./setup-env.sh osrm        # copies infra/docker/.env.osrm to infra/docker/.env
