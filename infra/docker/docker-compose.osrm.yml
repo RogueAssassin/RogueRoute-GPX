@@ -14,7 +14,7 @@ services:
   osrm:
     image: osrm/osrm-backend:latest
     container_name: rogueroute-osrm
-    restart: unless-stopped
+    restart: on-failure:3
     command: >
       osrm-routed
       --algorithm mld

@@ -23,13 +23,27 @@ The project is designed for two audiences:
 - pnpm: `11.0.8`
 - TypeScript: `6.0.3`
 - Docker + Docker Compose
+- Host dependency installer: `./install-dependencies.sh`
+
+
+## Fresh server dependency install
+
+On a clean Ubuntu/Debian host or WSL2 Ubuntu instance, install all host tools first:
+
+```bash
+bash fix-permissions.sh
+./install-dependencies.sh --yes
+```
+
+This installs the supported Node.js, pnpm, Docker/Docker Compose, build tools, Python helpers, archive tools, network utilities, creates the default OSRM data directory, and applies safe host tuning. After it finishes, log out/in or run `newgrp docker` if Docker group membership changed.
 
 ## Public GitHub install path
 
 ```bash
-git clone https://github.com/YOUR-USER/RogueRoute-GPX.git
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 bash fix-permissions.sh
+./install-dependencies.sh --yes
 ./setup-env.sh osrm        # copies infra/docker/.env.osrm to infra/docker/.env
 ./first-run.sh osrm
 ```
@@ -40,7 +54,7 @@ For a server/runtime-only checkout that avoids pulling docs/readmes/release note
 git clone --filter=blob:none --no-checkout https://github.com/RogueAssassin/RogueRoute-GPX.git RogueRoute-GPX
 cd RogueRoute-GPX
 git sparse-checkout init --cone
-git sparse-checkout set apps packages plugins infra scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json .npmrc .nvmrc .node-version .dockerignore .gitignore VERSION first-run.sh install.sh deploy.sh update.sh restart.sh refresh.sh status.sh stop.sh logs.sh doctor.sh download-osm.sh prepare-osrm.sh prepare-osm.sh switch-osrm-region.sh verify-osrm.sh fix-permissions.sh clean-web.sh version-check.sh setup-env.sh release.sh
+git sparse-checkout set apps packages plugins infra scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json .npmrc .nvmrc .node-version .dockerignore .gitignore VERSION first-run.sh install.sh install-dependencies.sh deploy.sh update.sh restart.sh refresh.sh status.sh stop.sh logs.sh doctor.sh download-osm.sh prepare-osrm.sh prepare-osm.sh switch-osrm-region.sh verify-osrm.sh fix-permissions.sh clean-web.sh clean-rebuild.sh repair-deps.sh repair-osm-builds.sh diagnose-osrm.sh version-check.sh setup-env.sh release.sh
 git checkout
 bash fix-permissions.sh
 ```
@@ -121,7 +135,7 @@ Start here:
 ## Release helper
 
 ```bash
-./release.sh v10.13.0
+./release.sh v11
 ```
 
 ## Notes on planet.osm.pbf

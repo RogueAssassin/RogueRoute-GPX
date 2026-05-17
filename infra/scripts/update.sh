@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 MODE="$(resolve_requested_mode "${1:-}")"
-print_header "RogueRoute GPX v10 Update"
+print_header "RogueRoute GPX v11 Update"
 print_step 1 6 "Create env file if missing"
 bootstrap_env_file "$MODE"
 maybe_edit_env_file "$MODE"
@@ -18,6 +18,7 @@ cd "$REPO_ROOT"
 update_repo_if_git_checkout
 print_step 5 6 "Install dependencies"
 pnpm install
+repair_workspace_dependencies
 print_step 6 6 "Build workspace"
-pnpm build
+build_workspace
 log "Update complete. Run ./deploy.sh or ./deploy.sh osrm to restart services if needed."

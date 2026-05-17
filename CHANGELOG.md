@@ -1,4 +1,25 @@
-# RogueRoute GPX v10.13.0
+# RogueRoute GPX v11
+
+## v11 safe build hotfix
+
+- Public version label is normalized to `v11` everywhere user-facing.
+- Docker builds now repair `node_modules/.bin` executable permissions before `pnpm build`, fixing `next: Permission denied` and `tsc: Permission denied` failures.
+- OSRM preprocessing now defaults to safer memory behaviour: `OSRM_THREADS=2`, `OSRM_SAFE_THREADS=1`, and `OSRM_FORCE_SAFE_BUILDS=true`.
+- First-run and clean-rebuild flows now state whether they are running as a first-time install or a rebuild/update.
+- OSRM builds validate required graph sidecars before reporting success.
+
+# RogueRoute GPX v11
+
+## v11 cleanup and OSRM stability release
+
+- Public build label updated to `v11`; npm package versions use `11.0.0`.
+- Added `./diagnose-osrm.sh` for OSRM graph validation, Compose status, and recent logs.
+- Added OSRM runtime graph preflight checks to reduce confusing restart loops.
+- Changed OSRM Compose restart policy to `on-failure:3` so missing/corrupt graphs do not loop forever.
+- Kept dependency repair integrated before builds to recover from broken `node_modules` and non-executable `tsc`.
+- Refreshed upgrade, OSRM recovery, and release documentation for v11.
+
+# RogueRoute GPX v11
 
 ## Priority fixes
 - Fixed OSRM `NoSegment` route generation failures by adding automatic nearest-path snapping and one retry before failing.
@@ -24,7 +45,7 @@
 - Published the IITC userscript under web public paths:
   - `/downloads/iitc/rogueroute-exporter.user.js`
   - `/iitc/rogueroute.user.js`
-- Updated plugin version to `10.13.0`.
+- Updated plugin version to `11.0.0`.
 
 ## Environment changes
 Add or confirm these values in `infra/docker/.env`:
@@ -48,6 +69,13 @@ docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose
 
 
 # Changelog
+
+## Dependency installer update
+
+- Added `install-dependencies.sh` for fresh Ubuntu/Debian and WSL2 Ubuntu hosts.
+- Installer provisions build tools, Docker/Docker Compose, nvm, Node.js `24.15.0`, pnpm `11.0.8`, OSRM data directory setup, and safe host tuning.
+- Updated README and setup docs so dependency installation is clearly part of the first-run flow.
+- `first-run.sh` now honours a positional mode argument such as `./first-run.sh osrm` or `./first-run.sh standard`.
 
 ## Rev10.10 - OSRM advanced repair
 
@@ -91,15 +119,22 @@ docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose
 - Added region-aware `./prepare-osrm.sh region <key>`, local `./prepare-osrm.sh pbf <file>`, and `./prepare-osrm.sh all-downloaded` support.
 
 
-## Rev10.6
+## Rev11.6
 
 - Fixed `prepare-osrm.sh` so it never deletes downloaded `.osm.pbf` inputs.
 - Changed forced OSRM rebuilds to move existing `.osrm*` files into `_osrm-backups/` instead of deleting them.
 - Fixed `all-downloaded` so each discovered PBF is processed instead of resetting to the `.env` default.
 
 
-## Rev10.7
+## Rev11.7
 
 - Fixed `prepare-osrm.sh all-downloaded` only preparing the env/default region.
 - Prevented env reload from overwriting the selected PBF inside the all-downloaded loop.
 - Added discovered-file listing and per-item progress logging.
+
+## v11 - Workspace binary resolver hotfix
+
+- Fixed installer dependency validation for pnpm workspace-local binaries.
+- Next.js is now resolved from `apps/gpx-web/node_modules/next/dist/bin/next` first, with root fallback only if present.
+- `apps/gpx-web` build/start/dev scripts call the app-local Next.js entrypoint directly with `node`, avoiding `.bin` shim execute-bit failures.
+- TypeScript validation remains rooted at the workspace dev dependency for shared packages.

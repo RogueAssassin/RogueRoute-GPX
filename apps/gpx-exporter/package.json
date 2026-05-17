@@ -1,6 +1,6 @@
 {
   "name": "@rogue/gpx-exporter",
-  "version": "10.13.0",
+  "version": "11.0.0",
   "private": true,
   "engines": {
     "node": "24.15.0",
@@ -8,8 +8,8 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@rogue/gpx-core": "workspace:*"

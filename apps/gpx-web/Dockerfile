@@ -10,13 +10,24 @@ COPY apps/gpx-web/package.json apps/gpx-web/package.json
 COPY apps/gpx-console/package.json apps/gpx-console/package.json
 COPY apps/gpx-exporter/package.json apps/gpx-exporter/package.json
 COPY packages/gpx-core/package.json packages/gpx-core/package.json
-RUN pnpm install --frozen-lockfile
+RUN set -eux; \
+    pnpm install --frozen-lockfile; \
+    chmod +x node_modules/.bin/* 2>/dev/null || true
 
 FROM base AS builder
 COPY --from=deps /app ./
 COPY . .
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+ARG NEXT_PUBLIC_BUILD_TIME
+ARG NEXT_PUBLIC_APP_VERSION
+ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+ENV NEXT_PUBLIC_BUILD_TIME=$NEXT_PUBLIC_BUILD_TIME
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+RUN set -eux; \
+    chmod +x node_modules/.bin/* 2>/dev/null || true; \
+    find apps packages -path '*/node_modules/.bin/*' -exec chmod +x {} + 2>/dev/null || true; \
+    pnpm build
 
 FROM node:24.15.0-alpine AS runner
 WORKDIR /app

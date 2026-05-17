@@ -12,6 +12,15 @@ type OsrmRegion = {
   group: string;
 };
 
+type BuildInfo = {
+  app: string;
+  version: string;
+  buildTime: string;
+  routerMode: string;
+  osrmProfile: string;
+  activeRegion: string;
+};
+
 type GenerateResponse = {
   stats: {
     routerMode: string;
@@ -106,6 +115,7 @@ export default function HomePage() {
   const [selectedRegion, setSelectedRegion] = useState("australia");
   const [switchingRegion, setSwitchingRegion] = useState(false);
   const [regionNotice, setRegionNotice] = useState<string | null>(null);
+  const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
 
   useEffect(() => {
     const savedRouteMode = window.localStorage.getItem("rogue.routeMode");
@@ -142,6 +152,7 @@ export default function HomePage() {
     }
 
     void refreshRegions();
+    void refreshBuildInfo();
   }, []);
 
   useEffect(
@@ -193,6 +204,25 @@ export default function HomePage() {
       maxLng: Math.max(...lngs),
     };
   }, [previewPoints]);
+
+  async function refreshBuildInfo() {
+    try {
+      const response = await fetch("/api/build-info", { cache: "no-store" });
+      const data = await response.json();
+      if (data?.ok) setBuildInfo(data);
+    } catch {
+      setBuildInfo(null);
+    }
+  }
+
+  function resetLocalBrowserState() {
+    window.localStorage.removeItem("rogue.routeMode");
+    window.localStorage.removeItem("rogue.routeName");
+    window.localStorage.removeItem("rogue.strictLandRouting");
+    window.localStorage.removeItem("rogue.allowFerries");
+    window.localStorage.removeItem("rogue.allowManualOverride");
+    window.location.reload();
+  }
 
   async function refreshRegions() {
     try {
@@ -357,6 +387,27 @@ export default function HomePage() {
               for OSRM-first GPX generation, road/path-following geometry, IITC
               exports, strict land routing, and visible fallback warnings.
             </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                marginTop: 16,
+                alignItems: "center",
+                color: "#94a3b8",
+                fontSize: 13,
+              }}
+            >
+              <span>
+                Build: {buildInfo ? `${buildInfo.version} · ${buildInfo.buildTime}` : "checking..."}
+              </span>
+              <span>
+                Router: {buildInfo ? `${buildInfo.routerMode}/${buildInfo.osrmProfile}` : "unknown"}
+              </span>
+              <button type="button" onClick={resetLocalBrowserState} style={miniButtonStyle}>
+                Reset browser cache
+              </button>
+            </div>
             <div
               style={{
                 display: "flex",
@@ -1026,4 +1077,14 @@ const cellStyle: CSSProperties = {
   padding: 10,
   borderBottom: "1px solid rgba(30,41,59,0.9)",
   color: "#cbd5e1",
+};
+
+
+const miniButtonStyle: CSSProperties = {
+  border: "1px solid rgba(148,163,184,0.28)",
+  background: "rgba(15,23,42,0.75)",
+  color: "#cbd5e1",
+  borderRadius: 999,
+  padding: "6px 10px",
+  cursor: "pointer",
 };

@@ -74,3 +74,15 @@ If none of those exist, OSRM cannot start correctly.
 
 ## Lockfile requirement for official releases
 Official GitHub releases should commit `pnpm-lock.yaml` so installs are reproducible and support issues are easier to diagnose.
+
+
+## Automated dependency installer
+
+For Ubuntu/Debian or WSL2 Ubuntu hosts, run:
+
+```bash
+bash fix-permissions.sh
+./install-dependencies.sh --yes
+```
+
+This installs the required base packages, Docker/Docker Compose, nvm, Node.js `24.15.0`, pnpm `11.0.8`, and creates the default OSRM data directory.

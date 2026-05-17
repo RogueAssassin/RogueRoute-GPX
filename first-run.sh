@@ -12,13 +12,17 @@ if [ ! -x "$SCRIPT_DIR/install.sh" ] || [ ! -x "$SCRIPT_DIR/deploy.sh" ]; then
   bash "$SCRIPT_DIR/fix-permissions.sh" "$SCRIPT_DIR"
 fi
 
+REQUESTED_MODE="${1:-}"
 MODE=""
 MODE_LABEL="Standard"
 DEPLOY_CMD="./deploy.sh"
 
 choose_mode() {
   local input normalized
-  if [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
+  if [[ -n "$REQUESTED_MODE" ]]; then
+    normalized="$(normalize_mode "$REQUESTED_MODE")" || fail "Invalid mode: $REQUESTED_MODE. Use Standard or OSRM."
+    MODE="$normalized"
+  elif [[ -n "${ROGUEROUTE_MODE:-}" ]]; then
     normalized="$(normalize_mode "$ROGUEROUTE_MODE")" || fail "Invalid ROGUEROUTE_MODE: $ROGUEROUTE_MODE. Use Standard or OSRM."
     MODE="$normalized"
   elif [[ -t 0 ]]; then
@@ -51,11 +55,13 @@ choose_mode() {
 }
 
 print_intro() {
-  print_header "RogueRoute GPX v10 Installer"
+  print_header "RogueRoute GPX v11 Installer"
 }
 
+RUN_TYPE="$(get_workspace_run_type)"
 choose_mode
 print_intro
+print_workspace_run_type "$RUN_TYPE"
 print_step 1 6 "Select deployment mode"
 print_mode_summary "$MODE"
 
@@ -76,6 +82,7 @@ print_step 4 6 "Install JavaScript dependencies"
 enable_pnpm
 cd "$REPO_ROOT"
 pnpm install
+repair_workspace_dependencies
 
 if command -v pnpm >/dev/null 2>&1; then
   IGNORED_BUILDS="$(pnpm ignored-builds 2>/dev/null || true)"
@@ -87,7 +94,7 @@ if command -v pnpm >/dev/null 2>&1; then
 fi
 
 print_step 5 6 "Build RogueRoute GPX"
-pnpm build
+build_workspace
 
 print_step 6 6 "Ready for deployment"
 if [[ "$MODE" == "osrm" ]]; then

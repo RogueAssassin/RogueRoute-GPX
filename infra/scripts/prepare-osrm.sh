@@ -3,15 +3,32 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 source "$REPO_ROOT/scripts/osm-region-catalog.sh"
 
-print_header "RogueRoute GPX v10 OSRM Prepare"
+print_header "RogueRoute GPX v11 OSRM Prepare"
 bootstrap_env_file osrm
 load_env_values
 mkdir -p "$OSRM_DATA_DIR"
 
-OSRM_THREADS="${OSRM_THREADS:-8}"
+OSRM_THREADS="${OSRM_THREADS:-2}"
+OSRM_SAFE_THREADS="${OSRM_SAFE_THREADS:-1}"
+OSRM_FORCE_SAFE_BUILDS="${OSRM_FORCE_SAFE_BUILDS:-true}"
+OSRM_DOCKER_MEMORY="${OSRM_DOCKER_MEMORY:-}"
 OSRM_IMAGE="${OSRM_IMAGE:-osrm/osrm-backend:latest}"
 
-# Rev10.6 safety rule:
+if [[ "$OSRM_FORCE_SAFE_BUILDS" == "true" && "${OSRM_THREADS:-2}" -gt 2 ]]; then
+  warn "OSRM_FORCE_SAFE_BUILDS=true; reducing OSRM_THREADS from $OSRM_THREADS to 2 for safer memory use."
+  OSRM_THREADS=2
+fi
+
+docker_osrm_run() {
+  local -a docker_args=(run --rm -t)
+  if [[ -n "${OSRM_DOCKER_MEMORY:-}" ]]; then
+    docker_args+=(--memory "$OSRM_DOCKER_MEMORY" --memory-swap "$OSRM_DOCKER_MEMORY")
+  fi
+  docker "${docker_args[@]}" -v "$1:/data" "$OSRM_IMAGE" "${@:2}"
+}
+
+
+# Rev11.6 safety rule:
 #   prepare-osrm.sh must never delete downloaded inputs or existing prepared outputs.
 #   --force moves old .osrm* outputs into _osrm-backups/ before rebuilding.
 BACKUP_ROOT="$OSRM_DATA_DIR/_osrm-backups"
@@ -293,6 +310,7 @@ build_selected() {
   [[ "$OSRM_PBF" == "planet.osm.pbf" ]] && warn "Planet preprocessing can require 500GB+ free disk and substantially more than 128GB RAM for foot profile. Regional extracts are strongly recommended."
   log "Preparing OSRM using /opt/${OSRM_PROFILE}.lua"
   log "Threads: $OSRM_THREADS"
+  [[ -n "${OSRM_DOCKER_MEMORY:-}" ]] && log "Docker memory cap: $OSRM_DOCKER_MEMORY"
   log "Input preserved: $OSRM_DATA_DIR/$OSRM_PBF"
   log "Output graph base: $OSRM_DATA_DIR/$OSRM_GRAPH"
 
@@ -308,11 +326,11 @@ build_selected() {
       return 0
     fi
 
-    docker run --rm -t -v "$OSRM_DATA_DIR:/data" "$OSRM_IMAGE" \
+    docker_osrm_run "$OSRM_DATA_DIR" \
       osrm-extract --threads "$OSRM_THREADS" -p "/opt/${OSRM_PROFILE}.lua" "/data/${OSRM_PBF}"
-    docker run --rm -t -v "$OSRM_DATA_DIR:/data" "$OSRM_IMAGE" \
+    docker_osrm_run "$OSRM_DATA_DIR" \
       osrm-partition "/data/${OSRM_GRAPH}"
-    docker run --rm -t -v "$OSRM_DATA_DIR:/data" "$OSRM_IMAGE" \
+    docker_osrm_run "$OSRM_DATA_DIR" \
       osrm-customize "/data/${OSRM_GRAPH}"
   fi
 
@@ -322,7 +340,8 @@ build_selected() {
     set_env_var OSRM_ACTIVE_REGION "$SELECTED_REGION_KEY"
     set_env_var "$(region_env_name "$SELECTED_REGION_KEY")" "$OSRM_PBF"
   fi
-  log "OSRM graph ready or preserved: $OSRM_DATA_DIR/$OSRM_GRAPH"
+  osrm_graph_is_ready "$graph_base" || fail "OSRM graph is incomplete after build: $OSRM_DATA_DIR/$OSRM_GRAPH"
+  log "OSRM graph ready: $OSRM_DATA_DIR/$OSRM_GRAPH"
 }
 
 FORCE_REBUILD=false
@@ -378,7 +397,7 @@ case "${1:-env}" in
     fi
     [[ "$YES" == "true" ]] || sleep 8
 
-    # Rev10.9: deterministic all-downloaded mode.
+    # Rev11.0: deterministic all-downloaded mode.
     # Do not use the active/default region, and do not reload .env inside this loop.
     # Every discovered .osm.pbf is processed by its path relative to OSRM_DATA_DIR.
     osrm_root="$(realpath -m "$OSRM_DATA_DIR")"
@@ -433,16 +452,22 @@ case "${1:-env}" in
 
       log "Preparing OSRM using /opt/${OSRM_PROFILE}.lua"
       log "Threads: $OSRM_THREADS"
+      [[ -n "${OSRM_DOCKER_MEMORY:-}" ]] && log "Docker memory cap: $OSRM_DOCKER_MEMORY"
       log "Input preserved: $pbf_abs"
       log "Output graph base: $osrm_root/$graph_rel"
 
-      if docker run --rm -t -v "$osrm_root:/data" "$OSRM_IMAGE" \
+      if docker_osrm_run "$osrm_root" \
         osrm-extract --threads "$OSRM_THREADS" -p "/opt/${OSRM_PROFILE}.lua" "/data/${pbf_rel}" && \
-        docker run --rm -t -v "$osrm_root:/data" "$OSRM_IMAGE" \
+        docker_osrm_run "$osrm_root" \
         osrm-partition "/data/${graph_rel}" && \
-        docker run --rm -t -v "$osrm_root:/data" "$OSRM_IMAGE" \
+        docker_osrm_run "$osrm_root" \
         osrm-customize "/data/${graph_rel}"; then
-        log "Completed: ${pbf_rel}"
+        if osrm_graph_is_ready "$pbf_base"; then
+          log "Completed: ${pbf_rel}"
+        else
+          failed=$((failed + 1))
+          warn "OSRM processing exited cleanly but graph validation failed for ${pbf_rel}."
+        fi
       else
         failed=$((failed + 1))
         warn "Failed processing ${pbf_rel}. Continuing to next file."
