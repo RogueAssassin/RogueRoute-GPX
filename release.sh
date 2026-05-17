@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 VERSION="${1:-}"
-[[ -n "$VERSION" ]] || { echo "Usage: ./release.sh v10.0.0"; exit 1; }
+[[ -n "$VERSION" ]] || { echo "Usage: ./release.sh v11"; exit 1; }
 echo "$VERSION" > VERSION
 git add .
 git commit -m "Release ${VERSION}" || true

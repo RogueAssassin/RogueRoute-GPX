@@ -4,7 +4,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     service: "rogueroute-gpx",
-    version: "10.13.0",
+    version: process.env.NEXT_PUBLIC_APP_VERSION ?? "v11",
     router: process.env.ROUTER_MODE ?? "osrm",
     osrmProfile: process.env.OSRM_PROFILE ?? "foot",
     activeRegion: process.env.OSRM_ACTIVE_REGION ?? "australia",

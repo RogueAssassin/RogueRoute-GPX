@@ -3,6 +3,10 @@ services:
     build:
       context: ../..
       dockerfile: apps/gpx-web/Dockerfile
+      args:
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?Set NEXT_SERVER_ACTIONS_ENCRYPTION_KEY in infra/docker/.env. Run ./deploy.sh to auto-generate it.}
+        NEXT_PUBLIC_BUILD_TIME: ${NEXT_PUBLIC_BUILD_TIME:-local}
+        NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-v11}
     container_name: gpx-web
     restart: unless-stopped
     env_file:
@@ -11,6 +15,9 @@ services:
       OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
       OSRM_SWITCH_SCRIPT: ${OSRM_SWITCH_SCRIPT:-/host/rogueroute/switch-osrm-region.sh}
       ROGUEROUTE_HOST_ROOT: /host/rogueroute
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+      NEXT_PUBLIC_BUILD_TIME: ${NEXT_PUBLIC_BUILD_TIME:-local}
+      NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-v11}
     volumes:
       - ../..:/host/rogueroute
       - /var/run/docker.sock:/var/run/docker.sock

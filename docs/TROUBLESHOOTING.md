@@ -62,3 +62,32 @@ docker logs rogueroute-osrm --tail=200
 ## Planet build is too heavy
 
 Use regional extracts instead. Planet-sized preprocessing can require very large amounts of RAM, swap, and disk.
+
+
+## Next.js: Failed to find Server Action
+
+If the browser console shows `Failed to find Server Action`, the request is usually from a stale browser tab, service cache, or a client bundle from a previous build. RogueRoute now keeps `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` stable in `infra/docker/.env` and passes it into the Docker build so Server Action IDs remain consistent across rebuilds.
+
+Recovery steps:
+
+```bash
+./stop.sh
+./clean-web.sh
+cd infra/docker
+docker compose -f docker-compose.yml -f docker-compose.osrm.yml build --no-cache gpx-web
+docker compose -f docker-compose.yml -f docker-compose.osrm.yml up -d
+```
+
+Then hard-refresh the browser tab, or test once in a private/incognito window.
+
+
+## `tsc: Permission denied` or `node_modules missing` during build
+
+This means the local pnpm dependency folder is stale, incomplete, or was created by another user/root. Run:
+
+```bash
+./repair-deps.sh
+./first-run.sh osrm
+```
+
+The installer now runs the same repair automatically before building, but this command is useful if you interrupted an install or copied the project between machines.

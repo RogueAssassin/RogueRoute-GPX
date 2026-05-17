@@ -12,21 +12,15 @@ bash fix-permissions.sh
 
 ## 2. Install host requirements
 
-Install these before continuing:
-
-- Docker Engine with `docker compose`
-- Node.js `24.15.0`
-- Corepack/pnpm `11.0.8`
-- Enough disk space for your selected OSM extracts and prepared OSRM graphs
-
-Recommended Node setup with nvm:
+On Ubuntu/Debian or WSL2 Ubuntu, use the bundled dependency installer:
 
 ```bash
-nvm install 24.15.0
-nvm use 24.15.0
-corepack enable
-corepack prepare pnpm@11.0.8 --activate
+./install-dependencies.sh --yes
 ```
+
+This installs Docker Engine with `docker compose`, Node.js `24.15.0`, Corepack/pnpm `11.0.8`, and common build/helper tools. You still need enough disk space for your selected OSM extracts and prepared OSRM graphs.
+
+After Docker is installed, log out/in or run `newgrp docker` if Docker group membership changed.
 
 ## 3. Create the environment file
 
@@ -42,7 +36,9 @@ Edit these values if needed:
 HOST_PORT=9080
 OSRM_DATA_DIR=/mnt/h/osrm
 OSRM_PROFILE=foot
-OSRM_THREADS=8
+OSRM_THREADS=2
+OSRM_SAFE_THREADS=1
+OSRM_FORCE_SAFE_BUILDS=true
 ```
 
 ## 4. Download a map extract

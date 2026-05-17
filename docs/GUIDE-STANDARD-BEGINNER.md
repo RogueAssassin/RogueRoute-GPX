@@ -33,14 +33,17 @@ Unzip the release, then enter the extracted folder.
 
 ```bash
 cd /opt/media-server
-unzip RogueRoute-GPX-v10.13.0.zip
+unzip RogueRoute-GPX-v11.zip
 cd RogueRoute-GPX
 ```
 
-## Step 2: Fix script permissions
+## Step 2: Fix script permissions and install dependencies
 ```bash
 bash ./fix-permissions.sh
+./install-dependencies.sh --yes
 ```
+
+After Docker is installed, log out/in or run `newgrp docker` if Docker group membership changed.
 
 ## Step 3: Run first-time setup
 ```bash

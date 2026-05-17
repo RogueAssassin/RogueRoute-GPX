@@ -2,6 +2,17 @@
 
 RogueRoute-GPX has two supported install paths.
 
+## Install host dependencies
+
+On a clean Ubuntu/Debian or WSL2 Ubuntu host, install the required system tools first:
+
+```bash
+bash fix-permissions.sh
+./install-dependencies.sh --yes
+```
+
+After Docker is installed, log out/in or run `newgrp docker` before deploying.
+
 ## Standard mode: easiest test install
 
 Use this when you only want to test the web app and direct/fallback GPX generation.

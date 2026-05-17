@@ -1,4 +1,4 @@
-# Release audit notes for v10.13.0 public GitHub package
+# Release audit notes for v11 public GitHub package
 
 ## Fixed in this cleaned package
 
@@ -27,6 +27,8 @@ Result: shell syntax passed.
 ## Recommended final local checks before GitHub release
 
 ```bash
+./install-dependencies.sh --yes
+# or manually:
 nvm install 24.15.0
 nvm use 24.15.0
 corepack enable

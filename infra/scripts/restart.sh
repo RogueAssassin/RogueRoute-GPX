@@ -11,6 +11,7 @@ check_port_free "${HOST_PORT:-}"
 log "Restarting RogueRoute GPX ($MODE) without pulling new code"
 cd "$DOCKER_DIR"
 if [[ "$MODE" == "osrm" ]]; then
+  verify_osrm_runtime_graph || print_osrm_restart_loop_help
   docker compose -f docker-compose.yml -f docker-compose.osrm.yml down || true
   clean_web_build_artifacts false
   docker compose -f docker-compose.yml -f docker-compose.osrm.yml up -d --build

@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 MODE="$(resolve_requested_mode "${1:-}")"
-print_header "RogueRoute GPX v10 Build"
+print_header "RogueRoute GPX v11 Build"
 print_step 1 6 "Create env file if missing"
 bootstrap_env_file "$MODE"
 maybe_edit_env_file "$MODE"
@@ -18,8 +18,9 @@ enable_pnpm
 cd "$REPO_ROOT"
 print_step 4 6 "Install dependencies"
 pnpm install
+repair_workspace_dependencies
 print_step 5 6 "Build workspace"
-pnpm build
+build_workspace
 print_step 6 6 "OSRM readiness summary"
 if [[ "$MODE" == "osrm" ]]; then verify_osrm_outputs || true; else log "Direct mode selected; OSRM preparation skipped."; fi
 log "Install/build complete"

@@ -1,16 +1,16 @@
 {
   "name": "@rogue/gpx-web",
-  "version": "10.13.0",
+  "version": "11.0.0",
   "private": true,
   "engines": {
     "node": "24.15.0",
     "pnpm": "11.0.8"
   },
   "scripts": {
-    "dev": "next dev -p 9080",
-    "build": "next build",
-    "start": "next start -p 9080",
-    "typecheck": "tsc --noEmit"
+    "dev": "node ./node_modules/next/dist/bin/next dev -p 9080",
+    "build": "node ./node_modules/next/dist/bin/next build",
+    "start": "node ./node_modules/next/dist/bin/next start -p 9080",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@rogue/gpx-core": "workspace:*",

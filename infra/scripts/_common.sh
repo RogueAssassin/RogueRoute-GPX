@@ -8,7 +8,9 @@ ENV_FILE="$DOCKER_DIR/.env"
 ENV_EXAMPLE="$DOCKER_DIR/.env.example"
 ENV_STANDARD="$DOCKER_DIR/.env.standard"
 ENV_OSRM="$DOCKER_DIR/.env.osrm"
-APP_VERSION="v10.13.0"
+COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+COMPOSE_OSRM_FILE="$DOCKER_DIR/docker-compose.osrm.yml"
+APP_VERSION="v11"
 EXPECTED_NODE_MAJOR="24"
 EXPECTED_NODE_VERSION="24.15.0"
 EXPECTED_COREPACK_VERSION="0.34.7"
@@ -63,6 +65,25 @@ resolve_requested_mode() {
   local detected; detected="$(get_env_router_mode)"; [[ -n "$detected" ]] && echo "$detected" || echo osrm
 }
 
+get_workspace_run_type() {
+  # first-install means no env file and no installed workspace dependencies yet.
+  # rebuild-update means we are repairing/updating an existing checkout.
+  if [[ ! -f "$ENV_FILE" && ! -d "$REPO_ROOT/node_modules" ]]; then
+    echo "first-install"
+  else
+    echo "rebuild-update"
+  fi
+}
+
+print_workspace_run_type() {
+  local run_type="${1:-$(get_workspace_run_type)}"
+  case "$run_type" in
+    first-install) log "Workspace mode: first-time install. Dependencies, env, and containers will be prepared from scratch." ;;
+    rebuild-update) log "Workspace mode: rebuild/update. Existing env and map data are preserved; stale build/dependency artifacts are repaired as needed." ;;
+    *) log "Workspace mode: $run_type" ;;
+  esac
+}
+
 find_editor() { for candidate in "${EDITOR:-}" nano vi vim; do [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1 && { echo "$candidate"; return 0; }; done; return 1; }
 
 maybe_edit_env_file() {
@@ -74,6 +95,29 @@ maybe_edit_env_file() {
   case "${reply,,}" in y|yes) if editor="$(find_editor)"; then "$editor" "$ENV_FILE"; load_env_values; else warn "No terminal editor found. Update $ENV_FILE manually."; fi ;; esac
 }
 
+
+
+ensure_next_server_actions_key() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  local current
+  current="$(grep -E '^NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)"
+  current="$(trim_value "$current")"
+  [[ -n "$current" ]] && return 0
+  local generated=""
+  if command -v openssl >/dev/null 2>&1; then
+    generated="$(openssl rand -base64 32)"
+  elif command -v python3 >/dev/null 2>&1; then
+    generated="$(python3 - <<'PYKEY'
+import base64, os
+print(base64.b64encode(os.urandom(32)).decode())
+PYKEY
+)"
+  else
+    fail "Cannot generate NEXT_SERVER_ACTIONS_ENCRYPTION_KEY. Install openssl or python3, or set it manually in $ENV_FILE."
+  fi
+  set_env_var NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$generated"
+  log "Generated stable NEXT_SERVER_ACTIONS_ENCRYPTION_KEY in $ENV_FILE"
+}
 
 set_env_var() {
   local key="$1" value="$2" file="${3:-$ENV_FILE}"
@@ -103,10 +147,11 @@ ensure_osm_region_env_catalog() {
 
 bootstrap_env_file() {
   local mode; mode="$(normalize_mode "${1:-osrm}")" || fail "Invalid mode: ${1:-}. Use osrm or standard."
-  [[ -f "$ENV_FILE" ]] && { ensure_osm_region_env_catalog; configure_env_for_mode "$mode"; log "Reusing existing env file: $ENV_FILE"; return 0; }
+  [[ -f "$ENV_FILE" ]] && { ensure_next_server_actions_key; ensure_osm_region_env_catalog; configure_env_for_mode "$mode"; log "Reusing existing env file: $ENV_FILE"; return 0; }
   local template="$ENV_OSRM"; [[ "$mode" == "standard" ]] && template="$ENV_STANDARD"
   [[ -f "$template" ]] || fail "Missing env template: $template"
   cp "$template" "$ENV_FILE"
+  ensure_next_server_actions_key
   ensure_osm_region_env_catalog
   configure_env_for_mode "$mode"
   log "Created $ENV_FILE from $(basename "$template")"
@@ -146,6 +191,80 @@ ensure_node_version() {
   [[ "$detected" == "v$EXPECTED_NODE_VERSION" ]] || fail "Node.js v$EXPECTED_NODE_VERSION is required exactly. Detected: ${detected:-unknown}. Run: nvm install $EXPECTED_NODE_VERSION && nvm use $EXPECTED_NODE_VERSION. Avoid sudo because sudo usually hides nvm."
 }
 
+
+run_tool_version_check() {
+  local label="$1"
+  shift
+  "$@" >/dev/null 2>&1
+}
+
+workspace_bin_path() {
+  local package_dir="$1"
+  local package_name="$2"
+  local bin_rel="$3"
+  if [[ -e "$REPO_ROOT/$package_dir/node_modules/$package_name/$bin_rel" ]]; then
+    printf '%s\n' "$REPO_ROOT/$package_dir/node_modules/$package_name/$bin_rel"
+    return 0
+  fi
+  if [[ -e "$REPO_ROOT/node_modules/$package_name/$bin_rel" ]]; then
+    printf '%s\n' "$REPO_ROOT/node_modules/$package_name/$bin_rel"
+    return 0
+  fi
+  return 1
+}
+
+repair_workspace_dependencies() {
+  cd "$REPO_ROOT"
+  log "Checking workspace dependencies."
+
+  local needs_reinstall="false"
+  if [[ ! -d "$REPO_ROOT/node_modules" ]]; then
+    warn "node_modules is missing; reinstalling dependencies."
+    needs_reinstall="true"
+  elif [[ ! -e "$REPO_ROOT/node_modules/typescript/bin/tsc" ]]; then
+    warn "TypeScript package entrypoint is missing; reinstalling dependencies."
+    needs_reinstall="true"
+  elif [[ -f "$REPO_ROOT/apps/gpx-web/package.json" ]] && ! workspace_bin_path "apps/gpx-web" "next" "dist/bin/next" >/dev/null 2>&1; then
+    warn "Next.js package entrypoint is missing from both app-local and root workspace locations; reinstalling dependencies."
+    needs_reinstall="true"
+  fi
+
+  if [[ "$needs_reinstall" == "true" ]]; then
+    warn "Rebuilding workspace dependencies from scratch to avoid stale/root-owned pnpm binaries."
+    rm -rf "$REPO_ROOT/node_modules" "$REPO_ROOT/apps"/*/node_modules "$REPO_ROOT/packages"/*/node_modules
+    pnpm install --frozen-lockfile
+  fi
+
+  chmod -R u+rwX "$REPO_ROOT/node_modules" 2>/dev/null || true
+  chmod +x "$REPO_ROOT/node_modules/.bin"/* 2>/dev/null || true
+  find "$REPO_ROOT/apps" "$REPO_ROOT/packages" -path "*/node_modules/.bin/*" -exec chmod +x {} + 2>/dev/null || true
+
+  if ! run_tool_version_check TypeScript node "$REPO_ROOT/node_modules/typescript/bin/tsc" --version; then
+    warn "TypeScript is still not usable; forcing a clean dependency reinstall."
+    rm -rf "$REPO_ROOT/node_modules" "$REPO_ROOT/apps"/*/node_modules "$REPO_ROOT/packages"/*/node_modules
+    pnpm install --frozen-lockfile
+    chmod -R u+rwX "$REPO_ROOT/node_modules" 2>/dev/null || true
+    chmod +x "$REPO_ROOT/node_modules/.bin"/* 2>/dev/null || true
+    find "$REPO_ROOT/apps" "$REPO_ROOT/packages" -path "*/node_modules/.bin/*" -exec chmod +x {} + 2>/dev/null || true
+  fi
+
+  local root_tsc="$REPO_ROOT/node_modules/typescript/bin/tsc"
+  run_tool_version_check TypeScript node "$root_tsc" --version || fail "Unable to run TypeScript via $root_tsc. Check project ownership and filesystem permissions."
+  if [[ -f "$REPO_ROOT/apps/gpx-web/package.json" ]]; then
+    local next_bin
+    next_bin="$(workspace_bin_path "apps/gpx-web" "next" "dist/bin/next" || true)"
+    [[ -n "$next_bin" ]] || fail "Unable to find Next.js under apps/gpx-web/node_modules or root node_modules. Run: rm -rf node_modules apps/*/node_modules packages/*/node_modules && pnpm install --frozen-lockfile"
+    run_tool_version_check Next.js node "$next_bin" --version || fail "Unable to run Next.js via $next_bin. Check project ownership and filesystem permissions."
+  fi
+  log "Workspace dependencies look healthy."
+}
+
+build_workspace() {
+  cd "$REPO_ROOT"
+  repair_workspace_dependencies
+  pnpm build
+}
+
 enable_pnpm() {
   if command -v corepack >/dev/null 2>&1; then
     log "Preparing pnpm via Corepack (pnpm@$EXPECTED_PNPM_VERSION)"
@@ -178,6 +297,7 @@ load_env_values() {
 }
 
 validate_env_for_mode() {
+  ensure_next_server_actions_key
   local mode; mode="$(normalize_mode "${1:-osrm}")" || fail "Invalid mode requested: ${1:-}"
   load_env_values
   [[ "$HOST_PORT" =~ ^[0-9]+$ ]] || fail "HOST_PORT must be numeric in $ENV_FILE. Current: ${HOST_PORT:-unset}"
@@ -268,6 +388,7 @@ tsconfig.base.json
 VERSION
 first-run.sh
 install.sh
+install-dependencies.sh
 deploy.sh
 update.sh
 restart.sh
@@ -283,7 +404,11 @@ switch-osrm-region.sh
 verify-osrm.sh
 fix-permissions.sh
 clean-web.sh
+clean-rebuild.sh
+repair-osm-builds.sh
+diagnose-osrm.sh
 version-check.sh
+setup-env.sh
 release.sh
 EOF
 }
@@ -312,4 +437,39 @@ update_repo_if_git_checkout() {
   else
     log "Git metadata not found. Skipping git pull because this appears to be a ZIP release."
   fi
+}
+
+verify_osrm_runtime_graph() {
+  load_env_values
+  ensure_osrm_mount_available
+  local graph_path="$OSRM_DATA_DIR/$OSRM_GRAPH"
+  local prefix="${graph_path%.osrm}"
+  local missing=()
+  for suffix in ".osrm" ".osrm.datasource_names" ".osrm.geometry" ".osrm.names" ".osrm.nodes" ".osrm.properties"; do
+    [[ -f "${prefix}${suffix}" ]] || missing+=("${prefix}${suffix}")
+  done
+  if (( ${#missing[@]} > 0 )); then
+    warn "OSRM runtime graph is incomplete for OSRM_GRAPH=$OSRM_GRAPH"
+    printf 'Missing OSRM file: %s\n' "${missing[@]}"
+    warn "Run: ./prepare-osrm.sh repair list && ./repair-osm-builds.sh"
+    return 1
+  fi
+  log "OSRM runtime graph looks complete: $OSRM_GRAPH"
+}
+
+print_osrm_restart_loop_help() {
+  cat <<EOF_HELP
+
+OSRM restart-loop checklist:
+  1. Check logs:
+     docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.osrm.yml logs --tail=120 osrm
+  2. Verify configured graph:
+     ./verify-osrm.sh
+  3. Repair failed or partial extracts:
+     ./prepare-osrm.sh repair list
+     ./repair-osm-builds.sh
+  4. Fix data-folder permissions if needed:
+     sudo chown -R "\$USER:\$USER" "${OSRM_DATA_DIR:-/mnt/h/osrm}"
+     chmod -R u+rwX "${OSRM_DATA_DIR:-/mnt/h/osrm}"
+EOF_HELP
 }

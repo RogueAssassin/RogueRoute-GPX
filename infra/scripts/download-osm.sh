@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 source "$REPO_ROOT/scripts/osm-region-catalog.sh"
 
-print_header "RogueRoute GPX v10 OSM Download"
+print_header "RogueRoute GPX v11 OSM Download"
 bootstrap_env_file osrm
 load_env_values
 mkdir -p "$OSRM_DATA_DIR"
