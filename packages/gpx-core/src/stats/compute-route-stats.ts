@@ -15,5 +15,13 @@ export function computeRouteStats(plan: RoutePlan) {
     totalDurationMinutes: Number((plan.totalDurationSeconds / 60).toFixed(1)),
     bounds: plan.bounds,
     warnings: plan.warnings ?? [],
+    geometryDetail: plan.geometrySummary?.detail ?? "full",
+    sourceTrackPointCount: plan.geometrySummary?.sourceTrackPointCount ?? 0,
+    trackPointCount: plan.geometrySummary?.trackPointCount ?? 0,
+    removedTrackPointCount: plan.geometrySummary?.removedTrackPointCount ?? 0,
+    duplicateTrackPointCount: plan.geometrySummary?.duplicateTrackPointCount ?? 0,
+    simplificationToleranceMeters: plan.geometrySummary?.toleranceMeters ?? 0,
+    trackPointLimit: plan.geometrySummary?.pointLimit,
+    withinTrackPointLimit: plan.geometrySummary?.withinPointLimit ?? true,
   };
 }

@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/infra/scripts/_common.sh"
 ASSUME_YES="false"
 INSTALL_DOCKER="true"
 CREATE_OSRM_DIR="true"
+UPGRADE_SYSTEM="false"
 OSRM_DIR="${OSRM_DATA_DIR:-/mnt/h/osrm}"
 
 usage() {
@@ -23,6 +24,7 @@ Options:
   --no-docker             Skip Docker Engine / Docker Compose install
   --no-osrm-dir           Do not create the OSRM data directory
   --osrm-dir PATH         OSRM data directory to create/chown. Default: /mnt/h/osrm
+  --upgrade-system        Run apt-get upgrade after refreshing package indexes
   --help, -h              Show this help
 
 Installs/checks:
@@ -45,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --yes|-y) ASSUME_YES="true"; shift ;;
     --no-docker) INSTALL_DOCKER="false"; shift ;;
     --no-osrm-dir) CREATE_OSRM_DIR="false"; shift ;;
+    --upgrade-system) UPGRADE_SYSTEM="true"; shift ;;
     --osrm-dir) OSRM_DIR="${2:-}"; [[ -n "$OSRM_DIR" ]] || fail "--osrm-dir requires a path"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "Unknown option: $1. Use --help." ;;
@@ -71,7 +74,11 @@ apt_install() {
 install_base_packages() {
   print_step 1 7 "Install base system packages"
   sudo apt-get update
-  sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+  if [[ "$UPGRADE_SYSTEM" == "true" ]]; then
+    sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+  else
+    log "Skipping full system upgrade. Use --upgrade-system when you explicitly want it."
+  fi
   apt_install \
     apt-transport-https \
     build-essential \
@@ -92,6 +99,7 @@ install_base_packages() {
     make \
     nano \
     net-tools \
+    osmium-tool \
     p7zip-full \
     python3 \
     python3-pip \

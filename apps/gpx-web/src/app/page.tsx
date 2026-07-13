@@ -1,6 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+
+const RouteMap = dynamic(() => import("../components/route-map"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{
+        height: 360,
+        display: "grid",
+        placeItems: "center",
+        color: "#94a3b8",
+      }}
+    >
+      Loading map…
+    </div>
+  ),
+});
 
 type Point = [number, number];
 
@@ -30,6 +47,12 @@ type GenerateResponse = {
     manualOverrideLegs: number;
     totalDistanceKm: number;
     totalDurationMinutes: number;
+    geometryDetail: "auto" | "compact" | "full";
+    sourceTrackPointCount: number;
+    trackPointCount: number;
+    removedTrackPointCount: number;
+    simplificationToleranceMeters: number;
+    withinTrackPointLimit: boolean;
     warnings?: string[];
   };
   cache?: "hit" | "miss";
@@ -42,7 +65,29 @@ type GenerateResponse = {
       name?: string;
     }>;
     legs: Array<{
+      from: {
+        id: string;
+        lat: number;
+        lng: number;
+        name?: string;
+      };
+      to: {
+        id: string;
+        lat: number;
+        lng: number;
+        name?: string;
+      };
       geometry: Point[];
+      snappedFrom?: {
+        lat: number;
+        lng: number;
+        distanceMeters: number;
+      };
+      snappedTo?: {
+        lat: number;
+        lng: number;
+        distanceMeters: number;
+      };
       overrideUsed?: boolean;
       warning?: string;
     }>;
@@ -66,7 +111,22 @@ type GenerateResponse = {
     strictLandRouting: boolean;
     allowFerries: boolean;
     allowManualOverride: boolean;
+    geometryDetail: "auto" | "compact" | "full";
   };
+};
+
+type RoutingFailure = {
+  kind: "no-segment" | "no-route";
+  legIndex: number;
+  waypointIndex?: number;
+  point?: {
+    id: string;
+    lat: number;
+    lng: number;
+    name?: string;
+  };
+  attemptedSnapRadiiMeters: number[];
+  maxSnapRadiusMeters: number;
 };
 
 function sanitizeFilename(value: string) {
@@ -75,26 +135,6 @@ function sanitizeFilename(value: string) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 120);
-}
-
-function projectPoint(
-  point: Point,
-  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number },
-  width = 900,
-  height = 500,
-) {
-  const [lat, lng] = point;
-  const padding = 26;
-  const latSpan = bounds.maxLat - bounds.minLat || 0.001;
-  const lngSpan = bounds.maxLng - bounds.minLng || 0.001;
-
-  const x = padding + ((lng - bounds.minLng) / lngSpan) * (width - padding * 2);
-  const y =
-    height -
-    padding -
-    ((lat - bounds.minLat) / latSpan) * (height - padding * 2);
-
-  return { x, y };
 }
 
 export default function HomePage() {
@@ -106,8 +146,16 @@ export default function HomePage() {
   const [strictLandRouting, setStrictLandRouting] = useState(true);
   const [allowFerries, setAllowFerries] = useState(false);
   const [allowManualOverride, setAllowManualOverride] = useState(false);
+  const [geometryDetail, setGeometryDetail] = useState<
+    "auto" | "compact" | "full"
+  >("auto");
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [routingFailure, setRoutingFailure] =
+    useState<RoutingFailure | null>(null);
+  const [failureWaypoints, setFailureWaypoints] = useState<
+    GenerateResponse["orderedWaypoints"]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [regions, setRegions] = useState<OsrmRegion[]>([]);
@@ -127,12 +175,22 @@ export default function HomePage() {
     const savedOverride = window.localStorage.getItem(
       "rogue.allowManualOverride",
     );
+    const savedGeometryDetail = window.localStorage.getItem(
+      "rogue.geometryDetail",
+    );
 
     if (savedRouteMode) setRouteMode(savedRouteMode);
     if (savedRouteName) setRouteName(savedRouteName);
     if (savedStrictLand) setStrictLandRouting(savedStrictLand === "true");
     if (savedFerries) setAllowFerries(savedFerries === "true");
     if (savedOverride) setAllowManualOverride(savedOverride === "true");
+    if (
+      savedGeometryDetail === "auto" ||
+      savedGeometryDetail === "compact" ||
+      savedGeometryDetail === "full"
+    ) {
+      setGeometryDetail(savedGeometryDetail);
+    }
 
     if (window.location.hash.startsWith("#import=")) {
       try {
@@ -184,26 +242,16 @@ export default function HomePage() {
       ),
     [allowManualOverride],
   );
-
-  const previewLegs = useMemo(() => result?.plan.legs ?? [], [result]);
-  const previewPoints = useMemo(
-    () => previewLegs.flatMap((leg) => leg.geometry),
-    [previewLegs],
+  useEffect(
+    () => window.localStorage.setItem("rogue.geometryDetail", geometryDetail),
+    [geometryDetail],
   );
 
-  const bounds = useMemo(() => {
-    if (!previewPoints.length) {
-      return { minLat: -37.82, maxLat: -37.81, minLng: 144.96, maxLng: 144.97 };
-    }
-    const lats = previewPoints.map((p) => p[0]);
-    const lngs = previewPoints.map((p) => p[1]);
-    return {
-      minLat: Math.min(...lats),
-      maxLat: Math.max(...lats),
-      minLng: Math.min(...lngs),
-      maxLng: Math.max(...lngs),
-    };
-  }, [previewPoints]);
+  const previewLegs = useMemo(() => result?.plan.legs ?? [], [result]);
+  const previewWaypoints = useMemo(
+    () => result?.orderedWaypoints ?? [],
+    [result],
+  );
 
   async function refreshBuildInfo() {
     try {
@@ -221,6 +269,7 @@ export default function HomePage() {
     window.localStorage.removeItem("rogue.strictLandRouting");
     window.localStorage.removeItem("rogue.allowFerries");
     window.localStorage.removeItem("rogue.allowManualOverride");
+    window.localStorage.removeItem("rogue.geometryDetail");
     window.location.reload();
   }
 
@@ -270,6 +319,8 @@ export default function HomePage() {
   async function generate() {
     setLoading(true);
     setError(null);
+    setRoutingFailure(null);
+    setFailureWaypoints([]);
     setImportNotice(null);
 
     try {
@@ -283,12 +334,18 @@ export default function HomePage() {
           strictLandRouting,
           allowFerries,
           allowManualOverride,
+          geometryDetail,
         }),
       });
 
       const data = await response.json();
-      if (!response.ok)
+      if (!response.ok) {
+        setRoutingFailure(data.routingFailure ?? null);
+        setFailureWaypoints(
+          Array.isArray(data.previewWaypoints) ? data.previewWaypoints : [],
+        );
         throw new Error(data.error || "Failed to generate route");
+      }
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -315,6 +372,20 @@ export default function HomePage() {
     anchor.download = `${sanitizeFilename(routeName || "route")}-debug.json`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadGpx() {
+    if (!result?.gpx) return;
+    const blob = new Blob([result.gpx], { type: "application/gpx+xml" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = gpxDownloadName;
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   const gpxDownloadName = `${sanitizeFilename(routeName || "route")}.gpx`;
@@ -528,7 +599,7 @@ export default function HomePage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
               gap: 12,
               marginBottom: 12,
             }}
@@ -551,6 +622,22 @@ export default function HomePage() {
                 <option value="preserve-order">Preserve order</option>
                 <option value="optimize-middle">Optimize middle</option>
                 <option value="loop">Loop</option>
+              </select>
+            </label>
+            <label style={fieldStyle}>
+              <span>GPX detail</span>
+              <select
+                value={geometryDetail}
+                onChange={(event) =>
+                  setGeometryDetail(
+                    event.target.value as "auto" | "compact" | "full",
+                  )
+                }
+                style={inputStyle}
+              >
+                <option value="auto">Automatic (recommended)</option>
+                <option value="compact">Compact (smallest file)</option>
+                <option value="full">Full geometry (large)</option>
               </select>
             </label>
           </div>
@@ -637,13 +724,9 @@ export default function HomePage() {
             </button>
 
             {result?.gpx && (
-              <a
-                href={`data:application/gpx+xml;charset=utf-8,${encodeURIComponent(result.gpx)}`}
-                download={gpxDownloadName}
-                style={buttonLink}
-              >
+              <button onClick={downloadGpx} style={secondaryButton}>
                 Download {gpxDownloadName}
-              </a>
+              </button>
             )}
 
             {result && (
@@ -687,6 +770,22 @@ export default function HomePage() {
               label="Override legs"
               value={result ? String(result.stats.manualOverrideLegs) : "0"}
             />
+            <StatCard
+              label="GPX track points"
+              value={
+                result
+                  ? `${result.stats.trackPointCount} / ${result.stats.sourceTrackPointCount}`
+                  : "—"
+              }
+            />
+            <StatCard
+              label="Geometry cleanup"
+              value={
+                result && result.stats.sourceTrackPointCount > 0
+                  ? `${Math.round((result.stats.removedTrackPointCount / result.stats.sourceTrackPointCount) * 100)}% smaller`
+                  : "—"
+              }
+            />
           </div>
 
           <div
@@ -697,85 +796,12 @@ export default function HomePage() {
               padding: 10,
             }}
           >
-            <svg viewBox="0 0 900 500" width="100%" height="330">
-              <rect
-                x="0"
-                y="0"
-                width="900"
-                height="500"
-                fill="rgba(2,6,23,0.98)"
-                rx="18"
-              />
-              <g opacity="0.2">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <line
-                    key={`h-${i}`}
-                    x1="0"
-                    x2="900"
-                    y1={i * 40 + 20}
-                    y2={i * 40 + 20}
-                    stroke="#334155"
-                  />
-                ))}
-                {Array.from({ length: 18 }).map((_, i) => (
-                  <line
-                    key={`v-${i}`}
-                    y1="0"
-                    y2="500"
-                    x1={i * 50 + 20}
-                    x2={i * 50 + 20}
-                    stroke="#1e293b"
-                  />
-                ))}
-              </g>
-              {previewLegs.map((leg, index) => {
-                const coords = leg.geometry
-                  .map((point) => {
-                    const p = projectPoint(point, bounds);
-                    return `${p.x},${p.y}`;
-                  })
-                  .join(" ");
-                return (
-                  <polyline
-                    key={index}
-                    points={coords}
-                    fill="none"
-                    stroke={leg.overrideUsed ? "#ef4444" : "#22d3ee"}
-                    strokeWidth="4"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    strokeDasharray={leg.overrideUsed ? "12 10" : undefined}
-                  />
-                );
-              })}
-              {result?.orderedWaypoints.map((point, index) => {
-                const p = projectPoint([point.lat, point.lng], bounds);
-                return (
-                  <g key={point.id}>
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r="9"
-                      fill="rgba(168,85,247,0.18)"
-                    />
-                    <circle cx={p.x} cy={p.y} r="4" fill="#a855f7" />
-                    <text
-                      x={p.x + 10}
-                      y={p.y - 10}
-                      fill="#e2e8f0"
-                      fontSize="12"
-                    >
-                      {index + 1}
-                    </text>
-                  </g>
-                );
-              })}
-              {!previewLegs.length && (
-                <text x="30" y="50" fill="#94a3b8">
-                  No route preview yet.
-                </text>
-              )}
-            </svg>
+            <RouteMap
+              legs={previewLegs}
+              waypoints={previewWaypoints.length ? previewWaypoints : failureWaypoints}
+              failure={routingFailure}
+              initialView={result?.mapState}
+            />
           </div>
 
           <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
@@ -807,7 +833,9 @@ export default function HomePage() {
                 </span>
                 <br />
                 Auto-snap recovery:{" "}
-                <span style={{ color: "#22d3ee" }}>Enabled</span>
+                <span style={{ color: "#22d3ee" }}>
+                  Adaptive, strict-land safe
+                </span>
                 <br />
                 Route cache:{" "}
                 <span style={{ color: result?.cache === "hit" ? "#22d3ee" : "#cbd5e1" }}>

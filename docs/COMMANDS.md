@@ -21,6 +21,7 @@ bash fix-permissions.sh
 ```bash
 ./download-osm.sh list
 ./download-osm.sh australia
+./download-osm.sh popular
 ./prepare-osrm.sh region australia
 ./deploy.sh osrm
 ./status.sh
@@ -33,6 +34,30 @@ bash fix-permissions.sh
 ```bash
 ./prepare-osrm.sh all-downloaded --yes
 ```
+
+Batch downloads continue after individual failures and can be resumed by
+running the same command again. `all-downloaded` retries failed OSRM builds once
+with `OSRM_SAFE_THREADS` and keeps per-region logs in `_build-logs`.
+
+## GPX geometry defaults
+
+```env
+GPX_MAX_TRACK_POINTS=1000
+GPX_SIMPLIFY_TOLERANCE_METERS=2.5
+```
+
+The web UI offers Automatic, Compact, and Full geometry export modes.
+
+## Strict routing snap recovery
+
+```env
+OSRM_SNAP_RADIUS_METERS=250
+OSRM_SNAP_MAX_RADIUS_METERS=1500
+```
+
+The first value is the initial nearest-path search. RogueRoute progressively
+expands to the maximum only after OSRM returns `NoSegment`; it never substitutes
+a straight manual leg unless Manual override is explicitly enabled.
 
 ## OSRM repair commands
 

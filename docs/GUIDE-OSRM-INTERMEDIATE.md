@@ -5,7 +5,7 @@ Use this guide when you want high-quality GPX generation that follows roads, pat
 ## 1. Clone and enter the repo
 
 ```bash
-git clone https://github.com/YOUR-USER/RogueRoute-GPX.git
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 bash fix-permissions.sh
 ```
@@ -15,17 +15,18 @@ bash fix-permissions.sh
 On Ubuntu/Debian or WSL2 Ubuntu, use the bundled dependency installer:
 
 ```bash
-./install-dependencies.sh --yes
+./install-dependencies.sh --yes --osrm-dir /var/lib/rogueroute/osrm
 ```
 
-This installs Docker Engine with `docker compose`, Node.js `24.15.0`, Corepack/pnpm `11.0.8`, and common build/helper tools. You still need enough disk space for your selected OSM extracts and prepared OSRM graphs.
+This installs Docker Engine with `docker compose`, Node.js `24.18.0`, Corepack `0.35.0`, pnpm `11.12.0`, and common build/helper tools. You still need enough disk space for your selected OSM extracts and prepared OSRM graphs.
 
 After Docker is installed, log out/in or run `newgrp docker` if Docker group membership changed.
 
 ## 3. Create the environment file
 
 ```bash
-./first-run.sh
+./setup-env.sh osrm --data-dir /var/lib/rogueroute/osrm
+./first-run.sh osrm
 ```
 
 Choose `OSRM` when prompted. This creates `infra/docker/.env` from `infra/docker/.env.osrm`.
@@ -34,7 +35,7 @@ Edit these values if needed:
 
 ```text
 HOST_PORT=9080
-OSRM_DATA_DIR=/mnt/h/osrm
+OSRM_DATA_DIR=/var/lib/rogueroute/osrm
 OSRM_PROFILE=foot
 OSRM_THREADS=2
 OSRM_SAFE_THREADS=1
@@ -55,7 +56,7 @@ Download a region:
 ./download-osm.sh australia
 ```
 
-Core starter set:
+Large batch (only use when you have checked the required disk/RAM):
 
 ```bash
 ./download-osm.sh core
@@ -104,7 +105,8 @@ If a build was interrupted:
 ./prepare-osrm.sh repair 3
 ```
 
-If a graph is partial and must be rebuilt:
+Partial graphs are backed up and rebuilt automatically. To intentionally rebuild
+an already-ready graph:
 
 ```bash
 ./prepare-osrm.sh repair 3 --force --yes

@@ -2,12 +2,13 @@ import type { RoutePlan, RouteLeg } from "../domain/route-plan";
 import type { RouteRequest } from "../domain/route-options";
 import type { Waypoint } from "../domain/waypoint";
 import type { Router } from "./router";
-import { computeBounds, haversineMeters } from "../utils/geo";
+import { computeBounds, haversineMeters } from "../utils/geo.js";
 
 type OsrmConfig = {
   baseUrl: string;
   profile?: "foot" | "bike" | "car";
   snapRadiusMeters?: number;
+  snapMaxRadiusMeters?: number;
   maxParallelLegs?: number;
 };
 
@@ -39,6 +40,48 @@ type SnappedWaypoint = Waypoint & {
   originalLat?: number;
   originalLng?: number;
 };
+
+export type RoutingFailureDetails = {
+  kind: "no-segment" | "no-route";
+  legIndex: number;
+  waypointIndex?: number;
+  point?: Waypoint;
+  attemptedSnapRadiiMeters: number[];
+  maxSnapRadiusMeters: number;
+};
+
+export class OsrmRoutingError extends Error {
+  readonly routingFailure: RoutingFailureDetails;
+
+  constructor(message: string, routingFailure: RoutingFailureDetails) {
+    super(message);
+    this.name = "OsrmRoutingError";
+    this.routingFailure = routingFailure;
+  }
+}
+
+class OsrmSnapError extends Error {
+  readonly point: Waypoint;
+  readonly label: "Start" | "End";
+  readonly attemptedRadii: number[];
+
+  constructor(
+    point: Waypoint,
+    label: "Start" | "End",
+    attemptedRadii: number[],
+    maxRadiusMeters: number,
+  ) {
+    super(
+      `${label} waypoint has no routable OSRM segment within ${maxRadiusMeters}m after adaptive snap checks (${attemptedRadii.join(
+        ", ",
+      )}m).`,
+    );
+    this.name = "OsrmSnapError";
+    this.point = point;
+    this.label = label;
+    this.attemptedRadii = attemptedRadii;
+  }
+}
 
 function fallbackLeg(from: Waypoint, to: Waypoint, index: number, reason: string): RouteLeg {
   const distanceMeters = haversineMeters(from, to);
@@ -75,43 +118,89 @@ export class OsrmRouter implements Router {
   private readonly baseUrl: string;
   private readonly profile: "foot" | "bike" | "car";
   private readonly snapRadiusMeters: number;
+  private readonly snapMaxRadiusMeters: number;
   private readonly maxParallelLegs: number;
 
   constructor(config: OsrmConfig) {
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.profile = config.profile ?? "foot";
     this.snapRadiusMeters = Math.max(25, config.snapRadiusMeters ?? 250);
+    this.snapMaxRadiusMeters = Math.max(
+      this.snapRadiusMeters,
+      config.snapMaxRadiusMeters ?? 1500,
+    );
     this.maxParallelLegs = Math.max(1, config.maxParallelLegs ?? 6);
   }
 
-  private async snap(point: Waypoint, label: string): Promise<SnappedWaypoint> {
+  private snapRadii(): number[] {
+    const radii = [this.snapRadiusMeters];
+    while (radii[radii.length - 1] < this.snapMaxRadiusMeters) {
+      const current = radii[radii.length - 1];
+      radii.push(Math.min(this.snapMaxRadiusMeters, current * 2));
+    }
+    return radii;
+  }
+
+  private async snap(
+    point: Waypoint,
+    label: "Start" | "End",
+  ): Promise<SnappedWaypoint> {
     const profile = osrmProfile(this.profile);
-    const params = new URLSearchParams({
-      number: "1",
-      radiuses: String(this.snapRadiusMeters),
-      generate_hints: "false",
-    });
-    const url = `${this.baseUrl}/nearest/v1/${profile}/${point.lng},${point.lat}?${params.toString()}`;
-    const response = await fetch(url);
-    if (!response.ok) {
+    const attemptedRadii: number[] = [];
+
+    for (const radius of this.snapRadii()) {
+      attemptedRadii.push(radius);
+      const params = new URLSearchParams({
+        number: "1",
+        radiuses: String(radius),
+        generate_hints: "false",
+      });
+      const url = `${this.baseUrl}/nearest/v1/${profile}/${point.lng},${point.lat}?${params.toString()}`;
+      const response = await fetch(url);
       const body = await response.text().catch(() => "");
-      throw new Error(`${label} waypoint could not be snapped by OSRM: ${response.status} ${body}`.trim());
+      let data: OsrmNearestResponse = {};
+      try {
+        data = body ? (JSON.parse(body) as OsrmNearestResponse) : {};
+      } catch {
+        if (!response.ok) {
+          throw new Error(
+            `${label} waypoint snap request failed: ${response.status} ${body}`.trim(),
+          );
+        }
+      }
+
+      const nearest = data.waypoints?.[0];
+      const location = nearest?.location;
+      if (response.ok && data.code === "Ok" && location) {
+        const [lng, lat] = location;
+        return {
+          ...point,
+          lat,
+          lng,
+          originalLat: point.lat,
+          originalLng: point.lng,
+          snapDistanceMeters:
+            nearest.distance ?? haversineMeters(point, { ...point, lat, lng }),
+        };
+      }
+
+      const isNoSegment =
+        data.code === "NoSegment" ||
+        (response.status === 400 &&
+          /matching segment|no segment/i.test(data.message || body));
+      if (!isNoSegment) {
+        throw new Error(
+          `${label} waypoint snap request failed: ${response.status} ${data.message || body}`.trim(),
+        );
+      }
     }
-    const data = (await response.json()) as OsrmNearestResponse;
-    const nearest = data.waypoints?.[0];
-    const location = nearest?.location;
-    if (data.code !== "Ok" || !location) {
-      throw new Error(`${label} waypoint has no routable OSRM segment within ${this.snapRadiusMeters}m (${data.message || data.code || "NoSegment"}).`);
-    }
-    const [lng, lat] = location;
-    return {
-      ...point,
-      lat,
-      lng,
-      originalLat: point.lat,
-      originalLng: point.lng,
-      snapDistanceMeters: nearest.distance ?? haversineMeters(point, { ...point, lat, lng }),
-    };
+
+    throw new OsrmSnapError(
+      point,
+      label,
+      attemptedRadii,
+      this.snapMaxRadiusMeters,
+    );
   }
 
   private async fetchLeg(from: Waypoint, to: Waypoint, index: number, overview: "full" | "simplified" = "full") {
@@ -175,6 +264,16 @@ export class OsrmRouter implements Router {
             distanceMeters: route?.distance ?? fallbackDistance,
             durationSeconds: route?.duration ?? fallbackDistance / 1.35,
             geometry,
+            snappedFrom: {
+              lat: snappedFrom.lat,
+              lng: snappedFrom.lng,
+              distanceMeters: snappedFrom.snapDistanceMeters ?? 0,
+            },
+            snappedTo: {
+              lat: snappedTo.lat,
+              lng: snappedTo.lng,
+              distanceMeters: snappedTo.snapDistanceMeters ?? 0,
+            },
             warning: warnings.join(" ") || undefined,
           },
           warnings,
@@ -186,7 +285,20 @@ export class OsrmRouter implements Router {
           const leg = fallbackLeg(from, to, index, reason);
           return { leg, warnings: [...warnings, leg.warning! ] };
         }
-        throw new Error(`${reason}. Try moving waypoint ${index + 1}/${index + 2} closer to a visible road/path, increase OSRM_SNAP_RADIUS_METERS, or enable Manual override.`);
+        const failedSnap = snapError instanceof OsrmSnapError ? snapError : undefined;
+        throw new OsrmRoutingError(
+          `${reason}. Strict routing stayed enabled and no direct segment was created. Move the highlighted waypoint closer to a mapped path, improve the OSM foot network, or increase OSRM_SNAP_MAX_RADIUS_METERS.`,
+          {
+            kind: failedSnap ? "no-segment" : "no-route",
+            legIndex: index,
+            waypointIndex: failedSnap
+              ? index + (failedSnap.label === "End" ? 1 : 0)
+              : undefined,
+            point: failedSnap?.point,
+            attemptedSnapRadiiMeters: failedSnap?.attemptedRadii ?? [],
+            maxSnapRadiusMeters: this.snapMaxRadiusMeters,
+          },
+        );
       }
     }
   }

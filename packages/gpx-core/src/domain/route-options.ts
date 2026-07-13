@@ -1,4 +1,5 @@
 export type RouteMode = "preserve-order" | "optimize-middle" | "loop";
+export type GeometryDetail = "auto" | "compact" | "full";
 
 export type RouteRequest = {
   mode: RouteMode;
@@ -8,4 +9,5 @@ export type RouteRequest = {
   strictLandRouting?: boolean;
   allowFerries?: boolean;
   allowManualOverride?: boolean;
+  geometryDetail?: GeometryDetail;
 };

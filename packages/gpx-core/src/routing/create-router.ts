@@ -7,6 +7,7 @@ export function createRouterFromEnv(env: {
   OSRM_URL?: string;
   OSRM_PROFILE?: string;
   OSRM_SNAP_RADIUS_METERS?: string;
+  OSRM_SNAP_MAX_RADIUS_METERS?: string;
   OSRM_MAX_PARALLEL_LEGS?: string;
 }): Router {
   const mode = (env.ROUTER_MODE ?? "osrm").toLowerCase();
@@ -20,12 +21,18 @@ export function createRouterFromEnv(env: {
     const rawProfile = (env.OSRM_PROFILE ?? "foot").toLowerCase();
     const profile = rawProfile === "bike" || rawProfile === "car" ? rawProfile : "foot";
     const snapRadiusMeters = Number(env.OSRM_SNAP_RADIUS_METERS ?? "250");
+    const snapMaxRadiusMeters = Number(
+      env.OSRM_SNAP_MAX_RADIUS_METERS ?? "1500",
+    );
     const maxParallelLegs = Number(env.OSRM_MAX_PARALLEL_LEGS ?? "6");
 
     return new OsrmRouter({
       baseUrl: osrmUrl,
       profile,
       snapRadiusMeters: Number.isFinite(snapRadiusMeters) ? snapRadiusMeters : 250,
+      snapMaxRadiusMeters: Number.isFinite(snapMaxRadiusMeters)
+        ? snapMaxRadiusMeters
+        : 1500,
       maxParallelLegs: Number.isFinite(maxParallelLegs) ? maxParallelLegs : 6,
     });
   }

@@ -1,5 +1,45 @@
 # RogueRoute GPX v11
 
+## Unreleased reliability improvements
+
+- Updated the validated production toolchain to Node.js 24.18.0 LTS,
+  Corepack 0.35.0, pnpm 11.12.0, Next.js 16.2.10, React/React DOM 19.2.7,
+  and `@types/react` 19.2.17.
+- Tested TypeScript 7.0.2 but retained TypeScript 6.0.3 because the current
+  Next.js build worker does not yet recognise the TypeScript 7 installation
+  correctly in this workspace.
+- Retained `@types/node` 24.x so the type definitions continue to match the
+  supported Node.js 24 runtime instead of crossing to the Node.js 26 types.
+- Updated deploy/update ordering so newly pulled Node.js and pnpm requirements
+  are reloaded before dependency installation.
+- Fixed valid Geofabrik downloads being falsely rejected because `osmium`
+  inferred an unknown format from the `.osm.pbf.part` suffix.
+- Fixed completed modern OSRM MLD builds being falsely reported incomplete
+  because the checker required obsolete `.osrm.nodes` output instead of
+  `.osrm.nbg_nodes`; readiness now checks the current runtime sidecar set,
+  including `.osrm.mldgr`, and prints every genuinely missing file.
+- Added full PBF validation and automatic recovery of already-downloaded
+  `.part.invalid-TIMESTAMP` files without another network transfer.
+- Added automatic, compact, and full GPX geometry modes with path-preserving
+  simplification, exact duplicate cleanup, configurable point limits, and UI
+  point-count reporting.
+- Added bounded adaptive OSRM nearest-path recovery (250m to 1500m by default)
+  so strict-land routes can recover a distant portal without creating a manual
+  direct segment; failures now identify the exact waypoint and radii tried.
+- Replaced the schematic route preview with an interactive OpenStreetMap map
+  showing routed legs, original waypoints, auto-snap corrections, and failed
+  waypoint markers.
+- Changed browser GPX downloads from large data URLs to Blob downloads.
+- Added GPX core tests for endpoint/corner retention, duplicate removal, and
+  adaptive point budgeting.
+- Hardened OSM downloads with resume/retry behaviour, PBF validation, per-batch
+  failure summaries, and continuation after individual region failures.
+- Changed all-region OSRM preparation to back up/rebuild partial graphs,
+  validate runtime sidecars, retry once with safe threads, and keep per-file
+  build logs.
+- Reworked the vanilla Ubuntu/Debian installation guide and added configurable
+  `setup-env.sh --data-dir` support.
+
 ## v11 safe build hotfix
 
 - Public version label is normalized to `v11` everywhere user-facing.

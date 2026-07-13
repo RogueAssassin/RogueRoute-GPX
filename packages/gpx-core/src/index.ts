@@ -12,4 +12,5 @@ export * from "./routing/osrm-router";
 export * from "./routing/create-router";
 export * from "./stats/compute-route-stats";
 export * from "./gpx/build-gpx";
+export * from "./gpx/simplify-track";
 export * from "./service/generate-route";
