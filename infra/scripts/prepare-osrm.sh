@@ -14,13 +14,17 @@ OSRM_FORCE_SAFE_BUILDS="${OSRM_FORCE_SAFE_BUILDS:-true}"
 OSRM_DOCKER_MEMORY="${OSRM_DOCKER_MEMORY:-}"
 OSRM_IMAGE="${OSRM_IMAGE:-osrm/osrm-backend:latest}"
 
+[[ "$OSRM_THREADS" =~ ^[0-9]+$ && "$OSRM_THREADS" -ge 1 ]] || fail "OSRM_THREADS must be a positive integer. Current: $OSRM_THREADS"
+[[ "$OSRM_SAFE_THREADS" =~ ^[0-9]+$ && "$OSRM_SAFE_THREADS" -ge 1 ]] || fail "OSRM_SAFE_THREADS must be a positive integer. Current: $OSRM_SAFE_THREADS"
+
 if [[ "$OSRM_FORCE_SAFE_BUILDS" == "true" && "${OSRM_THREADS:-2}" -gt 2 ]]; then
   warn "OSRM_FORCE_SAFE_BUILDS=true; reducing OSRM_THREADS from $OSRM_THREADS to 2 for safer memory use."
   OSRM_THREADS=2
 fi
 
 docker_osrm_run() {
-  local -a docker_args=(run --rm -t)
+  local -a docker_args=(run --rm)
+  [[ -t 1 ]] && docker_args+=(-t)
   if [[ -n "${OSRM_DOCKER_MEMORY:-}" ]]; then
     docker_args+=(--memory "$OSRM_DOCKER_MEMORY" --memory-swap "$OSRM_DOCKER_MEMORY")
   fi
@@ -90,15 +94,16 @@ validate_selection() {
   OSRM_PBF="$(strip_osrm_data_prefix "$OSRM_PBF")"
   OSRM_GRAPH="$(derive_graph_from_pbf "$OSRM_PBF")"
   [[ -f "$OSRM_DATA_DIR/$OSRM_PBF" ]] || fail "Missing PBF: $OSRM_DATA_DIR/$OSRM_PBF"
+  validate_pbf_input "$OSRM_DATA_DIR/$OSRM_PBF" || fail "Invalid or incomplete OSM PBF: $OSRM_DATA_DIR/$OSRM_PBF. Re-run ./download-osm.sh for this region."
 }
 
-osrm_graph_is_ready() {
-  local base="$1"
-  [[ -f "$OSRM_DATA_DIR/${base}.osrm" ]] || return 1
-  [[ -f "$OSRM_DATA_DIR/${base}.osrm.partition" ]] || return 1
-  [[ -f "$OSRM_DATA_DIR/${base}.osrm.cells" ]] || return 1
-  [[ -f "$OSRM_DATA_DIR/${base}.osrm.cell_metrics" ]] || return 1
-  return 0
+validate_pbf_input() {
+  local file="$1"
+  [[ -s "$file" ]] || { warn "PBF is empty: $file"; return 1; }
+  LC_ALL=C grep -a -m1 -q 'OSMHeader' "$file" || { warn "PBF header is missing: $file"; return 1; }
+  if command -v osmium >/dev/null 2>&1; then
+    osmium fileinfo "$file" >/dev/null 2>&1 || { warn "osmium could not read: $file"; return 1; }
+  fi
 }
 
 matching_osrm_outputs_exist() {
@@ -293,6 +298,51 @@ backup_osrm_graph_outputs() {
   fi
 }
 
+run_osrm_pipeline() {
+  local mount_root="$1" pbf_rel="$2" graph_rel="$3" threads="$4"
+  docker_osrm_run "$mount_root" \
+    osrm-extract --threads "$threads" -p "/opt/${OSRM_PROFILE}.lua" "/data/${pbf_rel}" &&
+    docker_osrm_run "$mount_root" \
+      osrm-partition "/data/${graph_rel}" &&
+    docker_osrm_run "$mount_root" \
+      osrm-customize "/data/${graph_rel}"
+}
+
+prepare_with_safe_retry() {
+  local mount_root="$1" pbf_rel="$2" graph_rel="$3"
+  local graph_base="${graph_rel%.osrm}" safe_threads log_dir log_name log_file
+  safe_threads="$OSRM_SAFE_THREADS"
+  [[ "$safe_threads" =~ ^[0-9]+$ && "$safe_threads" -ge 1 ]] || safe_threads=1
+  if [[ "$safe_threads" -ge "$OSRM_THREADS" && "$OSRM_THREADS" -gt 1 ]]; then
+    safe_threads=1
+  fi
+  log_dir="$OSRM_DATA_DIR/_build-logs"
+  mkdir -p "$log_dir"
+  log_name="${pbf_rel//\//_}"
+  log_file="$log_dir/prepare-${log_name%.osm.pbf}-$(date +%Y%m%d-%H%M%S).log"
+
+  log "Build log: $log_file"
+  if run_osrm_pipeline "$mount_root" "$pbf_rel" "$graph_rel" "$OSRM_THREADS" 2>&1 | tee "$log_file"; then
+    return 0
+  fi
+
+  warn "OSRM processing failed for $pbf_rel with $OSRM_THREADS thread(s)."
+  backup_osrm_graph_outputs "$graph_base"
+
+  if [[ "$safe_threads" -eq "$OSRM_THREADS" ]]; then
+    warn "Safe retry uses the same thread count ($safe_threads); no second attempt was made."
+    return 1
+  fi
+
+  warn "Retrying $pbf_rel once with OSRM_SAFE_THREADS=$safe_threads."
+  if run_osrm_pipeline "$mount_root" "$pbf_rel" "$graph_rel" "$safe_threads" 2>&1 | tee -a "$log_file"; then
+    return 0
+  fi
+
+  warn "Safe retry also failed for $pbf_rel. Partial outputs are preserved for repair diagnostics."
+  return 1
+}
+
 build_selected() {
   local force_rebuild="${1:-false}"
   validate_selection
@@ -322,16 +372,13 @@ build_selected() {
       backup_osrm_graph_outputs "$graph_base"
     elif matching_osrm_outputs_exist "$graph_base"; then
       warn "Partial OSRM graph found for $OSRM_GRAPH but required MLD sidecars are missing."
-      warn "No files were removed. Re-run this one region with --force to move old .osrm* outputs into _osrm-backups and rebuild."
-      return 0
+      warn "Moving the unusable partial output to _osrm-backups before rebuilding. The .osm.pbf input is preserved."
+      backup_osrm_graph_outputs "$graph_base"
     fi
 
-    docker_osrm_run "$OSRM_DATA_DIR" \
-      osrm-extract --threads "$OSRM_THREADS" -p "/opt/${OSRM_PROFILE}.lua" "/data/${OSRM_PBF}"
-    docker_osrm_run "$OSRM_DATA_DIR" \
-      osrm-partition "/data/${OSRM_GRAPH}"
-    docker_osrm_run "$OSRM_DATA_DIR" \
-      osrm-customize "/data/${OSRM_GRAPH}"
+    if ! prepare_with_safe_retry "$OSRM_DATA_DIR" "$OSRM_PBF" "$OSRM_GRAPH"; then
+      return 1
+    fi
   fi
 
   set_env_var OSRM_PBF "$OSRM_PBF"
@@ -340,7 +387,11 @@ build_selected() {
     set_env_var OSRM_ACTIVE_REGION "$SELECTED_REGION_KEY"
     set_env_var "$(region_env_name "$SELECTED_REGION_KEY")" "$OSRM_PBF"
   fi
-  osrm_graph_is_ready "$graph_base" || fail "OSRM graph is incomplete after build: $OSRM_DATA_DIR/$OSRM_GRAPH"
+  if ! osrm_graph_is_ready "$graph_base"; then
+    warn "OSRM processing finished, but required runtime files are missing for: $OSRM_DATA_DIR/$OSRM_GRAPH"
+    report_missing_osrm_graph_files "$graph_base"
+    return 1
+  fi
   log "OSRM graph ready: $OSRM_DATA_DIR/$OSRM_GRAPH"
 }
 
@@ -416,6 +467,7 @@ case "${1:-env}" in
     done
 
     processed=0
+    built=0
     skipped=0
     failed=0
     total="${#pbf_files[@]}"
@@ -435,6 +487,13 @@ case "${1:-env}" in
         continue
       fi
 
+      if ! validate_pbf_input "$pbf_abs"; then
+        failed=$((failed + 1))
+        warn "Invalid or incomplete PBF: $pbf_rel. Continuing to the next file."
+        warn "Re-run ./download-osm.sh for the matching region before retrying preparation."
+        continue
+      fi
+
       if osrm_graph_is_ready "$pbf_base" && [[ "$FORCE_REBUILD" != "true" ]]; then
         skipped=$((skipped + 1))
         log "Prepared OSRM graph already exists for ${pbf_rel}. Skipping and moving to next file."
@@ -444,10 +503,9 @@ case "${1:-env}" in
       if [[ "$FORCE_REBUILD" == "true" ]]; then
         backup_osrm_graph_outputs "$pbf_base"
       elif matching_osrm_outputs_exist "$pbf_base"; then
-        skipped=$((skipped + 1))
-        warn "Partial OSRM graph found for ${graph_rel}; no files were removed."
-        warn "Use --force --yes to move matching .osrm* outputs to _osrm-backups and rebuild this item. Continuing."
-        continue
+        warn "Partial OSRM graph found for ${graph_rel}."
+        warn "Moving the unusable partial output to _osrm-backups and rebuilding automatically."
+        backup_osrm_graph_outputs "$pbf_base"
       fi
 
       log "Preparing OSRM using /opt/${OSRM_PROFILE}.lua"
@@ -456,17 +514,14 @@ case "${1:-env}" in
       log "Input preserved: $pbf_abs"
       log "Output graph base: $osrm_root/$graph_rel"
 
-      if docker_osrm_run "$osrm_root" \
-        osrm-extract --threads "$OSRM_THREADS" -p "/opt/${OSRM_PROFILE}.lua" "/data/${pbf_rel}" && \
-        docker_osrm_run "$osrm_root" \
-        osrm-partition "/data/${graph_rel}" && \
-        docker_osrm_run "$osrm_root" \
-        osrm-customize "/data/${graph_rel}"; then
+      if prepare_with_safe_retry "$osrm_root" "$pbf_rel" "$graph_rel"; then
         if osrm_graph_is_ready "$pbf_base"; then
+          built=$((built + 1))
           log "Completed: ${pbf_rel}"
         else
           failed=$((failed + 1))
           warn "OSRM processing exited cleanly but graph validation failed for ${pbf_rel}."
+          report_missing_osrm_graph_files "$pbf_base"
         fi
       else
         failed=$((failed + 1))
@@ -474,7 +529,7 @@ case "${1:-env}" in
       fi
     done
 
-    log "all-downloaded complete. Discovered: $total. Visited: $processed. Skipped: $skipped. Failed: $failed."
+    log "all-downloaded complete. Discovered: $total. Visited: $processed. Built: $built. Already ready: $skipped. Failed: $failed."
     [[ "$failed" -eq 0 ]] || exit 1
     ;;
   -h|--help|help)

@@ -1,4 +1,4 @@
-import type { RouteMode } from "./route-options";
+import type { GeometryDetail, RouteMode } from "./route-options";
 import type { Waypoint } from "./waypoint";
 
 export type RouteLeg = {
@@ -7,6 +7,16 @@ export type RouteLeg = {
   distanceMeters: number;
   durationSeconds: number;
   geometry: [number, number][];
+  snappedFrom?: {
+    lat: number;
+    lng: number;
+    distanceMeters: number;
+  };
+  snappedTo?: {
+    lat: number;
+    lng: number;
+    distanceMeters: number;
+  };
   overrideUsed?: boolean;
   warning?: string;
 };
@@ -25,4 +35,14 @@ export type RoutePlan = {
     maxLng: number;
   };
   warnings?: string[];
+  geometrySummary?: {
+    detail: GeometryDetail;
+    sourceTrackPointCount: number;
+    trackPointCount: number;
+    removedTrackPointCount: number;
+    duplicateTrackPointCount: number;
+    toleranceMeters: number;
+    pointLimit?: number;
+    withinPointLimit: boolean;
+  };
 };

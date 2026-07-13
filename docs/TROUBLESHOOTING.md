@@ -1,6 +1,55 @@
 # Troubleshooting
 
+## GPX has too many track points
+
+Use `Automatic (recommended)` in the GPX detail selector. It keeps route leg
+boundaries and meaningful path bends while removing duplicate/noisy geometry.
+The Operations Deck shows both the source and exported track-point counts.
+
+Use `Compact` for a stricter target. `Full geometry` is intended for software
+known to handle large files and may exceed 2,000 points.
+
+Server defaults can be changed in `infra/docker/.env`:
+
+```env
+GPX_MAX_TRACK_POINTS=1000
+GPX_SIMPLIFY_TOLERANCE_METERS=2.5
+```
+
+## A batch OSM download did not finish every region
+
+Read the summary at the end of the command, then run it again. Valid completed
+files are reused and `.part` downloads resume:
+
+```bash
+./download-osm.sh popular
+./download-osm.sh list
+```
+
+Invalid files are preserved with an `.invalid-TIMESTAMP` suffix instead of
+being accepted as OSM data. Install `osmium-tool` (included by the dependency
+installer) for structural validation.
+
+Older builds incorrectly let `osmium` infer the format from the temporary
+`.osm.pbf.part` suffix. If a complete file was preserved because of that bug,
+the corrected downloader detects it automatically:
+
+```bash
+./download-osm.sh new-zealand
+./download-osm.sh australia
+```
+
+The log will say `Recovered previously downloaded PBF without downloading it
+again`. Full validation is enabled by default with `OSM_VERIFY_FULL=true`.
+
 ## OSRM container is unhealthy
+
+If `osrm-extract`, `osrm-partition`, and `osrm-customize` all finish but an
+older RogueRoute build reports `OSRM graph is incomplete after build`, update
+RogueRoute before rebuilding. Older checks expected the obsolete
+`.osrm.nodes` filename; current OSRM writes `.osrm.nbg_nodes` and
+`.osrm.mldgr`. The completed graph can normally be reused without repeating
+the expensive preparation step.
 
 ```bash
 ./verify-osrm.sh
@@ -22,6 +71,10 @@ Repair flow:
 ```
 
 Use `--force --yes` only when you want stale `.osrm*` outputs moved to `_osrm-backups/` before rebuild.
+
+`all-downloaded` automatically moves unusable partial graphs to that backup
+folder and retries failures once with `OSRM_SAFE_THREADS`. Inspect per-region
+logs under `OSRM_DATA_DIR/_build-logs` when a safe retry also fails.
 
 ## Route generation errors
 
@@ -48,8 +101,16 @@ docker logs rogueroute-osrm --tail=200
 
 - Confirm `ROUTER_MODE=osrm`.
 - Confirm the selected points are inside your processed OSRM extract.
-- Move the waypoint closer to a visible road/path.
-- Increase `OSRM_SNAP_RADIUS_METERS`, for example `250` or `500`.
+- RogueRoute automatically tries progressively larger real OSRM path searches
+  from `OSRM_SNAP_RADIUS_METERS` up to `OSRM_SNAP_MAX_RADIUS_METERS` while
+  keeping strict routing enabled. The default range is 250m to 1500m.
+- The map marks an unrecoverable waypoint in red and shows successful snap
+  corrections as amber dashed lines.
+- If 1500m is inappropriate for your use case, adjust the maximum in
+  `infra/docker/.env`; use a smaller value for dense cities and a larger value
+  only for remote portal data.
+- Move the highlighted waypoint closer to a visible mapped road/path, or add
+  the missing foot access/path to OpenStreetMap and rebuild the regional graph.
 - Use manual override only when OSRM cannot route that leg.
 
 ## Route crosses water or buildings

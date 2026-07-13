@@ -13,38 +13,53 @@ The project is designed for two audiences:
 - IITC plugin export/handoff support
 - OSRM region downloads through `download-osm.sh`
 - OSRM graph preparation through `prepare-osrm.sh`
+- Automatic GPX geometry cleanup that keeps walking-track shape while avoiding oversized exports
+- Bounded adaptive waypoint snapping that stays on real OSRM paths without manual override
+- Interactive OpenStreetMap route preview with waypoint, snap, and failure overlays
+- Compact/full GPX detail choices with point-count reporting
 - Safe repair workflow for partial/interrupted OSRM builds
 - Region switching without rebuilding the web container
 
 ## Runtime pins
 
-- Node.js: `24.15.0`
-- Docker web runtime: `node:24.15.0-alpine`
-- pnpm: `11.0.8`
+- Node.js: `24.18.0`
+- Docker web runtime: `node:24.18.0-alpine`
+- pnpm: `11.12.0`
 - TypeScript: `6.0.3`
 - Docker + Docker Compose
 - Host dependency installer: `./install-dependencies.sh`
 
 
-## Fresh server dependency install
+## Clean Linux quick start
 
-On a clean Ubuntu/Debian host or WSL2 Ubuntu instance, install all host tools first:
+On a vanilla Ubuntu/Debian server:
 
 ```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
+cd RogueRoute-GPX
 bash fix-permissions.sh
-./install-dependencies.sh --yes
+./install-dependencies.sh --yes --osrm-dir /var/lib/rogueroute/osrm
+newgrp docker
+./setup-env.sh osrm --data-dir /var/lib/rogueroute/osrm
+./first-run.sh osrm
+./download-osm.sh new-zealand
+./prepare-osrm.sh region new-zealand
+./deploy.sh osrm
 ```
 
-This installs the supported Node.js, pnpm, Docker/Docker Compose, build tools, Python helpers, archive tools, network utilities, creates the default OSRM data directory, and applies safe host tuning. After it finishes, log out/in or run `newgrp docker` if Docker group membership changed.
+Open `http://SERVER-IP:9080`. The full step-by-step guide, including Standard
+mode and troubleshooting, is in [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
 
-## Public GitHub install path
+## Existing/custom server install path
 
 ```bash
 git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
 bash fix-permissions.sh
 ./install-dependencies.sh --yes
-./setup-env.sh osrm        # copies infra/docker/.env.osrm to infra/docker/.env
+./setup-env.sh osrm        # creates/reuses infra/docker/.env
 ./first-run.sh osrm
 ```
 
@@ -87,6 +102,12 @@ By default OSRM data lives at:
 
 Change `OSRM_DATA_DIR` in `infra/docker/.env` after first run if your map drive is elsewhere. `gpx-web` connects to OSRM at `http://osrm:5000` using the Docker Compose service name. The OSRM container is still named `rogueroute-osrm` for Dozzle/logs.
 
+On a normal Linux server, configure a native path directly:
+
+```bash
+./setup-env.sh osrm --data-dir /var/lib/rogueroute/osrm
+```
+
 Do **not** commit downloaded `.osm.pbf`, generated `.osrm*`, or `infra/docker/.env` files to GitHub.
 
 ## Prepare all downloaded regions
@@ -95,7 +116,26 @@ Do **not** commit downloaded `.osm.pbf`, generated `.osrm*`, or `infra/docker/.e
 ./prepare-osrm.sh all-downloaded --yes
 ```
 
-This recursively processes every `.osm.pbf` under `OSRM_DATA_DIR`. It skips ready graphs and preserves inputs.
+This recursively processes every valid `.osm.pbf` under `OSRM_DATA_DIR`. It
+skips ready graphs, automatically backs up/rebuilds partial graphs, retries a
+failed build once with `OSRM_SAFE_THREADS`, and preserves all downloaded inputs.
+
+## GPX point handling
+
+`Automatic` is the recommended export detail. It removes exact duplicates and
+uses a path-preserving 2.5 m simplification, increasing the tolerance only when
+needed to aim for at most 1,000 track points. Every routed waypoint/leg boundary
+is retained. `Compact` targets a smaller file; `Full` keeps the original OSRM
+detail apart from duplicate cleanup.
+
+The defaults can be tuned in `infra/docker/.env`:
+
+```env
+GPX_MAX_TRACK_POINTS=1000
+GPX_SIMPLIFY_TOLERANCE_METERS=2.5
+OSRM_SNAP_RADIUS_METERS=250
+OSRM_SNAP_MAX_RADIUS_METERS=1500
+```
 
 ## Repair interrupted OSRM builds
 

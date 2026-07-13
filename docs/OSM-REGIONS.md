@@ -9,6 +9,15 @@ Use regional extracts instead of `planet.osm.pbf` for stable public routing. The
 ./download-osm.sh all
 ```
 
+`list` also reports whether each local file is `missing`, `partial`, or
+`downloaded`. Downloads use resumable `.part` files, retry transient network
+errors, and validate the PBF before renaming it into place. Batch modes continue
+after an individual failure and return a final list of failed region keys.
+Temporary and preserved filenames are explicitly opened as PBF files, so
+`osmium` does not reject a valid download merely because it ends in `.part` or
+`.invalid-TIMESTAMP`. Previously preserved complete downloads are recovered
+automatically before any new network transfer begins.
+
 Core regions:
 
 - Australia
@@ -27,6 +36,10 @@ Build prepared graphs:
 ./prepare-osrm.sh region australia
 ./prepare-osrm.sh all-downloaded
 ```
+
+Preparation validates each input, skips ready graphs, backs up partial graphs,
+and retries a failed build once with `OSRM_SAFE_THREADS`. Per-file logs are kept
+under `OSRM_DATA_DIR/_build-logs`.
 
 Switch active graph:
 

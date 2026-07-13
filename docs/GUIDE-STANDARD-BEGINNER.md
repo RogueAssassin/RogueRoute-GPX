@@ -15,9 +15,9 @@ Read `docs/SYSTEM-REQUIREMENTS.md` first.
 You need:
 - Docker
 - `docker compose`
-- Node.js 24.15.0
-- Corepack 0.34.7
-- pnpm 11.0.8
+- Node.js 24.18.0
+- Corepack 0.35.0
+- pnpm 11.12.0
 - port `9080` available
 
 ## Step 1: Get the release onto your server

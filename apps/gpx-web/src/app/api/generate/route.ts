@@ -6,9 +6,14 @@ import {
   parseWaypointsFromCsv,
   parseWaypointsFromJson,
   parseWaypointsFromText,
+  OsrmRoutingError,
+  normalizeWaypoints,
 } from "@rogue/gpx-core";
 
-const ROUTE_CACHE_LIMIT = Number(process.env.ROUTE_CACHE_LIMIT ?? "100");
+const configuredCacheLimit = Number(process.env.ROUTE_CACHE_LIMIT ?? "100");
+const ROUTE_CACHE_LIMIT = Number.isFinite(configuredCacheLimit)
+  ? Math.max(1, Math.min(500, Math.floor(configuredCacheLimit)))
+  : 100;
 const routeCache = new Map<string, unknown>();
 
 function detectInputType(input: string): "payload" | "json" | "csv" | "text" {
@@ -47,6 +52,7 @@ function setCached(key: string, value: unknown) {
 }
 
 export async function POST(request: Request) {
+  let previewWaypoints: ReturnType<typeof normalizeWaypoints> = [];
   try {
     const body = await request.json();
     const input = String(body.input ?? "");
@@ -55,6 +61,10 @@ export async function POST(request: Request) {
     const strictLandRouting = body.strictLandRouting !== false;
     const allowFerries = body.allowFerries === true;
     const allowManualOverride = body.allowManualOverride === true;
+    const geometryDetail =
+      body.geometryDetail === "compact" || body.geometryDetail === "full"
+        ? body.geometryDetail
+        : "auto";
 
     const inputType = detectInputType(input);
     const payload = inputType === "payload" ? parseExportPayload(input) : undefined;
@@ -67,6 +77,7 @@ export async function POST(request: Request) {
           : inputType === "csv"
             ? parseWaypointsFromCsv(input)
             : parseWaypointsFromText(input);
+    previewWaypoints = normalizeWaypoints(rawWaypoints);
 
     const generationRequest = {
       rawWaypoints,
@@ -78,13 +89,19 @@ export async function POST(request: Request) {
         strictLandRouting,
         allowFerries,
         allowManualOverride,
+        geometryDetail,
       },
       env: {
         ROUTER_MODE: process.env.ROUTER_MODE,
         OSRM_URL: process.env.OSRM_URL,
         OSRM_PROFILE: process.env.OSRM_PROFILE,
         OSRM_SNAP_RADIUS_METERS: process.env.OSRM_SNAP_RADIUS_METERS,
+        OSRM_SNAP_MAX_RADIUS_METERS:
+          process.env.OSRM_SNAP_MAX_RADIUS_METERS,
         OSRM_MAX_PARALLEL_LEGS: process.env.OSRM_MAX_PARALLEL_LEGS,
+        GPX_MAX_TRACK_POINTS: process.env.GPX_MAX_TRACK_POINTS,
+        GPX_SIMPLIFY_TOLERANCE_METERS:
+          process.env.GPX_SIMPLIFY_TOLERANCE_METERS,
       },
     };
 
@@ -107,6 +124,7 @@ export async function POST(request: Request) {
         strictLandRouting,
         allowFerries,
         allowManualOverride,
+        geometryDetail,
       },
     };
     setCached(key, responsePayload);
@@ -116,6 +134,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to generate route.",
+        routingFailure:
+          error instanceof OsrmRoutingError ? error.routingFailure : undefined,
+        previewWaypoints,
       },
       { status: 400 }
     );

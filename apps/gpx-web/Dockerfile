@@ -1,7 +1,7 @@
-FROM node:24.15.0-alpine AS base
+FROM node:24.18.0-alpine AS base
 WORKDIR /app
 ENV CI=true
-RUN corepack enable && corepack prepare pnpm@11.0.8 --activate
+RUN corepack enable && corepack prepare pnpm@11.12.0 --activate
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
@@ -29,7 +29,7 @@ RUN set -eux; \
     find apps packages -path '*/node_modules/.bin/*' -exec chmod +x {} + 2>/dev/null || true; \
     pnpm build
 
-FROM node:24.15.0-alpine AS runner
+FROM node:24.18.0-alpine AS runner
 WORKDIR /app
 RUN apk add --no-cache bash docker-cli docker-cli-compose wget
 ENV NODE_ENV=production

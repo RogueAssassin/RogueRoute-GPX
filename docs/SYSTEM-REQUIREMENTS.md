@@ -5,9 +5,9 @@ This page explains the base requirements for all installs, then the extra requir
 ## Supported software standard
 Use these versions for a supported setup:
 
-- **Node.js:** 24.15.0
-- **Package manager:** pnpm 11.0.8
-- **Package manager activation:** Corepack 0.34.7
+- **Node.js:** 24.18.0
+- **Package manager:** pnpm 11.12.0
+- **Package manager activation:** Corepack 0.35.0
 - **Docker:** Docker Engine / CLI 29.4.1 with `docker compose`
 - **Git:** needed for Git clone installs and Git-based updates
 
@@ -19,14 +19,17 @@ These are required for both Standard and OSRM installs.
 ### Software
 - Docker Engine / CLI 29.4.1
 - Docker Compose plugin (`docker compose`)
-- Node.js 24.15.0
-- Corepack 0.34.7
-- pnpm 11.0.8
+- Node.js 24.18.0
+- Corepack 0.35.0
+- pnpm 11.12.0
 - Bash shell
 
 ### Network and ports
 - TCP port `9080` free for the web app
 - Docker permission to create or use the `media-net` network
+- Browser HTTPS access to `tile.openstreetmap.org` for the default interactive
+  map background. Routing and GPX generation continue to work if tiles are
+  unavailable; only the basemap is missing.
 
 ### Recommended host baseline
 For a small self-hosted setup:
@@ -47,7 +50,7 @@ Standard mode is the simplest setup and the recommended starting point.
 ### What Standard mode does not need
 - No OSRM routing dataset
 - No `.osm.pbf` downloads
-- No extra port `8002`
+- No extra OSRM port `5000`
 
 ## OSRM mode requirements
 OSRM mode adds land-aware routing and external map data.
@@ -56,7 +59,7 @@ OSRM mode adds land-aware routing and external map data.
 - **CPU:** 4 cores or more
 - **RAM:** 8 GB minimum, 16 GB preferred
 - **Disk:** 50 GB+ free space depending on region size
-- **Port:** `8002` free for the OSRM service
+- **Port:** `5000` free for the OSRM service (or change `OSRM_HOST_PORT`)
 
 ### Recommended for full-world builds
 - **CPU:** 8 cores or more
@@ -64,12 +67,8 @@ OSRM mode adds land-aware routing and external map data.
 - **Disk:** 300 GB to 500+ GB free SSD space
 
 ### OSRM data requirements
-Your `OSRM_DATA_DIR` must contain one of these:
-- one or more `.osm.pbf` files
-- `osrm_tiles.tar`
-- a `osrm_tiles` directory
-
-If none of those exist, OSRM cannot start correctly.
+Your `OSRM_DATA_DIR` must contain a valid `.osm.pbf` input and the `.osrm*`
+graph files produced by `prepare-osrm.sh` for the active region.
 
 
 ## Lockfile requirement for official releases
@@ -85,4 +84,4 @@ bash fix-permissions.sh
 ./install-dependencies.sh --yes
 ```
 
-This installs the required base packages, Docker/Docker Compose, nvm, Node.js `24.15.0`, pnpm `11.0.8`, and creates the default OSRM data directory.
+This installs the required base packages, Docker/Docker Compose, nvm, Node.js `24.18.0`, pnpm `11.12.0`, and creates the default OSRM data directory.

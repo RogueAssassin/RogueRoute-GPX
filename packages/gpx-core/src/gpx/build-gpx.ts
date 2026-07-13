@@ -1,4 +1,5 @@
 import type { RoutePlan } from "../domain/route-plan";
+import { flattenRoutePlanPoints } from "./simplify-track.js";
 
 function escapeXml(value: string): string {
   return value
@@ -10,9 +11,15 @@ function escapeXml(value: string): string {
 }
 
 export function buildGpxFromTrack(points: [number, number][], name = "Generated Route"): string {
-  const trkpts = points
-    .map(([lat, lng]) => `      <trkpt lat="${lat}" lon="${lng}"></trkpt>`)
-    .join("\n");
+  const lines: string[] = [];
+  let previous: [number, number] | undefined;
+  for (const [lat, lng] of points) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    if (previous && previous[0] === lat && previous[1] === lng) continue;
+    lines.push(`      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}" />`);
+    previous = [lat, lng];
+  }
+  const trkpts = lines.join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="RogueRoute GPX by RogueAssassin"
@@ -27,11 +34,5 @@ ${trkpts}
 }
 
 export function buildGpxFromRoutePlan(plan: RoutePlan, name = "Generated Route"): string {
-  const points: [number, number][] = [];
-
-  for (const leg of plan.legs) {
-    for (const point of leg.geometry) points.push(point);
-  }
-
-  return buildGpxFromTrack(points, name);
+  return buildGpxFromTrack(flattenRoutePlanPoints(plan), name);
 }
