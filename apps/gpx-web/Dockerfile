@@ -31,7 +31,7 @@ RUN set -eux; \
 
 FROM node:24.18.0-alpine AS runner
 WORKDIR /app
-RUN apk add --no-cache bash docker-cli docker-cli-compose wget
+RUN apk add --no-cache wget
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=9080

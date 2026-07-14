@@ -1,5 +1,6 @@
 {
   "name": "gpx-route-generator",
+  "version": "12.1.0",
   "private": true,
   "packageManager": "pnpm@11.12.0",
   "engines": {
@@ -12,7 +13,7 @@
     "start": "pnpm --filter @rogue/gpx-web start",
     "console": "pnpm --filter @rogue/gpx-console start",
     "typecheck": "pnpm --filter @rogue/gpx-core build && pnpm -r typecheck",
-    "test": "pnpm -r --if-present test && bash tests/download-osm.test.sh && bash tests/osrm-graph.test.sh"
+    "test": "pnpm -r --if-present test"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV="$ROOT/.env"
+COMPOSE=(docker compose --env-file "$ENV" -f "$ROOT/compose.yaml")
+
+fail() { echo "[ERROR] $*" >&2; exit 1; }
+[[ -f "$ENV" ]] || { cp "$ROOT/.env.example" "$ENV"; chmod 600 "$ENV"; }
+command -v docker >/dev/null || fail "Docker Engine is not installed."
+docker compose version >/dev/null || fail "Docker Compose plugin is not installed."
+
+get_env() {
+  local key="$1" fallback="${2:-}" value
+  value="$(grep -E "^${key}=" "$ENV" | tail -n1 | cut -d= -f2- || true)"
+  printf '%s\n' "${value:-$fallback}"
+}
+
+verify_graph() {
+  local dir graph
+  dir="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
+  graph="$(get_env OSRM_GRAPH australia-latest.osrm)"
+  [[ -r "$dir/$graph.mldgr" ]] || fail "Missing prepared graph: $dir/$graph.mldgr. Run: ./rogueroute osm prepare REGION"
+  [[ -r "$dir/$graph.partition" ]] || fail "Missing graph partition: $dir/$graph.partition"
+  [[ -r "$dir/$graph.cell_metrics" ]] || fail "Missing graph cell metrics: $dir/$graph.cell_metrics"
+}
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  start)
+    verify_graph
+    "${COMPOSE[@]}" pull
+    "${COMPOSE[@]}" up -d --remove-orphans
+    "${COMPOSE[@]}" ps ;;
+  stop) "${COMPOSE[@]}" down ;;
+  restart)
+    verify_graph
+    "${COMPOSE[@]}" pull
+    "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
+    "${COMPOSE[@]}" ps ;;
+  update)
+    verify_graph
+    "${COMPOSE[@]}" pull
+    "${COMPOSE[@]}" up -d --remove-orphans
+    "${COMPOSE[@]}" images ;;
+  status) "${COMPOSE[@]}" ps ;;
+  logs) "${COMPOSE[@]}" logs --tail=200 -f "$@" ;;
+  config) "${COMPOSE[@]}" config ;;
+  osm) exec "$ROOT/scripts/osm.sh" "$@" ;;
+  help|-h|--help)
+    echo "Usage: ./rogueroute {start|stop|restart|update|status|logs|config|osm}" ;;
+  *) fail "Unknown command: $cmd" ;;
+esac

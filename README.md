@@ -1,205 +1,104 @@
-# RogueRoute-GPX
+# RogueRoute GPX
 
-RogueRoute-GPX is a self-hosted GPX route generator with a Next.js web UI, IITC exporter plugin, and optional local OSRM routing for road/path-following routes.
+RogueRoute GPX turns IITC, JSON, CSV, or coordinate lists into routed GPX files.
+The production deployment is a standalone Docker Compose application using a
+prebuilt GHCR web image and a local OSRM routing container.
 
-The project is designed for two audiences:
+Current release: **v12.1.0**
 
-- **Standard mode:** easiest install, direct/fallback routing only.
-- **OSRM mode:** recommended for real use, uses downloaded OpenStreetMap extracts and a local OSRM container.
+## What v12.1 provides
 
-## What you get
+- Routes along OpenStreetMap roads, footways, and walking tracks.
+- Automatically searches up to 5,000 m for a routable OSRM segment while
+  keeping strict land routing enabled.
+- Simplifies large route geometries to avoid GPX applications crashing while
+  retaining route endpoints, leg boundaries, and meaningful bends.
+- Displays the generated route, original waypoints, snapped points, and routing
+  failures on an interactive OpenStreetMap preview.
+- Downloads resumable Geofabrik extracts and prepares OSRM MLD graphs through
+  Docker—no Node.js or pnpm installation is needed on the server.
+- Runs on its own `rogueroute-gpx` Docker network. It is not part of Rogue
+  Dashboard or any media-server Compose project.
 
-- Web app on `http://SERVER-IP:9080`
-- IITC plugin export/handoff support
-- OSRM region downloads through `download-osm.sh`
-- OSRM graph preparation through `prepare-osrm.sh`
-- Automatic GPX geometry cleanup that keeps walking-track shape while avoiding oversized exports
-- Bounded adaptive waypoint snapping that stays on real OSRM paths without manual override
-- Interactive OpenStreetMap route preview with waypoint, snap, and failure overlays
-- Compact/full GPX detail choices with point-count reporting
-- Safe repair workflow for partial/interrupted OSRM builds
-- Region switching without rebuilding the web container
+## Requirements
 
-## Runtime pins
+- 64-bit Linux or ARM64 Linux
+- Docker Engine with the `docker compose` plugin
+- `curl`, `openssl`, and Bash
+- Port `9080` for the web interface
+- A storage directory for `.osm.pbf` and `.osrm*` files
 
-- Node.js: `24.18.0`
-- Docker web runtime: `node:24.18.0-alpine`
-- pnpm: `11.12.0`
-- TypeScript: `6.0.3`
-- Docker + Docker Compose
-- Host dependency installer: `./install-dependencies.sh`
-
-
-## Recommended v12 standalone Docker install
-
-The v12 deployment uses the prebuilt image
-`ghcr.io/rogueassassin/rogueroute-gpx:v12`. The server does not need Node.js,
-pnpm, the source tree, or a connection to the media-dashboard Docker network.
-OSRM remains a separate local container because it needs access to your map
-graphs.
-
-After the v12 image has been published, extract the standalone release ZIP
-outside the existing installation and run:
-
-```bash
-cd /tmp/RogueRoute-GPX
-sudo ./install.sh --target /opt/media-server/RogueRoute-GPX
-```
-
-The installer stops only RogueRoute containers, moves the old application
-directory to a timestamped backup, preserves an existing environment file,
-sets the tested 5,000 m maximum snap radius, and leaves `/mnt/h/osrm` untouched.
-See [`standalone/README.md`](standalone/README.md) for authentication, migration,
-operation, and rollback instructions.
-
-## Source/development install on Linux
-
-On a vanilla Ubuntu/Debian server:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl git
-git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
-cd RogueRoute-GPX
-bash fix-permissions.sh
-./install-dependencies.sh --yes --osrm-dir /var/lib/rogueroute/osrm
-newgrp docker
-./setup-env.sh osrm --data-dir /var/lib/rogueroute/osrm
-./first-run.sh osrm
-./download-osm.sh new-zealand
-./prepare-osrm.sh region new-zealand
-./deploy.sh osrm
-```
-
-Open `http://SERVER-IP:9080`. The full step-by-step guide, including Standard
-mode and troubleshooting, is in [`docs/INSTALLATION.md`](docs/INSTALLATION.md).
-
-## Existing/custom server install path
+## Install on a clean Linux server
 
 ```bash
 git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
 cd RogueRoute-GPX
-bash fix-permissions.sh
-./install-dependencies.sh --yes
-./setup-env.sh osrm        # creates/reuses infra/docker/.env
-./first-run.sh osrm
+sudo ./install.sh
 ```
 
-For a server/runtime-only checkout that avoids pulling docs/readmes/release notes onto the deployment machine, use sparse checkout:
+The installer creates `/opt/rogueroute-gpx`, generates a persistent `.env`, and
+starts `ghcr.io/rogueassassin/rogueroute-gpx:12.1.0` after a prepared OSRM graph
+is available.
+
+For a first installation, download and prepare a region before starting:
 
 ```bash
-git clone --filter=blob:none --no-checkout https://github.com/RogueAssassin/RogueRoute-GPX.git RogueRoute-GPX
-cd RogueRoute-GPX
-git sparse-checkout init --cone
-git sparse-checkout set apps packages plugins infra scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json .npmrc .nvmrc .node-version .dockerignore .gitignore VERSION first-run.sh install.sh install-dependencies.sh deploy.sh update.sh restart.sh refresh.sh status.sh stop.sh logs.sh doctor.sh download-osm.sh prepare-osrm.sh prepare-osm.sh switch-osrm-region.sh verify-osrm.sh fix-permissions.sh clean-web.sh clean-rebuild.sh repair-deps.sh repair-osm-builds.sh diagnose-osrm.sh version-check.sh setup-env.sh release.sh
-git checkout
-bash fix-permissions.sh
+cd /opt/rogueroute-gpx
+./rogueroute osm list
+./rogueroute osm download new-zealand
+./rogueroute osm prepare new-zealand
+./rogueroute start
 ```
 
-`./update.sh` keeps this runtime-only sparse checkout refreshed by default. Set `ROGUEROUTE_FULL_CHECKOUT=true ./update.sh` only when you intentionally want docs locally.
+Open `http://SERVER-IP:9080`.
 
-For OSRM mode, the usual first setup flow is:
+## Existing server using `/mnt/h/osrm`
 
 ```bash
-./setup-env.sh osrm
-./download-osm.sh list
-./download-osm.sh australia
-./prepare-osrm.sh region australia
-./deploy.sh osrm
+sudo ./install.sh --path /opt/media-server/RogueRoute-GPX \
+  --data-dir /mnt/h/osrm \
+  --region new-zealand
 ```
 
-For direct fallback/testing mode:
+The installer backs up an existing RogueRoute directory before replacing it.
+It never removes the external OSRM data directory.
+
+## Daily commands
 
 ```bash
-./deploy.sh standard
+./rogueroute start
+./rogueroute stop
+./rogueroute restart
+./rogueroute status
+./rogueroute logs
+./rogueroute update
+./rogueroute osm list
+./rogueroute osm switch australia
 ```
 
-## OSRM data folder
-
-By default OSRM data lives at:
-
-```text
-/mnt/h/osrm
-```
-
-Change `OSRM_DATA_DIR` in `infra/docker/.env` after first run if your map drive is elsewhere. `gpx-web` connects to OSRM at `http://osrm:5000` using the Docker Compose service name. The OSRM container is still named `rogueroute-osrm` for Dozzle/logs.
-
-On a normal Linux server, configure a native path directly:
-
-```bash
-./setup-env.sh osrm --data-dir /var/lib/rogueroute/osrm
-```
-
-Do **not** commit downloaded `.osm.pbf`, generated `.osrm*`, or `infra/docker/.env` files to GitHub.
-
-## Prepare all downloaded regions
-
-```bash
-./prepare-osrm.sh all-downloaded --yes
-```
-
-This recursively processes every valid `.osm.pbf` under `OSRM_DATA_DIR`. It
-skips ready graphs, automatically backs up/rebuilds partial graphs, retries a
-failed build once with `OSRM_SAFE_THREADS`, and preserves all downloaded inputs.
-
-## GPX point handling
-
-`Automatic` is the recommended export detail. It removes exact duplicates and
-uses a path-preserving 2.5 m simplification, increasing the tolerance only when
-needed to aim for at most 1,000 track points. Every routed waypoint/leg boundary
-is retained. `Compact` targets a smaller file; `Full` keeps the original OSRM
-detail apart from duplicate cleanup.
-
-The defaults can be tuned in `infra/docker/.env`:
+Configuration lives in `.env`. The important defaults are:
 
 ```env
-GPX_MAX_TRACK_POINTS=1000
-GPX_SIMPLIFY_TOLERANCE_METERS=2.5
+ROGUEROUTE_VERSION=12.1.0
+OSRM_DATA_DIR=/mnt/h/osrm
+OSRM_ACTIVE_REGION=australia
 OSRM_SNAP_RADIUS_METERS=250
 OSRM_SNAP_MAX_RADIUS_METERS=5000
+GPX_MAX_TRACK_POINTS=1000
 ```
-
-## Repair interrupted OSRM builds
-
-```bash
-./prepare-osrm.sh repair list
-./prepare-osrm.sh repair 3
-./prepare-osrm.sh repair all --yes
-```
-
-Use force only when you intentionally want to move stale `.osrm*` files into `_osrm-backups/` and rebuild:
-
-```bash
-./prepare-osrm.sh repair all --force --yes
-./prepare-osrm.sh cleanup-backups --days 14 --yes
-```
-
-## Region switching
-
-```bash
-./switch-osrm-region.sh japan
-```
-
-The web app also includes an OSRM Region Switcher. It updates `infra/docker/.env`, restarts only the OSRM service, waits for health, and keeps the web container running.
 
 ## Documentation
 
-Start here:
+- [Installation](docs/INSTALL.md)
+- [OSM downloads and OSRM preparation](docs/OSM.md)
+- [Upgrading and rollback](docs/UPGRADING.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [v12.1.0 release notes](docs/RELEASE-v12.1.0.md)
 
-- `docs/INSTALLATION.md`
-- `docs/GUIDE-STANDARD-BEGINNER.md`
-- `docs/GUIDE-OSRM-INTERMEDIATE.md`
-- `docs/OSM-REGIONS.md`
-- `docs/OSRM_SETUP.md`
-- `docs/TROUBLESHOOTING.md`
-- `docs/REV10-HISTORY.md`
+## Container images
 
-## Release helper
+- Web: `ghcr.io/rogueassassin/rogueroute-gpx:12.1.0`
+- Router/tools: `osrm/osrm-backend:latest`
 
-```bash
-./release.sh v12
-```
-
-## Notes on planet.osm.pbf
-
-Planet preprocessing is possible in theory, but it can require far more RAM/swap than a typical server has available, especially with the foot profile. For public use, this repo is designed around regional extracts and one active OSRM graph at a time.
+Publishing a GitHub Release tagged `v12.1.0` builds `12.1.0`, `12.1`, `12`,
+`latest`, and immutable SHA tags automatically.

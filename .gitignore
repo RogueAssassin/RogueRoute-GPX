@@ -13,13 +13,12 @@ coverage/
 .env
 .env.*
 !.env.example
-infra/docker/.env
-infra/docker/.env.local
 
 # OSRM / OSM data - keep this outside git
 *.osm.pbf
 *.osrm*
 _osrm-backups/
+_build-logs/
 
 # Logs and archives
 *.log
