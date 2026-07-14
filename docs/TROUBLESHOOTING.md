@@ -2,7 +2,7 @@
 
 ## Image cannot be pulled
 
-Confirm that the v12.1.0 GitHub Release workflow completed and that the GHCR
+Confirm that the v12.2.0 GitHub Release workflow completed and that the GHCR
 package is public. For a private package, log in using a token limited to
 `read:packages`.
 
@@ -24,7 +24,7 @@ minimum sanity size.
 ## OSRM reports NoSegment
 
 RogueRoute searches progressively from `OSRM_SNAP_RADIUS_METERS` to
-`OSRM_SNAP_MAX_RADIUS_METERS`. v12.1.0 defaults to 250–5,000 m. Confirm the
+`OSRM_SNAP_MAX_RADIUS_METERS`. v12.2.0 defaults to 250–5,000 m. Confirm the
 coordinate lies inside the prepared extract and that the foot profile contains
 a routable nearby way.
 

@@ -62,7 +62,7 @@ set_env() {
     printf '%s=%s\n' "$key" "$value" >> "$file"
   fi
 }
-set_env ROGUEROUTE_VERSION 12.1.0
+set_env ROGUEROUTE_VERSION 12.2.0
 set_env OSRM_DATA_DIR "$DATA_DIR"
 set_env OSRM_ACTIVE_REGION "$REGION"
 
@@ -77,7 +77,7 @@ if ! grep -qE '^NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=.+$' "$TARGET/.env"; then
   set_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$(openssl rand -base64 32)"
 fi
 
-echo "RogueRoute GPX v12.1.0 installed at $TARGET"
+echo "RogueRoute GPX v12.2.0 installed at $TARGET"
 echo "OSRM data directory: $DATA_DIR"
 if [[ "$START" == true ]]; then
   "$TARGET/rogueroute" start

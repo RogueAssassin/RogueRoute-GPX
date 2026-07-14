@@ -1,6 +1,8 @@
 name: Build and publish container
 
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -16,8 +18,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: container-${{ github.event.release.tag_name || github.ref }}
-  cancel-in-progress: false
+  group: container-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: true
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/rogueroute-gpx
@@ -52,10 +54,7 @@ jobs:
             echo "Tag $tag does not match VERSION v$version" >&2
             exit 1
           fi
-          for manifest in package.json apps/*/package.json packages/*/package.json; do
-            actual="$(node -p "require('./$manifest').version")"
-            [[ "$actual" == "$version" ]] || { echo "$manifest is $actual, expected $version" >&2; exit 1; }
-          done
+          bash scripts/version.sh check
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - run: pnpm install --frozen-lockfile
@@ -97,7 +96,7 @@ jobs:
         with:
           context: .
           file: apps/gpx-web/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ (github.event_name != 'workflow_dispatch' || inputs.publish) && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           push: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
           load: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
           tags: ${{ steps.meta.outputs.tags }}

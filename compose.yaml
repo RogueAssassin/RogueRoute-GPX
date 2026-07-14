@@ -2,7 +2,7 @@ name: rogueroute-gpx
 
 services:
   web:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.1.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.2.0}
     container_name: rogueroute-gpx-web
     restart: unless-stopped
     env_file: .env
@@ -10,7 +10,7 @@ services:
       ROUTER_MODE: osrm
       OSRM_URL: http://osrm:5000
       OSRM_SWITCH_ENABLED: "false"
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.1.0}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.2.0}
     depends_on:
       osrm:
         condition: service_started
