@@ -6,7 +6,8 @@ services:
       # container_name stays rogueroute-osrm for Dozzle/log readability.
       OSRM_URL: http://osrm:5000
       OSRM_PROFILE: ${OSRM_PROFILE:-foot}
-      OSRM_SNAP_RADIUS_METERS: ${OSRM_SNAP_RADIUS_METERS:-150}
+      OSRM_SNAP_RADIUS_METERS: ${OSRM_SNAP_RADIUS_METERS:-250}
+      OSRM_SNAP_MAX_RADIUS_METERS: ${OSRM_SNAP_MAX_RADIUS_METERS:-5000}
     depends_on:
       osrm:
         condition: service_started

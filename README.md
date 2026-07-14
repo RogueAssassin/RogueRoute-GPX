@@ -30,7 +30,29 @@ The project is designed for two audiences:
 - Host dependency installer: `./install-dependencies.sh`
 
 
-## Clean Linux quick start
+## Recommended v12 standalone Docker install
+
+The v12 deployment uses the prebuilt image
+`ghcr.io/rogueassassin/rogueroute-gpx:v12`. The server does not need Node.js,
+pnpm, the source tree, or a connection to the media-dashboard Docker network.
+OSRM remains a separate local container because it needs access to your map
+graphs.
+
+After the v12 image has been published, extract the standalone release ZIP
+outside the existing installation and run:
+
+```bash
+cd /tmp/RogueRoute-GPX
+sudo ./install.sh --target /opt/media-server/RogueRoute-GPX
+```
+
+The installer stops only RogueRoute containers, moves the old application
+directory to a timestamped backup, preserves an existing environment file,
+sets the tested 5,000 m maximum snap radius, and leaves `/mnt/h/osrm` untouched.
+See [`standalone/README.md`](standalone/README.md) for authentication, migration,
+operation, and rollback instructions.
+
+## Source/development install on Linux
 
 On a vanilla Ubuntu/Debian server:
 
@@ -134,7 +156,7 @@ The defaults can be tuned in `infra/docker/.env`:
 GPX_MAX_TRACK_POINTS=1000
 GPX_SIMPLIFY_TOLERANCE_METERS=2.5
 OSRM_SNAP_RADIUS_METERS=250
-OSRM_SNAP_MAX_RADIUS_METERS=1500
+OSRM_SNAP_MAX_RADIUS_METERS=5000
 ```
 
 ## Repair interrupted OSRM builds
@@ -175,7 +197,7 @@ Start here:
 ## Release helper
 
 ```bash
-./release.sh v11
+./release.sh v12
 ```
 
 ## Notes on planet.osm.pbf

@@ -127,7 +127,7 @@ export class OsrmRouter implements Router {
     this.snapRadiusMeters = Math.max(25, config.snapRadiusMeters ?? 250);
     this.snapMaxRadiusMeters = Math.max(
       this.snapRadiusMeters,
-      config.snapMaxRadiusMeters ?? 1500,
+      config.snapMaxRadiusMeters ?? 5000,
     );
     this.maxParallelLegs = Math.max(1, config.maxParallelLegs ?? 6);
   }

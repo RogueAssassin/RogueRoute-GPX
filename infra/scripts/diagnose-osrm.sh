@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
-print_header "RogueRoute GPX v11 OSRM Diagnose"
+print_header "RogueRoute GPX v12 OSRM Diagnose"
 bootstrap_env_file osrm
 load_env_values
 ensure_core_tools

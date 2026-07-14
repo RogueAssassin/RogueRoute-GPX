@@ -22,7 +22,7 @@ export function createRouterFromEnv(env: {
     const profile = rawProfile === "bike" || rawProfile === "car" ? rawProfile : "foot";
     const snapRadiusMeters = Number(env.OSRM_SNAP_RADIUS_METERS ?? "250");
     const snapMaxRadiusMeters = Number(
-      env.OSRM_SNAP_MAX_RADIUS_METERS ?? "1500",
+      env.OSRM_SNAP_MAX_RADIUS_METERS ?? "5000",
     );
     const maxParallelLegs = Number(env.OSRM_MAX_PARALLEL_LEGS ?? "6");
 
@@ -32,7 +32,7 @@ export function createRouterFromEnv(env: {
       snapRadiusMeters: Number.isFinite(snapRadiusMeters) ? snapRadiusMeters : 250,
       snapMaxRadiusMeters: Number.isFinite(snapMaxRadiusMeters)
         ? snapMaxRadiusMeters
-        : 1500,
+        : 5000,
       maxParallelLegs: Number.isFinite(maxParallelLegs) ? maxParallelLegs : 6,
     });
   }

@@ -52,7 +52,7 @@ The web UI offers Automatic, Compact, and Full geometry export modes.
 
 ```env
 OSRM_SNAP_RADIUS_METERS=250
-OSRM_SNAP_MAX_RADIUS_METERS=1500
+OSRM_SNAP_MAX_RADIUS_METERS=5000
 ```
 
 The first value is the initial nearest-path search. RogueRoute progressively

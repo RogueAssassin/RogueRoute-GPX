@@ -5,7 +5,7 @@ source "$REPO_ROOT/scripts/osm-region-catalog.sh"
 
 DOWNLOAD_LIBRARY_ONLY="${ROGUEROUTE_OSM_DOWNLOAD_LIBRARY_ONLY:-false}"
 if [[ "$DOWNLOAD_LIBRARY_ONLY" != "true" ]]; then
-  print_header "RogueRoute GPX v11 OSM Download"
+  print_header "RogueRoute GPX v12 OSM Download"
   bootstrap_env_file osrm
   load_env_values
   mkdir -p "$OSRM_DATA_DIR"
