@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+  <title id="title">RogueRoute GPX</title>
+  <desc id="desc">A neon route crossing a dark topographic map between waypoint markers.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="0.55" stop-color="#10172a"/>
+      <stop offset="1" stop-color="#17102c"/>
+    </linearGradient>
+    <linearGradient id="route" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#00d9ff"/>
+      <stop offset="0.5" stop-color="#41d99b"/>
+      <stop offset="1" stop-color="#b15cff"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#8da2c4" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="300" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="300" rx="24" fill="url(#grid)"/>
+  <g fill="none" stroke="#8da2c4" stroke-opacity=".11" stroke-width="2">
+    <path d="M-40 85C120 10 260 155 405 82S690 4 835 77s280 88 420 6"/>
+    <path d="M-20 225c170-95 270 28 430-20s255-126 415-51 270 87 420 8"/>
+    <path d="M90 330c65-118 20-202 108-281M980 330c-80-120-5-210-95-310"/>
+  </g>
+  <path d="M80 220C205 198 214 93 338 118s135 110 258 43 164-92 270-26 146 77 254-61" fill="none" stroke="#07111f" stroke-width="18" stroke-linecap="round"/>
+  <path d="M80 220C205 198 214 93 338 118s135 110 258 43 164-92 270-26 146 77 254-61" fill="none" stroke="url(#route)" stroke-width="8" stroke-linecap="round" filter="url(#glow)"/>
+  <g filter="url(#glow)">
+    <circle cx="80" cy="220" r="14" fill="#00d9ff" stroke="#dffaff" stroke-width="4"/>
+    <circle cx="596" cy="161" r="14" fill="#41d99b" stroke="#e8fff7" stroke-width="4"/>
+    <circle cx="1120" cy="74" r="14" fill="#b15cff" stroke="#f6eaff" stroke-width="4"/>
+  </g>
+  <g font-family="Inter,Segoe UI,Arial,sans-serif" text-anchor="middle">
+    <text x="600" y="70" fill="#ffffff" font-size="48" font-weight="800" letter-spacing="1">ROGUEROUTE GPX</text>
+    <text x="600" y="105" fill="#aebbd2" font-size="18" font-weight="600" letter-spacing="3">FOLLOW THE REAL PATH</text>
+  </g>
+</svg>
