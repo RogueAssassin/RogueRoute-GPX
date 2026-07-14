@@ -33,7 +33,7 @@ Unzip the release, then enter the extracted folder.
 
 ```bash
 cd /opt/media-server
-unzip RogueRoute-GPX-v11.zip
+unzip RogueRoute-GPX-v12.zip
 cd RogueRoute-GPX
 ```
 

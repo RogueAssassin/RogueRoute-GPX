@@ -16,7 +16,7 @@ sudo ./deploy.sh osrm
 Create a tag and push it:
 
 ```bash
-./release.sh v11
+./release.sh v12
 ```
 
 For private repos or higher rate limits, export a token first:

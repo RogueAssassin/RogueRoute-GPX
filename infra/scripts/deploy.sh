@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 MODE="$(resolve_requested_mode "${1:-}")"
-print_header "RogueRoute GPX v11 Deploy"
+print_header "RogueRoute GPX v12 Deploy"
 print_step 1 8 "Create env file if missing"
 bootstrap_env_file "$MODE"
 configure_env_for_mode "$MODE"

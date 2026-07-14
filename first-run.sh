@@ -55,7 +55,7 @@ choose_mode() {
 }
 
 print_intro() {
-  print_header "RogueRoute GPX v11 Installer"
+  print_header "RogueRoute GPX v12 Installer"
 }
 
 RUN_TYPE="$(get_workspace_run_type)"

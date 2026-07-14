@@ -1,6 +1,13 @@
-# RogueRoute GPX v11
+# RogueRoute GPX v12
 
-## Unreleased reliability improvements
+## v12 standalone Docker and routing reliability release
+
+- Added a standalone GHCR deployment that does not join the media-dashboard
+  network and does not mount the Docker socket.
+- Added a guarded migration installer that backs up the old application files,
+  reuses the existing environment, and never removes external OSRM data.
+- Added a GitHub Actions multi-architecture image release for tags such as
+  `v12`.
 
 - Updated the validated production toolchain to Node.js 24.18.0 LTS,
   Corepack 0.35.0, pnpm 11.12.0, Next.js 16.2.10, React/React DOM 19.2.7,
@@ -23,7 +30,7 @@
 - Added automatic, compact, and full GPX geometry modes with path-preserving
   simplification, exact duplicate cleanup, configurable point limits, and UI
   point-count reporting.
-- Added bounded adaptive OSRM nearest-path recovery (250m to 1500m by default)
+- Added bounded adaptive OSRM nearest-path recovery (250m to 5000m by default)
   so strict-land routes can recover a distant portal without creating a manual
   direct segment; failures now identify the exact waypoint and radii tried.
 - Replaced the schematic route preview with an interactive OpenStreetMap map

@@ -1,6 +1,15 @@
 # System Requirements
 
-This page explains the base requirements for all installs, then the extra requirements for Standard mode and OSRM mode.
+This page explains the lightweight v12 container requirements and the extra
+tools required for source builds and OSRM preprocessing.
+
+## Standalone GHCR deployment
+
+The recommended production deployment needs Docker Engine, the Docker Compose
+plugin, Bash, OpenSSL, port 9080, and access to the prepared OSRM data folder.
+It does not need Node.js, pnpm, Git, the `media-net` network, or a Docker socket
+mount. Browser access to `tile.openstreetmap.org` supplies the optional map
+background.
 
 ## Supported software standard
 Use these versions for a supported setup:
@@ -13,8 +22,10 @@ Use these versions for a supported setup:
 
 `npm install` is not the supported workspace install method for this project.
 
-## Base requirements for all modes
-These are required for both Standard and OSRM installs.
+## Source/developer requirements
+
+These are required when building the web image or running the workspace from
+source.
 
 ### Software
 - Docker Engine / CLI 29.4.1
@@ -26,7 +37,8 @@ These are required for both Standard and OSRM installs.
 
 ### Network and ports
 - TCP port `9080` free for the web app
-- Docker permission to create or use the `media-net` network
+- Docker permission to create a project network; the legacy source Compose
+  stack can also use `media-net`
 - Browser HTTPS access to `tile.openstreetmap.org` for the default interactive
   map background. Routing and GPX generation continue to work if tiles are
   unavailable; only the basemap is missing.

@@ -4,6 +4,25 @@ This guide covers a clean Ubuntu or Debian server with no existing Node.js,
 pnpm, Docker, or RogueRoute installation. OSRM mode is recommended when GPX
 routes must follow OpenStreetMap roads, footways, and walking tracks.
 
+## Recommended v12 production install
+
+For a server that already has prepared OSRM graphs, use the standalone v12
+Docker package. It pulls the prebuilt GHCR image and requires only Docker,
+Compose, Bash, and OpenSSL on the host; Node.js and pnpm are development tools.
+
+```bash
+unzip RogueRoute-GPX-v12-standalone-docker.zip -d /tmp
+cd /tmp/RogueRoute-GPX
+sudo ./install.sh --target /opt/media-server/RogueRoute-GPX
+```
+
+This deployment has its own Docker network and is not part of Rogue Dashboard
+or the media-server Compose project. See `standalone/README.md` for migration,
+private-package login, daily commands, and rollback details.
+
+The remaining instructions build from source and include the tools needed to
+download and prepare new OSM extracts.
+
 ## Before you start
 
 You need:

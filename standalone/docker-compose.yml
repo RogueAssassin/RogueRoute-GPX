@@ -1,0 +1,45 @@
+name: rogueroute-gpx
+
+services:
+  gpx-web:
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_IMAGE_TAG:-v12}
+    pull_policy: always
+    container_name: rogueroute-gpx-web
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      ROUTER_MODE: osrm
+      OSRM_URL: http://osrm:5000
+      OSRM_SWITCH_ENABLED: "false"
+      NEXT_PUBLIC_APP_VERSION: ${NEXT_PUBLIC_APP_VERSION:-v12}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+    depends_on:
+      osrm:
+        condition: service_started
+    ports:
+      - "${HOST_PORT:-9080}:9080"
+    networks:
+      - rogueroute
+
+  osrm:
+    image: ${OSRM_IMAGE:-osrm/osrm-backend:latest}
+    pull_policy: missing
+    container_name: rogueroute-gpx-osrm
+    restart: on-failure:3
+    command:
+      - osrm-routed
+      - --algorithm
+      - mld
+      - /data/${OSRM_GRAPH:-australia-latest.osrm}
+    volumes:
+      - ${OSRM_DATA_DIR:-/mnt/h/osrm}:/data
+    ports:
+      - "${OSRM_HOST_PORT:-5000}:5000"
+    networks:
+      - rogueroute
+
+networks:
+  rogueroute:
+    name: rogueroute-gpx
+    driver: bridge

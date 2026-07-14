@@ -10,7 +10,7 @@ ENV_STANDARD="$DOCKER_DIR/.env.standard"
 ENV_OSRM="$DOCKER_DIR/.env.osrm"
 COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
 COMPOSE_OSRM_FILE="$DOCKER_DIR/docker-compose.osrm.yml"
-APP_VERSION="v11"
+APP_VERSION="v12"
 EXPECTED_NODE_MAJOR="24"
 EXPECTED_NODE_VERSION="24.18.0"
 EXPECTED_COREPACK_VERSION="0.35.0"
@@ -293,7 +293,7 @@ load_env_values() {
   NEXT_PUBLIC_APP_NAME=$(grep -E '^NEXT_PUBLIC_APP_NAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
   HOST_PORT="$(trim_value "${HOST_PORT:-9080}")"; PORT="$(trim_value "${PORT:-9080}")"; ROUTER_MODE="$(trim_value "${ROUTER_MODE:-osrm}")"
   OSRM_URL="$(trim_value "${OSRM_URL:-http://osrm:5000}")"; OSRM_PROFILE="$(trim_value "${OSRM_PROFILE:-foot}")"; OSRM_DATA_DIR="$(trim_value "${OSRM_DATA_DIR:-/mnt/h/osrm}")"
-  OSRM_PBF="$(trim_value "${OSRM_PBF:-planet.osm.pbf}")"; OSRM_GRAPH="$(trim_value "${OSRM_GRAPH:-planet.osrm}")"; OSRM_SNAP_RADIUS_METERS="$(trim_value "${OSRM_SNAP_RADIUS_METERS:-250}")"; OSRM_SNAP_MAX_RADIUS_METERS="$(trim_value "${OSRM_SNAP_MAX_RADIUS_METERS:-1500}")"; OSRM_THREADS="$(trim_value "${OSRM_THREADS:-8}")"; OSRM_ACTIVE_REGION="$(trim_value "${OSRM_ACTIVE_REGION:-australia}")"
+  OSRM_PBF="$(trim_value "${OSRM_PBF:-planet.osm.pbf}")"; OSRM_GRAPH="$(trim_value "${OSRM_GRAPH:-planet.osrm}")"; OSRM_SNAP_RADIUS_METERS="$(trim_value "${OSRM_SNAP_RADIUS_METERS:-250}")"; OSRM_SNAP_MAX_RADIUS_METERS="$(trim_value "${OSRM_SNAP_MAX_RADIUS_METERS:-5000}")"; OSRM_THREADS="$(trim_value "${OSRM_THREADS:-8}")"; OSRM_ACTIVE_REGION="$(trim_value "${OSRM_ACTIVE_REGION:-australia}")"
   NEXT_PUBLIC_APP_NAME="$(trim_value "${NEXT_PUBLIC_APP_NAME:-RogueRoute-GPX}")"
 }
 

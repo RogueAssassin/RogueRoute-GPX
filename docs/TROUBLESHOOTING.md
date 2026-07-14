@@ -103,10 +103,10 @@ docker logs rogueroute-osrm --tail=200
 - Confirm the selected points are inside your processed OSRM extract.
 - RogueRoute automatically tries progressively larger real OSRM path searches
   from `OSRM_SNAP_RADIUS_METERS` up to `OSRM_SNAP_MAX_RADIUS_METERS` while
-  keeping strict routing enabled. The default range is 250m to 1500m.
+  keeping strict routing enabled. The default range is 250m to 5000m.
 - The map marks an unrecoverable waypoint in red and shows successful snap
   corrections as amber dashed lines.
-- If 1500m is inappropriate for your use case, adjust the maximum in
+- If 5000m is inappropriate for your use case, adjust the maximum in
   `infra/docker/.env`; use a smaller value for dense cities and a larger value
   only for remote portal data.
 - Move the highlighted waypoint closer to a visible mapped road/path, or add
