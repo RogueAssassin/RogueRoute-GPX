@@ -164,7 +164,6 @@ export default function HomePage() {
   const [switchingRegion, setSwitchingRegion] = useState(false);
   const [regionSwitchEnabled, setRegionSwitchEnabled] = useState(false);
   const [regionManagerReady, setRegionManagerReady] = useState(false);
-  const [regionAccessKey, setRegionAccessKey] = useState("");
   const [regionNotice, setRegionNotice] = useState<string | null>(null);
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
 
@@ -194,9 +193,6 @@ export default function HomePage() {
     ) {
       setGeometryDetail(savedGeometryDetail);
     }
-    setRegionAccessKey(
-      window.sessionStorage.getItem("rogue.osrmSwitchKey") || "",
-    );
 
     if (window.location.hash.startsWith("#import=")) {
       try {
@@ -307,17 +303,13 @@ export default function HomePage() {
     try {
       const response = await fetch("/api/osrm/regions", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-rogueroute-admin-key": regionAccessKey,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ region: selectedRegion }),
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "Failed to switch OSRM region");
       setActiveRegion(data.activeRegion || selectedRegion);
-      window.sessionStorage.setItem("rogue.osrmSwitchKey", regionAccessKey);
       setRegionNotice(
         `OSRM region ready: ${data.activeRegion || selectedRegion}`,
       );
@@ -896,22 +888,13 @@ export default function HomePage() {
                     </option>
                   ))}
                 </select>
-                <input
-                  type="password"
-                  value={regionAccessKey}
-                  onChange={(event) => setRegionAccessKey(event.target.value)}
-                  placeholder="Switch access key"
-                  autoComplete="off"
-                  style={{ ...inputStyle, minWidth: 190 }}
-                />
                 <button
                   onClick={switchRegion}
                   disabled={
                     switchingRegion ||
                     selectedRegion === activeRegion ||
                     !regionSwitchEnabled ||
-                    !regionManagerReady ||
-                    !regionAccessKey
+                    !regionManagerReady
                   }
                   style={secondaryButton}
                 >

@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 const REGIONS = [
   {
     key: "australia",
@@ -157,7 +159,12 @@ const REGIONS = [
 
 async function managerRequest(path: string, init?: RequestInit) {
   const url = process.env.OSRM_MANAGER_URL || "http://manager:9090";
-  const token = process.env.OSRM_MANAGER_TOKEN;
+  const token = await readFile(
+    "/run/rogueroute-secrets/manager-token",
+    "utf8",
+  )
+    .then((value) => value.trim())
+    .catch(() => "");
   if (!token) throw new Error("OSRM manager token is not configured");
   const response = await fetch(`${url}${path}`, {
     ...init,
@@ -210,21 +217,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const expectedKey = process.env.OSRM_SWITCH_ACCESS_KEY || "";
-  const suppliedKey = request.headers.get("x-rogueroute-admin-key") || "";
-  const expected = Buffer.from(expectedKey);
-  const supplied = Buffer.from(suppliedKey);
-  if (
-    !expectedKey ||
-    expected.length !== supplied.length ||
-    !timingSafeEqual(expected, supplied)
-  ) {
-    return Response.json(
-      { error: "A valid OSRM switch access key is required." },
-      { status: 401 },
-    );
-  }
-
   const body = await request.json().catch(() => ({}));
   const region = String(body.region || "").trim();
   if (!REGIONS.some((item) => item.key === region)) {
@@ -254,4 +246,3 @@ export async function POST(request: Request) {
     );
   }
 }
-import { timingSafeEqual } from "node:crypto";

@@ -58,13 +58,14 @@ region from the CLI before selecting it on the website.
 ```dotenv
 OSRM_SWITCH_ENABLED=true
 OSRM_MANAGER_URL=http://manager:9090
-OSRM_MANAGER_TOKEN=generated-secret
-OSRM_SWITCH_ACCESS_KEY=generated-admin-key
+OSRM_MANAGER_TOKEN_FILE=/run/rogueroute-secrets/manager-token
+OSRM_SWITCH_COOLDOWN_SECONDS=60
 ```
 
-Never publish port 9090 or expose the manager token through a proxy.
-Retrieve the website access key locally with:
+Docker creates the token inside a private named volume and mounts the file
+read-only into the web and manager services. It is never returned to the
+browser. Never publish port 9090 through the host or a reverse proxy.
 
-```bash
-grep '^OSRM_SWITCH_ACCESS_KEY=' .env
-```
+Region selection is global because one OSRM container serves all visitors. A
+switch briefly changes routing for everyone, so the manager serializes requests
+and enforces the configured cooldown.

@@ -1,7 +1,9 @@
-# RogueRoute GPX v12.3.0
+# RogueRoute GPX v12.4.0
 
-v12.3.0 adds managed OSRM region switching from the website while keeping
-Docker access out of the public web container.
+v12.4.0 removes browser-facing switch credentials. Docker now generates the
+web-to-manager authentication token inside a private named volume, mounts it
+read-only into both containers and never places it in `.env`, HTML, browser
+storage, logs or reverse-proxy configuration.
 
 The release replaces the accumulated host-build and media-stack scripts with a
 small standalone deployment: `compose.yaml`, `install.sh`, `rogueroute`, and the
@@ -11,7 +13,7 @@ against its external map-data folder.
 Release publishing now validates that the Git tag, `VERSION`, all workspace
 packages, Compose defaults, documentation badge, health endpoint and IITC
 plugin agree. Pushing the tag or publishing the GitHub Release tagged
-`v12.3.0` produces the container tags `12.3.0`, `12.3`, `12`, `latest`, and an
+`v12.4.0` produces the container tags `12.4.0`, `12.4`, `12`, `latest`, and an
 immutable SHA tag.
 
 This release also includes the compact GPX geometry modes, 1,000-point default
@@ -22,10 +24,11 @@ Future releases can be prepared with `pnpm version:set X.Y.Z` and verified with
 `pnpm version:check`, preventing a new image from retaining an older visible
 version.
 
-The internal manager is authenticated with an installation-generated token,
-has no published port, validates prepared graphs through a read-only data mount,
-updates the deployment environment and recreates only OSRM. It restores the
-previous environment when Docker cannot apply a switch.
+The internal manager has no published port, validates prepared graphs through a
+read-only data mount, updates the deployment environment and recreates only
+OSRM. It restores the previous environment when Docker cannot apply a switch.
+Public switching is protected by a global lock, same-region no-op and a
+configurable 60-second cooldown.
 
 The CLI now includes container diagnostics plus region listing, status, path,
 resumable batch downloads, MLD preparation, verification and OSRM-only

@@ -6,12 +6,22 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const port = Number(process.env.OSRM_MANAGER_PORT || 9090);
-const token = process.env.OSRM_MANAGER_TOKEN || "";
+const tokenFile = process.env.OSRM_MANAGER_TOKEN_FILE || "/run/rogueroute-secrets/manager-token";
+let token = process.env.OSRM_MANAGER_TOKEN || "";
+if (!token) {
+  try {
+    token = (await readFile(tokenFile, "utf8")).trim();
+  } catch {
+    token = "";
+  }
+}
 const deploymentDir = process.env.DEPLOYMENT_DIR || "/deployment";
 const dataDir = process.env.MANAGER_DATA_DIR || "/data";
+const cooldownMs = Math.max(10, Number(process.env.OSRM_SWITCH_COOLDOWN_SECONDS || 60)) * 1000;
 const envFile = join(deploymentDir, ".env");
 const composeFile = join(deploymentDir, "compose.yaml");
 let switching = false;
+let lastSwitchAt = 0;
 
 export function parseEnv(text) {
   const values = {};
@@ -96,10 +106,19 @@ async function switchRegion(payload) {
   if (!safeBasename(graph, ".osrm") || !safeBasename(pbf, ".osm.pbf")) {
     throw new Error("Invalid graph or PBF filename");
   }
+  const previous = await readFile(envFile, "utf8");
+  const previousEnv = parseEnv(previous);
+  if (previousEnv.OSRM_ACTIVE_REGION === region && previousEnv.OSRM_GRAPH === graph) {
+    return { ok: true, activeRegion: region, graph, unchanged: true };
+  }
+  const remainingMs = cooldownMs - (Date.now() - lastSwitchAt);
+  if (lastSwitchAt && remainingMs > 0) {
+    throw new Error(`Region switching is cooling down. Try again in ${Math.ceil(remainingMs / 1000)} seconds.`);
+  }
+
   const state = await graphStatus(graph);
   if (!state.ready) throw new Error(`Region is not prepared. Missing: ${state.missing.join(", ")}`);
 
-  const previous = await readFile(envFile, "utf8");
   const next = updateEnvText(previous, {
     OSRM_ACTIVE_REGION: region,
     OSRM_GRAPH: graph,
@@ -112,6 +131,7 @@ async function switchRegion(payload) {
       ["compose", "--env-file", envFile, "-f", composeFile, "up", "-d", "--force-recreate", "osrm"],
       { timeout: 180_000, maxBuffer: 4 * 1024 * 1024 },
     );
+    lastSwitchAt = Date.now();
     return { ok: true, activeRegion: region, graph, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
     await writeFile(envFile, previous, { mode: 0o600 });

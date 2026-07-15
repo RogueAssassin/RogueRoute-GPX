@@ -67,7 +67,7 @@ set_env() {
     printf '%s=%s\n' "$key" "$value" >> "$file"
   fi
 }
-set_env ROGUEROUTE_VERSION 12.3.0
+set_env ROGUEROUTE_VERSION 12.4.0
 set_env OSRM_DATA_DIR "$DATA_DIR"
 set_env OSRM_ACTIVE_REGION "$REGION"
 
@@ -81,20 +81,14 @@ if ! grep -qE '^NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=.+$' "$TARGET/.env"; then
   command -v openssl >/dev/null || { echo "OpenSSL is required." >&2; exit 1; }
   set_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$(openssl rand -base64 32)"
 fi
-if ! grep -qE '^OSRM_MANAGER_TOKEN=.+$' "$TARGET/.env"; then
-  command -v openssl >/dev/null || { echo "OpenSSL is required." >&2; exit 1; }
-  set_env OSRM_MANAGER_TOKEN "$(openssl rand -hex 32)"
-fi
-if ! grep -qE '^OSRM_SWITCH_ACCESS_KEY=.+$' "$TARGET/.env"; then
-  set_env OSRM_SWITCH_ACCESS_KEY "$(openssl rand -hex 16)"
-fi
 set_env OSRM_SWITCH_ENABLED true
 set_env OSRM_MANAGER_URL http://manager:9090
+set_env OSRM_MANAGER_TOKEN_FILE /run/rogueroute-secrets/manager-token
+set_env OSRM_SWITCH_COOLDOWN_SECONDS 60
+sed -i '/^OSRM_MANAGER_TOKEN=/d; /^OSRM_SWITCH_ACCESS_KEY=/d' "$TARGET/.env"
 
-echo "RogueRoute GPX v12.3.0 installed at $TARGET"
+echo "RogueRoute GPX v12.4.0 installed at $TARGET"
 echo "OSRM data directory: $DATA_DIR"
-echo "Website switch access key: $(grep -E '^OSRM_SWITCH_ACCESS_KEY=' "$TARGET/.env" | cut -d= -f2-)"
-echo "Keep this key private; it authorizes region changes from the website."
 if [[ "$START" == true ]]; then
   "$TARGET/rogueroute" start
 else

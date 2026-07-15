@@ -1,6 +1,6 @@
 # Installation
 
-RogueRoute GPX v12.3.0 is installed as an independent Docker Compose project.
+RogueRoute GPX v12.4.0 is installed as an independent Docker Compose project.
 It does not require Node.js, pnpm, a dashboard stack or an external Docker
 network. The public web container has no Docker access. A private manager
 sidecar mounts `/var/run/docker.sock` only so it can recreate OSRM after an
@@ -43,9 +43,10 @@ cd /opt/rogueroute-gpx
 ./rogueroute start
 ```
 
-Installation generates `OSRM_MANAGER_TOKEN`, enables the internal switcher and
-starts the manager with no published host port. Never expose manager port 9090
-through Nginx Proxy Manager or the host firewall.
+On first start, the `secrets-init` service generates the manager token inside a
+private Docker volume. It enables the internal switcher without exposing a key
+to the browser or `.env`. Never expose manager port 9090 through Nginx Proxy
+Manager or the host firewall.
 
 Use `sudo usermod -aG docker USERNAME`, then log out and back in, if the normal
 administrator account cannot access Docker.

@@ -1,5 +1,22 @@
 # Changelog
 
+## v12.4.0 — Container-only manager secrets
+
+- Removed the browser-facing website switch key.
+- Moved web-to-manager authentication out of `.env` and into a private Docker
+  named volume mounted read-only by both containers.
+- Added a one-shot secret initializer, global switch lock, same-region no-op and
+  configurable restart cooldown for safe public switching.
+- Removed legacy manager/access secrets from existing environment files during
+  install and startup.
+
+## v12.3.1 — Direct-runtime startup fix
+
+- Fixed `./rogueroute start` from an extracted server package by generating the
+  required runtime keys when `.env` is first created.
+- Kept `install.sh` generation for normal `/opt/media-server` installations.
+- Added clear output when the website access key is generated.
+
 ## v12.3.0 — Managed website region switching
 
 - Added an authenticated internal manager sidecar with no published port.

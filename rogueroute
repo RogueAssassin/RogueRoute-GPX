@@ -15,6 +15,32 @@ get_env() {
   printf '%s\n' "${value:-$fallback}"
 }
 
+set_env() {
+  local key="$1" value="$2"
+  if grep -qE "^${key}=" "$ENV"; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$ENV"
+  fi
+}
+
+ensure_runtime_secrets() {
+  if [[ -z "$(get_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)" ]]; then
+    command -v openssl >/dev/null || fail "OpenSSL is required to generate runtime secrets."
+  fi
+  [[ -n "$(get_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)" ]] ||
+    set_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$(openssl rand -base64 32)"
+  set_env OSRM_SWITCH_ENABLED true
+  set_env OSRM_MANAGER_URL http://manager:9090
+  set_env OSRM_MANAGER_TOKEN_FILE /run/rogueroute-secrets/manager-token
+  [[ -n "$(get_env OSRM_SWITCH_COOLDOWN_SECONDS)" ]] ||
+    set_env OSRM_SWITCH_COOLDOWN_SECONDS 60
+  sed -i '/^OSRM_MANAGER_TOKEN=/d; /^OSRM_SWITCH_ACCESS_KEY=/d' "$ENV"
+  chmod 600 "$ENV" 2>/dev/null || true
+}
+
+ensure_runtime_secrets
+
 verify_graph() {
   local dir graph
   dir="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
