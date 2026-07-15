@@ -2,7 +2,7 @@ name: rogueroute-gpx
 
 services:
   secrets-init:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.4.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.5.0}
     container_name: rogueroute-gpx-secrets-init
     restart: "no"
     command:
@@ -19,7 +19,7 @@ services:
     networks: [rogueroute]
 
   web:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.4.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.5.0}
     container_name: rogueroute-gpx-web
     restart: unless-stopped
     env_file: .env
@@ -28,7 +28,7 @@ services:
       OSRM_URL: http://osrm:5000
       OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
       OSRM_MANAGER_URL: ${OSRM_MANAGER_URL:-http://manager:9090}
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.4.0}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.5.0}
     depends_on:
       secrets-init:
         condition: service_completed_successfully
@@ -49,7 +49,7 @@ services:
     networks: [rogueroute]
 
   manager:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.4.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.5.0}
     container_name: rogueroute-gpx-manager
     restart: unless-stopped
     command: ["node", "/app/manager/server.mjs"]

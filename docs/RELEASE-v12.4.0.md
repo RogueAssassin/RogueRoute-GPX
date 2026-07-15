@@ -33,3 +33,8 @@ configurable 60-second cooldown.
 The CLI now includes container diagnostics plus region listing, status, path,
 resumable batch downloads, MLD preparation, verification and OSRM-only
 switching.
+
+Production installs remain Git checkouts. Future server updates need only
+`git pull --ff-only` followed by `./rogueroute update`; the updater reads
+`VERSION`, synchronizes the ignored local environment and applies the matching
+GHCR image without touching prepared maps or persistent secrets.

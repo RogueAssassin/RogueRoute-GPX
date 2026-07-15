@@ -39,7 +39,33 @@ ensure_runtime_secrets() {
   chmod 600 "$ENV" 2>/dev/null || true
 }
 
-ensure_runtime_secrets
+requested_command="${1:-help}"
+[[ "$requested_command" == permissions ]] || ensure_runtime_secrets
+
+ensure_writable_runtime() {
+  [[ -w "$ROOT" && -w "$ENV" ]] ||
+    fail "Deployment files are not writable by $(id -un). Run once: sudo ./rogueroute permissions"
+}
+
+repository_version() {
+  local tag version
+  [[ -r "$ROOT/VERSION" ]] || fail "Missing VERSION file. This deployment must be a complete Git checkout."
+  tag="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+  version="${tag#v}"
+  [[ "$tag" == "v$version" && "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    fail "Invalid VERSION value: $tag"
+  printf '%s\n' "$version"
+}
+
+sync_repository_version() {
+  local version current
+  version="$(repository_version)"
+  current="$(get_env ROGUEROUTE_VERSION)"
+  if [[ "$current" != "$version" ]]; then
+    set_env ROGUEROUTE_VERSION "$version"
+    echo "[INFO] Container version updated from ${current:-unset} to $version."
+  fi
+}
 
 verify_graph() {
   local dir graph
@@ -60,7 +86,8 @@ Container commands:
   start                 Verify the active graph, pull images and start the stack
   stop                  Stop RogueRoute containers without deleting map data
   restart               Pull and recreate the web, manager and OSRM containers
-  update                Pull the pinned image and apply it without deleting data
+  update                Apply VERSION from Git, pull that image and recreate services
+  permissions           Repair checkout, environment and map-data ownership
   status                Show container state and health
   logs [SERVICE]        Follow all logs, or only web, manager or osrm
   doctor                Check Docker, configuration, graph files and manager health
@@ -72,7 +99,9 @@ Map commands:
   osm status            Show downloaded/prepared state for all regions
   osm path              Show the configured OSRM data directory
   osm download REGION…  Download or resume one or more Geofabrik PBF files
+  osm download-missing  Download/resume every missing catalog PBF
   osm prepare REGION    Build and select an OSRM MLD graph in OSRM_DATA_DIR
+  osm prepare-downloaded Prepare every downloaded but incomplete graph
   osm verify REGION     Verify the required MLD files for a region
   osm switch REGION     Select a prepared graph and recreate only OSRM
   osm help              Show detailed map command help
@@ -112,10 +141,23 @@ case "$cmd" in
     "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
     "${COMPOSE[@]}" ps ;;
   update)
+    ensure_writable_runtime
+    sync_repository_version
     verify_graph
     "${COMPOSE[@]}" pull
     "${COMPOSE[@]}" up -d --remove-orphans
-    "${COMPOSE[@]}" images ;;
+    "${COMPOSE[@]}" images
+    echo "[OK] RogueRoute GPX v$(repository_version) is applied." ;;
+  permissions)
+    [[ $EUID -eq 0 ]] || fail "Run: sudo ./rogueroute permissions"
+    owner="${SUDO_USER:-root}"
+    group="$(id -gn "$owner")"
+    dir="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
+    chown -R "$owner:$group" "$ROOT" "$dir"
+    chmod 600 "$ENV"
+    chmod +x "$ROOT/install.sh" "$ROOT/rogueroute" "$ROOT/scripts/osm.sh"
+    echo "[OK] $owner owns the deployment and map-data directories."
+    echo "[INFO] If Docker still requires sudo, add $owner to the docker group and log in again." ;;
   status) "${COMPOSE[@]}" ps ;;
   logs) "${COMPOSE[@]}" logs --tail=200 -f "$@" ;;
   doctor) doctor ;;

@@ -9,7 +9,8 @@ Run `./rogueroute help` or `./rogueroute osm help` for the built-in reference.
 | `./rogueroute start` | Verify the active graph, pull images and start web, manager and OSRM. |
 | `./rogueroute stop` | Stop the stack without deleting external map data. |
 | `./rogueroute restart` | Pull and recreate all three services. |
-| `./rogueroute update` | Pull and apply the configured `ROGUEROUTE_VERSION`. |
+| `./rogueroute update` | Read repository `VERSION`, pull that exact image and apply it. |
+| `sudo ./rogueroute permissions` | Repair ownership of the checkout, `.env` and map directory. |
 | `./rogueroute status` | Display service state and health. |
 | `./rogueroute logs [SERVICE]` | Follow all logs or only `web`, `manager` or `osrm`. |
 | `./rogueroute doctor` | Validate Compose, the active graph and manager health. |
@@ -27,13 +28,17 @@ stored in a private Docker volume rather than `.env`.
 | `./rogueroute osm status` | Mark regions as missing, partial, downloaded or prepared. |
 | `./rogueroute osm path` | Print the configured data directory. |
 | `./rogueroute osm download REGION…` | Download/resume one or multiple extracts. |
+| `./rogueroute osm download-missing [--yes]` | Download/resume every catalog entry without a completed PBF. |
 | `./rogueroute osm prepare REGION` | Build an MLD foot-routing graph in the data directory. |
+| `./rogueroute osm prepare-downloaded [--yes]` | Prepare every downloaded region lacking a complete MLD graph. |
 | `./rogueroute osm verify REGION` | Check the PBF and required runtime sidecars. |
 | `./rogueroute osm switch REGION` | Update `.env` and recreate only OSRM. |
 
 ```bash
 ./rogueroute osm download new-zealand australia
+./rogueroute osm download-missing --yes
 ./rogueroute osm prepare new-zealand
+./rogueroute osm prepare-downloaded --yes
 ./rogueroute osm verify new-zealand
 ./rogueroute start
 ./rogueroute doctor

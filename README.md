@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-12.4.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
+[![Release](https://img.shields.io/badge/release-12.5.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
 [![Container](https://img.shields.io/badge/GHCR-ready-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/RogueRoute-GPX/pkgs/container/rogueroute-gpx)
 [![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.4.0** · Standalone Docker Compose deployment · Local OSRM routing
+Version **12.5.0** · Standalone Docker Compose deployment · Local OSRM routing
 
 </div>
 
@@ -41,24 +41,26 @@ RogueRoute GPX accepts IITC exports, JSON, CSV and coordinate lists, routes them
 - Port `9080` for the web interface
 - A dedicated folder for downloaded `.osm.pbf` and prepared `.osrm*` files
 
-### 1. Download the deployment files
+### 1. Clone directly into the permanent installation folder
 
 ```bash
-git clone https://github.com/RogueAssassin/RogueRoute-GPX.git
-cd RogueRoute-GPX
+sudo install -d -o "$USER" -g "$(id -gn)" /opt/media-server/RogueRoute-GPX
+git clone https://github.com/RogueAssassin/RogueRoute-GPX.git /opt/media-server/RogueRoute-GPX
+cd /opt/media-server/RogueRoute-GPX
 ```
 
 ### 2. Install the standalone runtime
 
 ```bash
-chmod +x install.sh rogueroute scripts/osm.sh
 sudo ./install.sh \
-  --path /opt/media-server/RogueRoute-GPX \
   --data-dir /mnt/h/osrm \
   --region new-zealand
 ```
 
-The installer backs up an existing RogueRoute directory, copies the small runtime package, preserves the external OSRM data folder, generates a persistent encryption key and pins the application image to `12.4.0`.
+The installation remains a Git checkout. The installer creates the ignored
+machine-local `.env`, preserves the external OSRM data folder, generates a
+persistent encryption key and pins the container to the repository's
+`VERSION`.
 
 ### 3. Prepare the first map region
 
@@ -100,9 +102,15 @@ The manager has no published port and requires the generated private token file 
 ## Day-to-day commands
 
 ```bash
-# Start or update the pinned containers
+# Start the pinned containers
 ./rogueroute start
+
+# Update the repository, synchronize VERSION and apply the matching image
+git pull --ff-only
 ./rogueroute update
+
+# One-time ownership repair, only if an update reports a permissions error
+sudo ./rogueroute permissions
 
 # View status and follow logs
 ./rogueroute status
@@ -123,7 +131,7 @@ The manager has no published port and requires the generated private token file 
 Machine-specific settings live in `/opt/media-server/RogueRoute-GPX/.env` and must not be committed.
 
 ```dotenv
-ROGUEROUTE_VERSION=12.4.0
+ROGUEROUTE_VERSION=12.5.0
 HOST_PORT=9080
 
 OSRM_DATA_DIR=/mnt/h/osrm
@@ -144,7 +152,7 @@ and manager containers and never enters `.env`, HTML, browser storage, logs or
 Nginx Proxy Manager. Public users do not need a key. A global switch lock and
 60-second cooldown prevent overlapping or rapid OSRM restarts.
 
-Use `ROGUEROUTE_VERSION=12.4.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.4.0`.
+Use `ROGUEROUTE_VERSION=12.5.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.5.0`.
 
 ## GPX detail modes
 
@@ -163,27 +171,37 @@ Automatic simplification does not remove submitted waypoints or routed leg bound
 ./rogueroute osm status
 ./rogueroute osm path
 ./rogueroute osm download australia new-zealand japan
+./rogueroute osm download-missing --yes
 ./rogueroute osm prepare new-zealand
+./rogueroute osm prepare-downloaded --yes
 ./rogueroute osm verify new-zealand
 ./rogueroute osm switch new-zealand
 ```
 
-Downloads retry transient failures and retain `.part` files for a later resume. Preparation runs `osrm-extract`, `osrm-partition` and `osrm-customize`, then verifies the required MLD outputs before selecting the graph.
+`download-missing` processes every catalog entry without a completed PBF,
+including resumable partials, while skipping existing downloads. The command
+asks for confirmation because the full catalog is very large; `--yes` is for
+unattended operation. `prepare-downloaded` builds every downloaded region that
+does not yet have a complete MLD graph. Both batch commands continue after an
+individual failure and print a final summary.
+
+Downloads retry transient failures and retain `.part` files for a later resume.
+Preparation runs `osrm-extract`, `osrm-partition` and `osrm-customize`, then
+verifies the required MLD outputs before selecting the graph.
 
 Large regions can require significant RAM, storage and processing time. Prefer country or sub-region extracts over continents and the full planet.
 
 ## Upgrade without losing maps
 
 ```bash
-cd /path/to/your/RogueRoute-GPX-source-clone
-git pull --ff-only
-sudo ./install.sh \
-  --path /opt/media-server/RogueRoute-GPX \
-  --data-dir /mnt/h/osrm \
-  --region new-zealand
+cd /opt/media-server/RogueRoute-GPX && git pull --ff-only
+./rogueroute update
 ```
 
-The installer moves the previous application directory to a timestamped backup. It does not delete the external map directory. Keep that backup until a known route has been generated successfully.
+`update` reads the tracked `VERSION`, updates only the version field in the
+ignored `.env`, pulls that exact GHCR image, and applies the Compose stack.
+External map data and existing secrets are untouched. See the upgrading guide
+for the one-time conversion from an older copied/ZIP installation.
 
 ## Documentation
 
@@ -192,7 +210,7 @@ The installer moves the previous application directory to a timestamped backup. 
 - [Upgrading and rollback](docs/UPGRADING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Command reference](docs/COMMANDS.md)
-- [v12.4.0 release notes](docs/RELEASE-v12.4.0.md)
+- [v12.5.0 release notes](docs/RELEASE-v12.5.0.md)
 - [GitHub Desktop release upload](GITHUB-DESKTOP-UPLOAD.md)
 
 ## Development and local builds
@@ -208,7 +226,7 @@ pnpm test
 pnpm build
 ```
 
-The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.4.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
+The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.5.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
 
 ## Acknowledgements
 
