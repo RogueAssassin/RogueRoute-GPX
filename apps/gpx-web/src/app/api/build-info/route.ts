@@ -11,13 +11,11 @@ async function readText(path: string) {
 
 export async function GET() {
   const root = process.cwd();
-  const hostRoot = process.env.ROGUEROUTE_HOST_ROOT || "/host/rogueroute";
   const packageJson = await readText(join(root, "package.json"));
   const parsedPackage = packageJson ? JSON.parse(packageJson) : {};
   const version =
     process.env.NEXT_PUBLIC_APP_VERSION ||
     parsedPackage.version ||
-    (await readText(join(hostRoot, "VERSION"))) ||
     "unknown";
 
   return Response.json({

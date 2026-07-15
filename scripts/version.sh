@@ -11,7 +11,7 @@ usage() {
 
 validate_semver() {
   [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-    echo "Version must use X.Y.Z format, for example 12.2.0." >&2
+    echo "Version must use X.Y.Z format, for example 12.3.0." >&2
     exit 1
   }
 }
@@ -42,20 +42,31 @@ check_version() {
 }
 
 set_version() {
-  local new="$1" old release_old release_new
+  local new="$1" old old_minor new_minor release_old release_new file
+  local -a release_files
   validate_semver "$new"
   old="$(sed 's/^v//' VERSION | tr -d '[:space:]')"
   validate_semver "$old"
   [[ "$new" != "$old" ]] || { check_version; return; }
-
-  while IFS= read -r file; do
-    sed -i "s/v${old}/v${new}/g; s/${old}/${new}/g" "$file"
-  done < <(rg -l --fixed-strings "$old" \
-    --glob '!pnpm-lock.yaml' --glob '!**/.next/**' --glob '!**/dist/**' \
-    --glob '!node_modules/**')
-
+  old_minor="${old%.*}"
+  new_minor="${new%.*}"
   release_old="docs/RELEASE-v${old}.md"
   release_new="docs/RELEASE-v${new}.md"
+  release_files=(
+    .env.example compose.yaml install.sh README.md GITHUB-DESKTOP-UPLOAD.md
+    docs/INSTALL.md docs/UPGRADING.md docs/TROUBLESHOOTING.md
+    apps/gpx-web/src/app/api/health/route.ts
+    plugins/iitc/gpx-route-generator.user.js
+    apps/gpx-web/public/iitc/rogueroute.user.js
+    apps/gpx-web/public/downloads/iitc/rogueroute-exporter.user.js
+  )
+  [[ -f "$release_old" ]] && release_files+=("$release_old")
+
+  for file in "${release_files[@]}"; do
+    [[ -f "$file" ]] || continue
+    sed -i "s/v${old}/v${new}/g; s/${old}/${new}/g; s/${old_minor}/${new_minor}/g" "$file"
+  done
+
   [[ ! -f "$release_old" || "$release_old" == "$release_new" ]] || mv "$release_old" "$release_new"
   printf 'v%s\n' "$new" > VERSION
 

@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-12.2.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
+[![Release](https://img.shields.io/badge/release-12.3.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
 [![Container](https://img.shields.io/badge/GHCR-ready-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/RogueRoute-GPX/pkgs/container/rogueroute-gpx)
 [![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.2.0** · Standalone Docker Compose deployment · Local OSRM routing
+Version **12.3.0** · Standalone Docker Compose deployment · Local OSRM routing
 
 </div>
 
@@ -28,6 +28,7 @@ RogueRoute GPX accepts IITC exports, JSON, CSV and coordinate lists, routes them
 | 📦 | **Produce manageable GPX files** — Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
 | 🌏 | **Manage regional maps** — resumable Geofabrik downloads and Docker-based OSRM preparation are included. |
 | 🐳 | **Keep the server light** — the application runs from GHCR and OSRM runs in its own container. |
+| 🔄 | **Switch from the website** — an authenticated internal manager validates the graph and recreates only OSRM. |
 | 🧱 | **Stay independent** — RogueRoute uses its own Docker network and is not part of Rogue Dashboard or another media stack. |
 
 ## Install from scratch
@@ -57,7 +58,7 @@ sudo ./install.sh \
   --region new-zealand
 ```
 
-The installer backs up an existing RogueRoute directory, copies the small runtime package, preserves the external OSRM data folder, generates a persistent encryption key and pins the application image to `12.2.0`.
+The installer backs up an existing RogueRoute directory, copies the small runtime package, preserves the external OSRM data folder, generates a persistent encryption key and pins the application image to `12.3.0`.
 
 ### 3. Prepare the first map region
 
@@ -81,6 +82,9 @@ Visit `http://SERVER-IP:9080` and generate a known route. Change `HOST_PORT` in 
 flowchart LR
     Browser["Browser :9080"] --> Web["RogueRoute GPX web"]
     Web --> OSRM["OSRM foot router :5000"]
+    Web --> Manager["Private OSRM manager"]
+    Manager --> Socket["Docker socket"]
+    Manager --> OSRM
     OSRM --> Maps["External OSM/OSRM data"]
     IITC["IITC exporter"] --> Web
 ```
@@ -88,9 +92,10 @@ flowchart LR
 | Container | Purpose | Persistent dependency |
 | --- | --- | --- |
 | `rogueroute-gpx-web` | Interface, input parsing, route generation, preview and GPX export | `.env` |
+| `rogueroute-gpx-manager` | Authenticated internal region switching and OSRM-only recreation | `.env`, read-only map data and Docker socket |
 | `rogueroute-gpx-osrm` | Local MLD routing using the foot profile | `OSRM_DATA_DIR` |
 
-The containers share only the private `rogueroute-gpx` network. The web container does not mount the Docker socket.
+The manager has no published port and requires the generated `OSRM_MANAGER_TOKEN` for every management request. Only the manager mounts the Docker socket; the public web container never receives it.
 
 ## Day-to-day commands
 
@@ -102,6 +107,8 @@ The containers share only the private `rogueroute-gpx` network. The web containe
 # View status and follow logs
 ./rogueroute status
 ./rogueroute logs
+./rogueroute doctor
+./rogueroute config
 
 # Restart or stop without removing map data
 ./rogueroute restart
@@ -116,7 +123,7 @@ The containers share only the private `rogueroute-gpx` network. The web containe
 Machine-specific settings live in `/opt/media-server/RogueRoute-GPX/.env` and must not be committed.
 
 ```dotenv
-ROGUEROUTE_VERSION=12.2.0
+ROGUEROUTE_VERSION=12.3.0
 HOST_PORT=9080
 
 OSRM_DATA_DIR=/mnt/h/osrm
@@ -124,12 +131,20 @@ OSRM_ACTIVE_REGION=new-zealand
 OSRM_GRAPH=new-zealand-latest.osrm
 OSRM_SNAP_RADIUS_METERS=250
 OSRM_SNAP_MAX_RADIUS_METERS=5000
+OSRM_SWITCH_ENABLED=true
+OSRM_MANAGER_URL=http://manager:9090
 
 GPX_MAX_TRACK_POINTS=1000
 GPX_SIMPLIFY_TOLERANCE_METERS=2.5
 ```
 
-Use `ROGUEROUTE_VERSION=12.2.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.2.0`.
+`OSRM_MANAGER_TOKEN` and `OSRM_SWITCH_ACCESS_KEY` are generated during installation. The manager token never leaves the containers. Enter the switch access key in the website when changing regions, and keep both values out of documentation, screenshots and Git commits.
+
+```bash
+grep '^OSRM_SWITCH_ACCESS_KEY=' /opt/media-server/RogueRoute-GPX/.env
+```
+
+Use `ROGUEROUTE_VERSION=12.3.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.3.0`.
 
 ## GPX detail modes
 
@@ -145,8 +160,11 @@ Automatic simplification does not remove submitted waypoints or routed leg bound
 
 ```bash
 ./rogueroute osm list
+./rogueroute osm status
+./rogueroute osm path
 ./rogueroute osm download australia new-zealand japan
 ./rogueroute osm prepare new-zealand
+./rogueroute osm verify new-zealand
 ./rogueroute osm switch new-zealand
 ```
 
@@ -173,7 +191,8 @@ The installer moves the previous application directory to a timestamped backup. 
 - [OSM downloads and OSRM preparation](docs/OSM.md)
 - [Upgrading and rollback](docs/UPGRADING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [v12.2.0 release notes](docs/RELEASE-v12.2.0.md)
+- [Command reference](docs/COMMANDS.md)
+- [v12.3.0 release notes](docs/RELEASE-v12.3.0.md)
 - [GitHub Desktop release upload](GITHUB-DESKTOP-UPLOAD.md)
 
 ## Development and local builds
@@ -189,7 +208,7 @@ pnpm test
 pnpm build
 ```
 
-The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.2.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
+The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.3.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
 
 ## Acknowledgements
 

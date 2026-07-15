@@ -44,9 +44,14 @@ install -d -o "$OWNER" -g "$GROUP" -m 0755 "$TARGET" "$DATA_DIR"
 install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/compose.yaml" "$TARGET/compose.yaml"
 install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/.env.example" "$TARGET/.env.example"
 install -o "$OWNER" -g "$GROUP" -m 0755 "$SOURCE/rogueroute" "$TARGET/rogueroute"
+install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/README.md" "$TARGET/README.md"
 install -d -o "$OWNER" -g "$GROUP" -m 0755 "$TARGET/scripts"
 install -o "$OWNER" -g "$GROUP" -m 0755 "$SOURCE/scripts/osm.sh" "$TARGET/scripts/osm.sh"
 install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/scripts/osm-region-catalog.sh" "$TARGET/scripts/osm-region-catalog.sh"
+install -d -o "$OWNER" -g "$GROUP" -m 0755 "$TARGET/docs"
+for guide in COMMANDS.md INSTALL.md OSM.md TROUBLESHOOTING.md UPGRADING.md; do
+  install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/docs/$guide" "$TARGET/docs/$guide"
+done
 
 if [[ -n "$old_env" && -f "$old_env" ]]; then
   install -o "$OWNER" -g "$GROUP" -m 0600 "$old_env" "$TARGET/.env"
@@ -62,7 +67,7 @@ set_env() {
     printf '%s=%s\n' "$key" "$value" >> "$file"
   fi
 }
-set_env ROGUEROUTE_VERSION 12.2.0
+set_env ROGUEROUTE_VERSION 12.3.0
 set_env OSRM_DATA_DIR "$DATA_DIR"
 set_env OSRM_ACTIVE_REGION "$REGION"
 
@@ -76,9 +81,20 @@ if ! grep -qE '^NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=.+$' "$TARGET/.env"; then
   command -v openssl >/dev/null || { echo "OpenSSL is required." >&2; exit 1; }
   set_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$(openssl rand -base64 32)"
 fi
+if ! grep -qE '^OSRM_MANAGER_TOKEN=.+$' "$TARGET/.env"; then
+  command -v openssl >/dev/null || { echo "OpenSSL is required." >&2; exit 1; }
+  set_env OSRM_MANAGER_TOKEN "$(openssl rand -hex 32)"
+fi
+if ! grep -qE '^OSRM_SWITCH_ACCESS_KEY=.+$' "$TARGET/.env"; then
+  set_env OSRM_SWITCH_ACCESS_KEY "$(openssl rand -hex 16)"
+fi
+set_env OSRM_SWITCH_ENABLED true
+set_env OSRM_MANAGER_URL http://manager:9090
 
-echo "RogueRoute GPX v12.2.0 installed at $TARGET"
+echo "RogueRoute GPX v12.3.0 installed at $TARGET"
 echo "OSRM data directory: $DATA_DIR"
+echo "Website switch access key: $(grep -E '^OSRM_SWITCH_ACCESS_KEY=' "$TARGET/.env" | cut -d= -f2-)"
+echo "Keep this key private; it authorizes region changes from the website."
 if [[ "$START" == true ]]; then
   "$TARGET/rogueroute" start
 else

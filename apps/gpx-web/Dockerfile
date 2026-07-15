@@ -31,7 +31,7 @@ RUN set -eux; \
 
 FROM node:24.18.0-alpine AS runner
 WORKDIR /app
-RUN apk add --no-cache wget
+RUN apk add --no-cache docker-cli docker-cli-compose wget
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=9080
@@ -39,6 +39,7 @@ ENV PORT=9080
 COPY --from=builder /app/apps/gpx-web/.next/standalone ./
 COPY --from=builder /app/apps/gpx-web/.next/static ./apps/gpx-web/.next/static
 COPY --from=builder /app/apps/gpx-web/public ./apps/gpx-web/public
+COPY --from=builder /app/apps/gpx-web/manager ./manager
 
 EXPOSE 9080
 

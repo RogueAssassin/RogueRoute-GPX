@@ -1,5 +1,16 @@
 # Changelog
 
+## v12.3.0 — Managed website region switching
+
+- Added an authenticated internal manager sidecar with no published port.
+- Enabled website switching without mounting Docker into the public web
+  container.
+- Added prepared-graph validation, OSRM-only recreation, concurrency protection
+  and environment rollback when a switch fails.
+- Expanded the CLI with help, map status, configured path, verification,
+  diagnostics, safe configuration output and service-specific logs.
+- Rebuilt the OSM and command documentation around `OSRM_DATA_DIR`.
+
 ## v12.2.0 — Automated release consistency
 
 - Added a single version command that updates and validates the workspace,
@@ -16,7 +27,7 @@
 - Replaced the legacy host-build, nested Compose, sparse-checkout, and
   media-network deployment scripts with one standalone Compose project.
 - Rebuilt installation and operations documentation around the GHCR image.
-- Corrected release automation so either a pushed `v12.2.0` tag or a published
+- Corrected release automation so either a pushed `v12.1.0` tag or a published
   GitHub Release produces semver container tags.
 - Added release validation that requires `VERSION`, every workspace package,
   and the Git tag to agree before an image can be published.
@@ -25,4 +36,4 @@
 - Removed the Docker socket mount and Docker CLI from the web container.
 
 Earlier releases used a different source-build deployment model and are not
-supported by the v12.2.0 installation guide.
+supported by the current installation guide.

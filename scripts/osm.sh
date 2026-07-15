@@ -23,10 +23,51 @@ resolve() {
 
 command="${1:-list}"; shift || true
 case "$command" in
+  help|-h|--help)
+    cat <<HELP
+RogueRoute OSM/OSRM management
+
+Configured data directory: $DATA
+
+  ./rogueroute osm list
+      List supported region keys, estimated download and expanded sizes.
+
+  ./rogueroute osm status
+      Show whether each region is missing, downloaded, partial or prepared.
+
+  ./rogueroute osm download REGION [REGION...]
+      Download one or more Geofabrik extracts. Interrupted .part files resume.
+      Successful downloads are checksum-checked when Geofabrik supplies MD5.
+
+  ./rogueroute osm prepare REGION
+      Run osrm-extract with the foot profile, osrm-partition and osrm-customize
+      inside $IMAGE. Outputs are written directly to $DATA.
+
+  ./rogueroute osm verify REGION
+      Confirm the PBF and required .mldgr, .partition and .cell_metrics files.
+
+  ./rogueroute osm switch REGION
+      Select an already prepared graph in .env and recreate only OSRM.
+
+  ./rogueroute osm path
+      Print the configured OSRM_DATA_DIR.
+HELP
+    ;;
   list)
     printf '%-30s %-34s %-12s %s\n' REGION NAME DOWNLOAD EXPANDED
     while IFS='|' read -r key label _ _ download expanded _; do
       printf '%-30s %-34s %-12s %s\n' "$key" "$label" "$download" "$expanded"
+    done <<< "$OSM_REGION_CATALOG" ;;
+  path) printf '%s\n' "$DATA" ;;
+  status)
+    printf '%-30s %-12s %s\n' REGION STATE FILE
+    while IFS='|' read -r key _ _ graph _ _ _; do
+      pbf="${graph}-latest.osm.pbf"; osrm="${graph}-latest.osrm"
+      if [[ -s "$DATA/$osrm.mldgr" && -s "$DATA/$osrm.partition" && -s "$DATA/$osrm.cell_metrics" ]]; then state=prepared
+      elif [[ -s "$DATA/$pbf" ]]; then state=downloaded
+      elif [[ -s "$DATA/$pbf.part" ]]; then state=partial
+      else state=missing; fi
+      printf '%-30s %-12s %s\n' "$key" "$state" "$pbf"
     done <<< "$OSM_REGION_CATALOG" ;;
   download)
     (( $# > 0 )) || fail "Usage: ./rogueroute osm download REGION [REGION...]"
@@ -69,12 +110,21 @@ case "$command" in
     set_env OSRM_ACTIVE_REGION "$region"
     set_env OSRM_GRAPH "$OSRM"
     echo "[OK] Prepared and selected $region ($OSRM)" ;;
+  verify)
+    region="${1:-}"; [[ -n "$region" ]] || fail "Usage: ./rogueroute osm verify REGION"
+    resolve "$region"
+    missing=()
+    [[ -s "$DATA/$PBF" ]] || missing+=("$PBF")
+    for suffix in mldgr partition cell_metrics; do [[ -s "$DATA/$OSRM.$suffix" ]] || missing+=("$OSRM.$suffix"); done
+    (( ${#missing[@]} == 0 )) || fail "Region $region is incomplete. Missing: ${missing[*]}"
+    echo "[OK] $region is downloaded and prepared in $DATA" ;;
   switch)
     region="${1:-}"; [[ -n "$region" ]] || fail "Usage: ./rogueroute osm switch REGION"
     resolve "$region"
     [[ -s "$DATA/$OSRM.mldgr" ]] || fail "Region is not prepared: $DATA/$OSRM.mldgr"
     set_env OSRM_ACTIVE_REGION "$region"
     set_env OSRM_GRAPH "$OSRM"
-    "$ROOT/rogueroute" restart ;;
-  *) fail "Usage: ./rogueroute osm {list|download|prepare|switch}" ;;
+    docker compose --env-file "$ENV" -f "$ROOT/compose.yaml" up -d --force-recreate osrm
+    echo "[OK] Active OSRM region: $region ($OSRM)" ;;
+  *) fail "Usage: ./rogueroute osm {list|status|path|download|prepare|verify|switch|help}" ;;
 esac

@@ -1,31 +1,70 @@
-# OSM downloads and OSRM graphs
+# OSM downloads, preparation and switching
 
-All map administration is handled by one command:
+RogueRoute stores every download and prepared graph under the configured
+`OSRM_DATA_DIR`. Confirm the active location before a large operation:
+
+```bash
+./rogueroute osm path
+./rogueroute osm status
+```
+
+## Download
 
 ```bash
 ./rogueroute osm list
-./rogueroute osm download REGION
-./rogueroute osm prepare REGION
-./rogueroute osm switch REGION
+./rogueroute osm download new-zealand
+./rogueroute osm download australia new-zealand japan
 ```
 
-Downloads use Geofabrik, retry transient errors, and resume the `.part` file on
-the next run. A failed region leaves its partial file intact.
+Downloads come from Geofabrik, retry transient failures and resume an existing
+`.part` file. Available checksums are verified before a download receives its
+final `.osm.pbf` name. A batch attempts every region and summarizes failures.
 
-Preparation runs `osrm-extract`, `osrm-partition`, and `osrm-customize` inside
-the OSRM container. It reports success only when the MLD graph, partition, and
-cell-metrics files exist.
-
-Large regions need substantial RAM, temporary disk, and time. Prefer a country
-or sub-region over continent and planet extracts. Never store map data inside
-the application directory; keep it in `/mnt/h/osrm`,
-`/var/lib/rogueroute/osrm`, or another dedicated volume.
-
-To download several extracts in one batch:
+## Prepare
 
 ```bash
-./rogueroute osm download new-zealand australia japan
+./rogueroute osm prepare new-zealand
 ```
 
-Every requested region is attempted and any failures are summarized at the
-end. Re-run the same command to resume.
+Preparation mounts `OSRM_DATA_DIR` into the configured OSRM image and runs:
+
+1. `osrm-extract -p /opt/foot.lua`
+2. `osrm-partition`
+3. `osrm-customize`
+
+The command selects the region only after `.osrm.mldgr`, `.osrm.partition` and
+`.osrm.cell_metrics` exist and are non-empty. Country extracts are strongly
+recommended because preparation can need much more space than the original PBF.
+
+## Verify and switch from the server
+
+```bash
+./rogueroute osm verify new-zealand
+./rogueroute osm switch new-zealand
+```
+
+The CLI switch updates `.env` and recreates only the OSRM container.
+
+## Switch from the website
+
+The website sends an allowlisted region to the internal manager. The manager
+authenticates the request, checks the prepared MLD files through its read-only
+data mount, updates `.env`, and recreates only OSRM. If Docker fails, the
+previous environment is restored.
+
+The switcher reports **Manager: Ready** when the sidecar is healthy. Prepare a
+region from the CLI before selecting it on the website.
+
+```dotenv
+OSRM_SWITCH_ENABLED=true
+OSRM_MANAGER_URL=http://manager:9090
+OSRM_MANAGER_TOKEN=generated-secret
+OSRM_SWITCH_ACCESS_KEY=generated-admin-key
+```
+
+Never publish port 9090 or expose the manager token through a proxy.
+Retrieve the website access key locally with:
+
+```bash
+grep '^OSRM_SWITCH_ACCESS_KEY=' .env
+```
