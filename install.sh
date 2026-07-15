@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET=/opt/rogueroute-gpx
+TARGET="$SOURCE"
 DATA_DIR=/mnt/h/osrm
 REGION=australia
 START=false
@@ -16,7 +16,7 @@ while (( $# )); do
     --region) REGION="${2:?Missing value after --region}"; shift 2 ;;
     --start) START=true; shift ;;
     -h|--help)
-      echo "Usage: sudo ./install.sh [--path DIR] [--data-dir DIR] [--region KEY] [--start]"
+      echo "Usage: sudo ./install.sh [--path GIT_CHECKOUT] [--data-dir DIR] [--region KEY] [--start]"
       exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -24,38 +24,24 @@ done
 
 [[ $EUID -eq 0 ]] || { echo "Run the installer with sudo." >&2; exit 1; }
 case "$TARGET" in /|/opt|/opt/media-server) echo "Unsafe installation path: $TARGET" >&2; exit 1 ;; esac
-[[ "$SOURCE" != "$TARGET" ]] || { echo "Run install.sh from a clone outside the target path." >&2; exit 1; }
 command -v docker >/dev/null || { echo "Docker Engine is required: https://docs.docker.com/engine/install/" >&2; exit 1; }
 docker compose version >/dev/null || { echo "The Docker Compose plugin is required." >&2; exit 1; }
+command -v git >/dev/null || { echo "Git is required for repository-managed updates." >&2; exit 1; }
+[[ -d "$TARGET/.git" ]] || {
+  echo "$TARGET is not a Git checkout." >&2
+  echo "Clone https://github.com/RogueAssassin/RogueRoute-GPX.git into the installation path first." >&2
+  exit 1
+}
+[[ "$(cd "$TARGET" && pwd)" == "$SOURCE" ]] || {
+  echo "Run install.sh from inside the target Git checkout; copying release files is no longer supported." >&2
+  exit 1
+}
 
-stamp="$(date +%Y%m%d-%H%M%S)"
-backup="${TARGET}-backup-${stamp}"
-old_env=""
-if [[ -f "$TARGET/.env" ]]; then old_env="$TARGET/.env"; fi
+install -d -o "$OWNER" -g "$GROUP" -m 0755 "$DATA_DIR"
+chown -R "$OWNER:$GROUP" "$TARGET"
+chmod +x "$TARGET/install.sh" "$TARGET/rogueroute" "$TARGET/scripts/osm.sh"
 
-if [[ -d "$TARGET" ]]; then
-  (cd "$TARGET" && docker compose down) 2>/dev/null || true
-  mv "$TARGET" "$backup"
-  echo "Previous installation backed up to $backup"
-  [[ -n "$old_env" ]] && old_env="$backup/.env"
-fi
-
-install -d -o "$OWNER" -g "$GROUP" -m 0755 "$TARGET" "$DATA_DIR"
-install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/compose.yaml" "$TARGET/compose.yaml"
-install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/.env.example" "$TARGET/.env.example"
-install -o "$OWNER" -g "$GROUP" -m 0755 "$SOURCE/rogueroute" "$TARGET/rogueroute"
-install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/README.md" "$TARGET/README.md"
-install -d -o "$OWNER" -g "$GROUP" -m 0755 "$TARGET/scripts"
-install -o "$OWNER" -g "$GROUP" -m 0755 "$SOURCE/scripts/osm.sh" "$TARGET/scripts/osm.sh"
-install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/scripts/osm-region-catalog.sh" "$TARGET/scripts/osm-region-catalog.sh"
-install -d -o "$OWNER" -g "$GROUP" -m 0755 "$TARGET/docs"
-for guide in COMMANDS.md INSTALL.md OSM.md TROUBLESHOOTING.md UPGRADING.md; do
-  install -o "$OWNER" -g "$GROUP" -m 0644 "$SOURCE/docs/$guide" "$TARGET/docs/$guide"
-done
-
-if [[ -n "$old_env" && -f "$old_env" ]]; then
-  install -o "$OWNER" -g "$GROUP" -m 0600 "$old_env" "$TARGET/.env"
-else
+if [[ ! -f "$TARGET/.env" ]]; then
   install -o "$OWNER" -g "$GROUP" -m 0600 "$SOURCE/.env.example" "$TARGET/.env"
 fi
 
@@ -67,7 +53,9 @@ set_env() {
     printf '%s=%s\n' "$key" "$value" >> "$file"
   fi
 }
-set_env ROGUEROUTE_VERSION 12.4.0
+VERSION="$(sed 's/^v//' "$TARGET/VERSION" | tr -d '[:space:]')"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file." >&2; exit 1; }
+set_env ROGUEROUTE_VERSION "$VERSION"
 set_env OSRM_DATA_DIR "$DATA_DIR"
 set_env OSRM_ACTIVE_REGION "$REGION"
 
@@ -87,7 +75,7 @@ set_env OSRM_MANAGER_TOKEN_FILE /run/rogueroute-secrets/manager-token
 set_env OSRM_SWITCH_COOLDOWN_SECONDS 60
 sed -i '/^OSRM_MANAGER_TOKEN=/d; /^OSRM_SWITCH_ACCESS_KEY=/d' "$TARGET/.env"
 
-echo "RogueRoute GPX v12.4.0 installed at $TARGET"
+echo "RogueRoute GPX v$VERSION configured at $TARGET"
 echo "OSRM data directory: $DATA_DIR"
 if [[ "$START" == true ]]; then
   "$TARGET/rogueroute" start

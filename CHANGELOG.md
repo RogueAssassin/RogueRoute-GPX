@@ -1,5 +1,27 @@
 # Changelog
 
+## v12.5.0 — Complete map-library automation
+
+- Added confirmed `osm download-missing` batch downloads across the full region
+  catalog, with resume, completed-file skipping and final failure summaries.
+- Added `osm prepare-downloaded` to turn every downloaded incomplete extract
+  into a validated, website-switchable MLD graph.
+- Prevented corrupt checksum partials from entering an endless resume loop by
+  preserving them separately and restarting cleanly on the next attempt.
+- Added a one-time `sudo ./rogueroute permissions` repair while keeping normal
+  Git, Docker and OSM operation unprivileged.
+- Fixed version tooling so new release notes no longer replace the previous
+  release's historical notes.
+
+## v12.4.0 deployment update
+
+- Production installs now remain Git checkouts, allowing updates with
+  `git pull --ff-only` followed by `./rogueroute update`.
+- `./rogueroute update` reads the repository `VERSION`, synchronizes the local
+  ignored `.env`, and pulls the matching GHCR image automatically.
+- The installer configures a clone in place and ensures the administrator owns
+  it, while preserving external OSRM data and existing local secrets.
+
 ## v12.4.0 — Container-only manager secrets
 
 - Removed the browser-facing website switch key.
