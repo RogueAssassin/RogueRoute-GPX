@@ -1,8 +1,25 @@
 name: rogueroute-gpx
 
 services:
+  secrets-init:
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.4.0}
+    container_name: rogueroute-gpx-secrets-init
+    restart: "no"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        if [ ! -s /run/rogueroute-secrets/manager-token ]; then
+          head -c 48 /dev/urandom | base64 > /run/rogueroute-secrets/manager-token
+        fi
+        chmod 0400 /run/rogueroute-secrets/manager-token
+    volumes:
+      - manager-secrets:/run/rogueroute-secrets
+    networks: [rogueroute]
+
   web:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.3.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.4.0}
     container_name: rogueroute-gpx-web
     restart: unless-stopped
     env_file: .env
@@ -11,8 +28,10 @@ services:
       OSRM_URL: http://osrm:5000
       OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
       OSRM_MANAGER_URL: ${OSRM_MANAGER_URL:-http://manager:9090}
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.3.0}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.4.0}
     depends_on:
+      secrets-init:
+        condition: service_completed_successfully
       osrm:
         condition: service_started
       manager:
@@ -25,10 +44,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    volumes:
+      - manager-secrets:/run/rogueroute-secrets:ro
     networks: [rogueroute]
 
   manager:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.3.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_VERSION:-12.4.0}
     container_name: rogueroute-gpx-manager
     restart: unless-stopped
     command: ["node", "/app/manager/server.mjs"]
@@ -37,7 +58,13 @@ services:
       DEPLOYMENT_DIR: /deployment
       MANAGER_DATA_DIR: /data
       OSRM_MANAGER_PORT: 9090
+      OSRM_MANAGER_TOKEN_FILE: /run/rogueroute-secrets/manager-token
+      OSRM_SWITCH_COOLDOWN_SECONDS: ${OSRM_SWITCH_COOLDOWN_SECONDS:-60}
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
     volumes:
+      - manager-secrets:/run/rogueroute-secrets:ro
       - type: bind
         source: ./.env
         target: /deployment/.env
@@ -77,3 +104,7 @@ networks:
   rogueroute:
     name: rogueroute-gpx
     driver: bridge
+
+volumes:
+  manager-secrets:
+    name: rogueroute-gpx-manager-secrets

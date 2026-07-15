@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-12.3.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
+[![Release](https://img.shields.io/badge/release-12.4.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
 [![Container](https://img.shields.io/badge/GHCR-ready-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/RogueRoute-GPX/pkgs/container/rogueroute-gpx)
 [![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.3.0** · Standalone Docker Compose deployment · Local OSRM routing
+Version **12.4.0** · Standalone Docker Compose deployment · Local OSRM routing
 
 </div>
 
@@ -58,7 +58,7 @@ sudo ./install.sh \
   --region new-zealand
 ```
 
-The installer backs up an existing RogueRoute directory, copies the small runtime package, preserves the external OSRM data folder, generates a persistent encryption key and pins the application image to `12.3.0`.
+The installer backs up an existing RogueRoute directory, copies the small runtime package, preserves the external OSRM data folder, generates a persistent encryption key and pins the application image to `12.4.0`.
 
 ### 3. Prepare the first map region
 
@@ -92,10 +92,10 @@ flowchart LR
 | Container | Purpose | Persistent dependency |
 | --- | --- | --- |
 | `rogueroute-gpx-web` | Interface, input parsing, route generation, preview and GPX export | `.env` |
-| `rogueroute-gpx-manager` | Authenticated internal region switching and OSRM-only recreation | `.env`, read-only map data and Docker socket |
+| `rogueroute-gpx-manager` | Authenticated internal region switching and OSRM-only recreation | Private secret volume, `.env`, read-only map data and Docker socket |
 | `rogueroute-gpx-osrm` | Local MLD routing using the foot profile | `OSRM_DATA_DIR` |
 
-The manager has no published port and requires the generated `OSRM_MANAGER_TOKEN` for every management request. Only the manager mounts the Docker socket; the public web container never receives it.
+The manager has no published port and requires the generated private token file for every management request. Only the manager mounts the Docker socket; the public web container never receives it.
 
 ## Day-to-day commands
 
@@ -123,7 +123,7 @@ The manager has no published port and requires the generated `OSRM_MANAGER_TOKEN
 Machine-specific settings live in `/opt/media-server/RogueRoute-GPX/.env` and must not be committed.
 
 ```dotenv
-ROGUEROUTE_VERSION=12.3.0
+ROGUEROUTE_VERSION=12.4.0
 HOST_PORT=9080
 
 OSRM_DATA_DIR=/mnt/h/osrm
@@ -138,13 +138,13 @@ GPX_MAX_TRACK_POINTS=1000
 GPX_SIMPLIFY_TOLERANCE_METERS=2.5
 ```
 
-`OSRM_MANAGER_TOKEN` and `OSRM_SWITCH_ACCESS_KEY` are generated during installation. The manager token never leaves the containers. Enter the switch access key in the website when changing regions, and keep both values out of documentation, screenshots and Git commits.
+Docker generates the manager token inside the private
+`rogueroute-gpx-manager-secrets` volume. It is mounted read-only into the web
+and manager containers and never enters `.env`, HTML, browser storage, logs or
+Nginx Proxy Manager. Public users do not need a key. A global switch lock and
+60-second cooldown prevent overlapping or rapid OSRM restarts.
 
-```bash
-grep '^OSRM_SWITCH_ACCESS_KEY=' /opt/media-server/RogueRoute-GPX/.env
-```
-
-Use `ROGUEROUTE_VERSION=12.3.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.3.0`.
+Use `ROGUEROUTE_VERSION=12.4.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.4.0`.
 
 ## GPX detail modes
 
@@ -192,7 +192,7 @@ The installer moves the previous application directory to a timestamped backup. 
 - [Upgrading and rollback](docs/UPGRADING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Command reference](docs/COMMANDS.md)
-- [v12.3.0 release notes](docs/RELEASE-v12.3.0.md)
+- [v12.4.0 release notes](docs/RELEASE-v12.4.0.md)
 - [GitHub Desktop release upload](GITHUB-DESKTOP-UPLOAD.md)
 
 ## Development and local builds
@@ -208,7 +208,7 @@ pnpm test
 pnpm build
 ```
 
-The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.3.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
+The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.4.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
 
 ## Acknowledgements
 

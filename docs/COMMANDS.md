@@ -13,12 +13,11 @@ Run `./rogueroute help` or `./rogueroute osm help` for the built-in reference.
 | `./rogueroute status` | Display service state and health. |
 | `./rogueroute logs [SERVICE]` | Follow all logs or only `web`, `manager` or `osrm`. |
 | `./rogueroute doctor` | Validate Compose, the active graph and manager health. |
-| `./rogueroute config` | Print effective non-secret settings without the manager token. |
+| `./rogueroute config` | Print effective non-secret settings. Internal tokens are never printed. |
 | `./rogueroute version` | Display the configured application version. |
 
-The website switch key can be read locally with
-`grep '^OSRM_SWITCH_ACCESS_KEY=' .env`. It is deliberately excluded from
-`./rogueroute config`.
+Website users do not need a switch key. The internal web-to-manager token is
+stored in a private Docker volume rather than `.env`.
 
 ## Map administration
 
