@@ -24,6 +24,54 @@ verify_graph() {
   [[ -r "$dir/$graph.cell_metrics" ]] || fail "Missing graph cell metrics: $dir/$graph.cell_metrics"
 }
 
+show_help() {
+  cat <<'HELP'
+RogueRoute GPX administration
+
+Usage: ./rogueroute COMMAND [OPTIONS]
+
+Container commands:
+  start                 Verify the active graph, pull images and start the stack
+  stop                  Stop RogueRoute containers without deleting map data
+  restart               Pull and recreate the web, manager and OSRM containers
+  update                Pull the pinned image and apply it without deleting data
+  status                Show container state and health
+  logs [SERVICE]        Follow all logs, or only web, manager or osrm
+  doctor                Check Docker, configuration, graph files and manager health
+  config                Print the effective non-secret RogueRoute configuration
+  version               Show the configured application and image version
+
+Map commands:
+  osm list              List every supported downloadable region
+  osm status            Show downloaded/prepared state for all regions
+  osm path              Show the configured OSRM data directory
+  osm download REGION…  Download or resume one or more Geofabrik PBF files
+  osm prepare REGION    Build and select an OSRM MLD graph in OSRM_DATA_DIR
+  osm verify REGION     Verify the required MLD files for a region
+  osm switch REGION     Select a prepared graph and recreate only OSRM
+  osm help              Show detailed map command help
+HELP
+}
+
+doctor() {
+  local failures=0 dir graph
+  dir="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
+  graph="$(get_env OSRM_GRAPH australia-latest.osrm)"
+  echo "RogueRoute: v$(get_env ROGUEROUTE_VERSION unknown)"
+  echo "Deployment: $ROOT"
+  echo "Map data: $dir"
+  echo "Active graph: $graph"
+  "${COMPOSE[@]}" config -q || failures=$((failures + 1))
+  verify_graph || failures=$((failures + 1))
+  if "${COMPOSE[@]}" ps --status running manager | grep -q rogueroute-gpx-manager; then
+    "${COMPOSE[@]}" exec -T manager wget -qO- http://127.0.0.1:9090/health >/dev/null || failures=$((failures + 1))
+  else
+    echo "[WARN] Manager is not running. Start the stack to enable website switching."
+  fi
+  (( failures == 0 )) || fail "$failures diagnostic check(s) failed."
+  echo "[OK] Configuration and active graph checks passed."
+}
+
 cmd="${1:-help}"; shift || true
 case "$cmd" in
   start)
@@ -44,9 +92,21 @@ case "$cmd" in
     "${COMPOSE[@]}" images ;;
   status) "${COMPOSE[@]}" ps ;;
   logs) "${COMPOSE[@]}" logs --tail=200 -f "$@" ;;
-  config) "${COMPOSE[@]}" config ;;
+  doctor) doctor ;;
+  config)
+    printf '%-32s %s\n' \
+      ROGUEROUTE_VERSION "$(get_env ROGUEROUTE_VERSION unknown)" \
+      ROGUEROUTE_IMAGE "$(get_env ROGUEROUTE_IMAGE ghcr.io/rogueassassin/rogueroute-gpx)" \
+      HOST_PORT "$(get_env HOST_PORT 9080)" \
+      OSRM_DATA_DIR "$(get_env OSRM_DATA_DIR /mnt/h/osrm)" \
+      OSRM_ACTIVE_REGION "$(get_env OSRM_ACTIVE_REGION australia)" \
+      OSRM_GRAPH "$(get_env OSRM_GRAPH australia-latest.osrm)" \
+      OSRM_SWITCH_ENABLED "$(get_env OSRM_SWITCH_ENABLED true)" \
+      OSRM_SNAP_RADIUS_METERS "$(get_env OSRM_SNAP_RADIUS_METERS 250)" \
+      OSRM_SNAP_MAX_RADIUS_METERS "$(get_env OSRM_SNAP_MAX_RADIUS_METERS 5000)" \
+      GPX_MAX_TRACK_POINTS "$(get_env GPX_MAX_TRACK_POINTS 1000)" ;;
+  version) echo "RogueRoute GPX v$(get_env ROGUEROUTE_VERSION unknown)" ;;
   osm) exec "$ROOT/scripts/osm.sh" "$@" ;;
-  help|-h|--help)
-    echo "Usage: ./rogueroute {start|stop|restart|update|status|logs|config|osm}" ;;
+  help|-h|--help) show_help ;;
   *) fail "Unknown command: $cmd" ;;
 esac

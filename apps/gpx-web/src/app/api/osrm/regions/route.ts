@@ -1,10 +1,3 @@
-import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
-
 const REGIONS = [
   {
     key: "australia",
@@ -162,41 +155,73 @@ const REGIONS = [
   },
 ];
 
-async function readHostEnv() {
-  const hostRoot = process.env.ROGUEROUTE_HOST_ROOT || "/host/rogueroute";
-  const envFile = join(hostRoot, "infra", "docker", ".env");
-  try {
-    const text = await readFile(envFile, "utf8");
-    const values: Record<string, string> = {};
-    for (const line of text.split(/\r?\n/)) {
-      if (!line || line.trim().startsWith("#") || !line.includes("=")) continue;
-      const [key, ...rest] = line.split("=");
-      values[key.trim()] = rest.join("=").trim();
-    }
-    return values;
-  } catch {
-    return {};
+async function managerRequest(path: string, init?: RequestInit) {
+  const url = process.env.OSRM_MANAGER_URL || "http://manager:9090";
+  const token = process.env.OSRM_MANAGER_TOKEN;
+  if (!token) throw new Error("OSRM manager token is not configured");
+  const response = await fetch(`${url}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      ...(init?.headers || {}),
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(180_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `OSRM manager returned HTTP ${response.status}`);
   }
+  return data;
 }
 
 export async function GET() {
-  const hostEnv = await readHostEnv();
+  const switchEnabled = process.env.OSRM_SWITCH_ENABLED === "true";
+  let manager: Record<string, unknown> = {};
+  let managerError: string | undefined;
+  if (switchEnabled) {
+    try {
+      manager = await managerRequest("/status");
+    } catch (error) {
+      managerError = error instanceof Error ? error.message : String(error);
+    }
+  }
   return Response.json({
     activeRegion:
-      hostEnv.OSRM_ACTIVE_REGION ||
+      String(manager.activeRegion || "") ||
       process.env.OSRM_ACTIVE_REGION ||
       "australia",
-    switchEnabled: process.env.OSRM_SWITCH_ENABLED !== "false",
+    switchEnabled,
+    managerReady: Boolean(manager.ok),
+    managerError,
+    graph: manager.graph,
+    graphReady: manager.ready,
     regions: REGIONS,
   });
 }
 
 export async function POST(request: Request) {
-  const switchEnabled = process.env.OSRM_SWITCH_ENABLED !== "false";
+  const switchEnabled = process.env.OSRM_SWITCH_ENABLED === "true";
   if (!switchEnabled) {
     return Response.json(
       { error: "OSRM region switching is disabled." },
       { status: 403 },
+    );
+  }
+
+  const expectedKey = process.env.OSRM_SWITCH_ACCESS_KEY || "";
+  const suppliedKey = request.headers.get("x-rogueroute-admin-key") || "";
+  const expected = Buffer.from(expectedKey);
+  const supplied = Buffer.from(suppliedKey);
+  if (
+    !expectedKey ||
+    expected.length !== supplied.length ||
+    !timingSafeEqual(expected, supplied)
+  ) {
+    return Response.json(
+      { error: "A valid OSRM switch access key is required." },
+      { status: 401 },
     );
   }
 
@@ -209,24 +234,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const script =
-    process.env.OSRM_SWITCH_SCRIPT || "/host/rogueroute/switch-osrm-region.sh";
+  const selected = REGIONS.find((item) => item.key === region)!;
   try {
-    const { stdout, stderr } = await execFileAsync(script, [region], {
-      timeout: 180_000,
-      maxBuffer: 1024 * 1024 * 4,
-      cwd: process.env.ROGUEROUTE_HOST_ROOT || "/host/rogueroute",
+    const result = await managerRequest("/switch", {
+      method: "POST",
+      body: JSON.stringify({
+        region: selected.key,
+        graph: selected.graph,
+        pbf: selected.pbf,
+      }),
     });
-    return Response.json({ ok: true, activeRegion: region, stdout, stderr });
+    return Response.json(result);
   } catch (error) {
-    const err = error as { message?: string; stdout?: string; stderr?: string };
     return Response.json(
       {
-        error: err.message || "Failed to switch OSRM region",
-        stdout: err.stdout,
-        stderr: err.stderr,
+        error: error instanceof Error ? error.message : "Failed to switch OSRM region",
       },
       { status: 500 },
     );
   }
 }
+import { timingSafeEqual } from "node:crypto";

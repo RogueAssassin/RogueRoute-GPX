@@ -162,6 +162,9 @@ export default function HomePage() {
   const [activeRegion, setActiveRegion] = useState("australia");
   const [selectedRegion, setSelectedRegion] = useState("australia");
   const [switchingRegion, setSwitchingRegion] = useState(false);
+  const [regionSwitchEnabled, setRegionSwitchEnabled] = useState(false);
+  const [regionManagerReady, setRegionManagerReady] = useState(false);
+  const [regionAccessKey, setRegionAccessKey] = useState("");
   const [regionNotice, setRegionNotice] = useState<string | null>(null);
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
 
@@ -191,6 +194,9 @@ export default function HomePage() {
     ) {
       setGeometryDetail(savedGeometryDetail);
     }
+    setRegionAccessKey(
+      window.sessionStorage.getItem("rogue.osrmSwitchKey") || "",
+    );
 
     if (window.location.hash.startsWith("#import=")) {
       try {
@@ -278,6 +284,11 @@ export default function HomePage() {
       const response = await fetch("/api/osrm/regions", { cache: "no-store" });
       const data = await response.json();
       if (Array.isArray(data.regions)) setRegions(data.regions);
+      setRegionSwitchEnabled(Boolean(data.switchEnabled));
+      setRegionManagerReady(Boolean(data.managerReady));
+      if (data.switchEnabled && data.managerError) {
+        setRegionNotice(`OSRM manager unavailable: ${data.managerError}`);
+      }
       if (data.activeRegion) {
         setActiveRegion(data.activeRegion);
         setSelectedRegion(data.activeRegion);
@@ -296,13 +307,17 @@ export default function HomePage() {
     try {
       const response = await fetch("/api/osrm/regions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-rogueroute-admin-key": regionAccessKey,
+        },
         body: JSON.stringify({ region: selectedRegion }),
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "Failed to switch OSRM region");
       setActiveRegion(data.activeRegion || selectedRegion);
+      window.sessionStorage.setItem("rogue.osrmSwitchKey", regionAccessKey);
       setRegionNotice(
         `OSRM region ready: ${data.activeRegion || selectedRegion}`,
       );
@@ -881,9 +896,23 @@ export default function HomePage() {
                     </option>
                   ))}
                 </select>
+                <input
+                  type="password"
+                  value={regionAccessKey}
+                  onChange={(event) => setRegionAccessKey(event.target.value)}
+                  placeholder="Switch access key"
+                  autoComplete="off"
+                  style={{ ...inputStyle, minWidth: 190 }}
+                />
                 <button
                   onClick={switchRegion}
-                  disabled={switchingRegion || selectedRegion === activeRegion}
+                  disabled={
+                    switchingRegion ||
+                    selectedRegion === activeRegion ||
+                    !regionSwitchEnabled ||
+                    !regionManagerReady ||
+                    !regionAccessKey
+                  }
                   style={secondaryButton}
                 >
                   {switchingRegion ? "Switching..." : "Switch OSRM Region"}
@@ -895,6 +924,10 @@ export default function HomePage() {
               <div style={{ marginTop: 8, color: "#cbd5e1" }}>
                 Active region:{" "}
                 <span style={{ color: "#22d3ee" }}>{activeRegion}</span>
+                {" · Manager: "}
+                <span style={{ color: regionManagerReady ? "#41d99b" : "#f59e0b" }}>
+                  {regionManagerReady ? "Ready" : regionSwitchEnabled ? "Unavailable" : "Disabled"}
+                </span>
               </div>
               {regionNotice && (
                 <div style={{ ...noticeStyle, marginTop: 10 }}>
