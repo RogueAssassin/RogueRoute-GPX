@@ -68,12 +68,48 @@ sync_repository_version() {
 }
 
 verify_graph() {
-  local dir graph
+  local dir graph failures=0
   dir="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
   graph="$(get_env OSRM_GRAPH australia-latest.osrm)"
-  [[ -r "$dir/$graph.mldgr" ]] || fail "Missing prepared graph: $dir/$graph.mldgr. Run: ./rogueroute osm prepare REGION"
-  [[ -r "$dir/$graph.partition" ]] || fail "Missing graph partition: $dir/$graph.partition"
-  [[ -r "$dir/$graph.cell_metrics" ]] || fail "Missing graph cell metrics: $dir/$graph.cell_metrics"
+  [[ -r "$dir/$graph.mldgr" ]] || { echo "[ERROR] Missing prepared graph: $dir/$graph.mldgr" >&2; failures=$((failures + 1)); }
+  [[ -r "$dir/$graph.partition" ]] || { echo "[ERROR] Missing graph partition: $dir/$graph.partition" >&2; failures=$((failures + 1)); }
+  [[ -r "$dir/$graph.cell_metrics" ]] || { echo "[ERROR] Missing graph cell metrics: $dir/$graph.cell_metrics" >&2; failures=$((failures + 1)); }
+  if (( failures > 0 )); then
+    echo "[INFO] Prepare the selected region with: ./rogueroute osm prepare REGION" >&2
+    return 1
+  fi
+}
+
+container_health() {
+  docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$1" 2>/dev/null || printf 'missing\n'
+}
+
+wait_for_healthy() {
+  local timeout deadline state web manager osrm
+  timeout="$(get_env ROGUEROUTE_STARTUP_TIMEOUT_SECONDS 600)"
+  [[ "$timeout" =~ ^[0-9]+$ ]] && (( timeout >= 30 )) || fail "ROGUEROUTE_STARTUP_TIMEOUT_SECONDS must be at least 30."
+  deadline=$((SECONDS + timeout))
+  echo "[INFO] Waiting up to ${timeout}s for Web, Manager and OSRM health checks."
+  while (( SECONDS < deadline )); do
+    web="$(container_health rogueroute-gpx-web)"
+    manager="$(container_health rogueroute-gpx-manager)"
+    osrm="$(container_health rogueroute-gpx-osrm)"
+    if [[ "$web" == healthy && "$manager" == healthy && "$osrm" == healthy ]]; then
+      echo "[OK] Web, Manager and OSRM are healthy."
+      return 0
+    fi
+    for state in "$web" "$manager" "$osrm"; do
+      if [[ "$state" == unhealthy || "$state" == exited || "$state" == dead ]]; then
+        "${COMPOSE[@]}" ps >&2 || true
+        "${COMPOSE[@]}" logs --tail=100 web manager osrm >&2 || true
+        fail "A RogueRoute service became $state before startup completed."
+      fi
+    done
+    sleep 2
+  done
+  "${COMPOSE[@]}" ps >&2 || true
+  "${COMPOSE[@]}" logs --tail=100 web manager osrm >&2 || true
+  fail "RogueRoute did not become healthy within ${timeout}s."
 }
 
 show_help() {
@@ -123,6 +159,12 @@ doctor() {
   else
     echo "[WARN] Manager is not running. Start the stack to enable website switching."
   fi
+  if "${COMPOSE[@]}" ps --status running web | grep -q rogueroute-gpx-web; then
+    "${COMPOSE[@]}" exec -T web wget -qO- http://127.0.0.1:9080/api/health >/dev/null || failures=$((failures + 1))
+    "${COMPOSE[@]}" exec -T web wget -qO- http://127.0.0.1:9080/api/health/osrm >/dev/null || failures=$((failures + 1))
+  else
+    echo "[WARN] Web is not running. Start the stack to run HTTP readiness checks."
+  fi
   (( failures == 0 )) || fail "$failures diagnostic check(s) failed."
   echo "[OK] Configuration and active graph checks passed."
 }
@@ -130,22 +172,25 @@ doctor() {
 cmd="${1:-help}"; shift || true
 case "$cmd" in
   start)
-    verify_graph
+    verify_graph || fail "The active OSRM graph is incomplete."
     "${COMPOSE[@]}" pull
     "${COMPOSE[@]}" up -d --remove-orphans
+    wait_for_healthy
     "${COMPOSE[@]}" ps ;;
   stop) "${COMPOSE[@]}" down ;;
   restart)
-    verify_graph
+    verify_graph || fail "The active OSRM graph is incomplete."
     "${COMPOSE[@]}" pull
     "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
+    wait_for_healthy
     "${COMPOSE[@]}" ps ;;
   update)
     ensure_writable_runtime
     sync_repository_version
-    verify_graph
+    verify_graph || fail "The active OSRM graph is incomplete."
     "${COMPOSE[@]}" pull
     "${COMPOSE[@]}" up -d --remove-orphans
+    wait_for_healthy
     "${COMPOSE[@]}" images
     echo "[OK] RogueRoute GPX v$(repository_version) is applied." ;;
   permissions)
@@ -169,6 +214,7 @@ case "$cmd" in
       OSRM_DATA_DIR "$(get_env OSRM_DATA_DIR /mnt/h/osrm)" \
       OSRM_ACTIVE_REGION "$(get_env OSRM_ACTIVE_REGION australia)" \
       OSRM_GRAPH "$(get_env OSRM_GRAPH australia-latest.osrm)" \
+      OSRM_IMAGE "$(get_env OSRM_IMAGE ghcr.io/project-osrm/osrm-backend:v26.7.3)" \
       OSRM_SWITCH_ENABLED "$(get_env OSRM_SWITCH_ENABLED true)" \
       OSRM_SNAP_RADIUS_METERS "$(get_env OSRM_SNAP_RADIUS_METERS 250)" \
       OSRM_SNAP_MAX_RADIUS_METERS "$(get_env OSRM_SNAP_MAX_RADIUS_METERS 5000)" \
