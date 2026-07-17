@@ -18,10 +18,14 @@ if (!token) {
 const deploymentDir = process.env.DEPLOYMENT_DIR || "/deployment";
 const dataDir = process.env.MANAGER_DATA_DIR || "/data";
 const cooldownMs = Math.max(10, Number(process.env.OSRM_SWITCH_COOLDOWN_SECONDS || 60)) * 1000;
+const configuredStartupTimeout = Number(process.env.ROGUEROUTE_STARTUP_TIMEOUT_SECONDS || 600);
+const startupTimeoutMs = (Number.isFinite(configuredStartupTimeout) && configuredStartupTimeout >= 30 ? configuredStartupTimeout : 600) * 1000;
 const envFile = join(deploymentDir, ".env");
 const composeFile = join(deploymentDir, "compose.yaml");
 let switching = false;
 let lastSwitchAt = 0;
+
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export function parseEnv(text) {
   const values = {};
@@ -80,6 +84,24 @@ async function readBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
 }
 
+async function waitForContainerHealth(containerName) {
+  const deadline = Date.now() + startupTimeoutMs;
+  while (Date.now() < deadline) {
+    const result = await execFileAsync(
+      "docker",
+      ["inspect", "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}", containerName],
+      { timeout: 10_000, maxBuffer: 64 * 1024 },
+    );
+    const health = result.stdout.trim();
+    if (health === "healthy") return;
+    if (["unhealthy", "exited", "dead"].includes(health)) {
+      throw new Error(`${containerName} became ${health}`);
+    }
+    await sleep(2_000);
+  }
+  throw new Error(`${containerName} did not become healthy within ${startupTimeoutMs / 1000} seconds`);
+}
+
 function send(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
   response.end(JSON.stringify(payload));
@@ -131,11 +153,23 @@ async function switchRegion(payload) {
       ["compose", "--env-file", envFile, "-f", composeFile, "up", "-d", "--force-recreate", "osrm"],
       { timeout: 180_000, maxBuffer: 4 * 1024 * 1024 },
     );
+    await waitForContainerHealth("rogueroute-gpx-osrm");
     lastSwitchAt = Date.now();
     return { ok: true, activeRegion: region, graph, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
     await writeFile(envFile, previous, { mode: 0o600 });
-    throw new Error(`Docker failed; configuration was restored. ${error instanceof Error ? error.message : error}`);
+    let rollbackMessage = "Previous OSRM configuration was restored.";
+    try {
+      await execFileAsync(
+        "docker",
+        ["compose", "--env-file", envFile, "-f", composeFile, "up", "-d", "--force-recreate", "osrm"],
+        { timeout: 180_000, maxBuffer: 4 * 1024 * 1024 },
+      );
+      await waitForContainerHealth("rogueroute-gpx-osrm");
+    } catch (rollbackError) {
+      rollbackMessage = `Configuration was restored, but OSRM rollback needs attention: ${rollbackError instanceof Error ? rollbackError.message : rollbackError}`;
+    }
+    throw new Error(`OSRM switch failed. ${rollbackMessage} ${error instanceof Error ? error.message : error}`);
   }
 }
 

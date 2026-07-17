@@ -1,5 +1,15 @@
 # Changelog
 
+## v12.5.1 — Reliable container health
+
+- Added a native OSRM health check and made Web startup depend on healthy OSRM and Manager services.
+- Added an OSRM readiness endpoint at `/api/health/osrm` for Rogue Dashboard and operational probes.
+- Made `start`, `restart` and `update` wait for all long-running services to become healthy and print useful failure diagnostics.
+- Made region switching wait for the replacement OSRM container and automatically recreate the previous graph when a switch fails.
+- Updated new-install defaults to the official pinned OSRM v26.7.3 GHCR image, documented graph-format migration, and limited its optional host port to loopback.
+- Added bounded Docker log rotation and Rogue Dashboard discovery labels to every long-running service.
+- Updated GitHub Actions, added pull-request CI and Dependabot coverage, and expanded installation and troubleshooting documentation.
+
 ## v12.5.0 — Complete map-library automation
 
 - Added confirmed `osm download-missing` batch downloads across the full region
