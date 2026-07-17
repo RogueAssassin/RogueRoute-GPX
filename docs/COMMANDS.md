@@ -13,7 +13,7 @@ Run `./rogueroute help` or `./rogueroute osm help` for the built-in reference.
 | `sudo ./rogueroute permissions` | Repair ownership of the checkout, `.env` and map directory. |
 | `./rogueroute status` | Display service state and health. |
 | `./rogueroute logs [SERVICE]` | Follow all logs or only `web`, `manager` or `osrm`. |
-| `./rogueroute doctor` | Validate Compose, the active graph and manager health. |
+| `./rogueroute doctor` | Validate Compose, the active graph, Web liveness, OSRM readiness and Manager health. |
 | `./rogueroute config` | Print effective non-secret settings. Internal tokens are never printed. |
 | `./rogueroute version` | Display the configured application version. |
 

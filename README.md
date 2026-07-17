@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-12.5.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
+[![Release](https://img.shields.io/badge/release-12.5.1-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
 [![Container](https://img.shields.io/badge/GHCR-ready-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/RogueRoute-GPX/pkgs/container/rogueroute-gpx)
 [![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.5.0** · Standalone Docker Compose deployment · Local OSRM routing
+Version **12.5.1** · Standalone Docker Compose deployment · Local OSRM routing
 
 </div>
 
@@ -99,6 +99,29 @@ flowchart LR
 
 The manager has no published port and requires the generated private token file for every management request. Only the manager mounts the Docker socket; the public web container never receives it.
 
+All long-running containers have bounded JSON logs and native Docker health checks. Web and Manager use their private HTTP endpoints; OSRM verifies both the `osrm-routed` process and its listening socket. Web waits for healthy Manager and OSRM dependencies, and `start`, `restart` and `update` wait until all three services report healthy.
+
+The default configuration uses the current official `ghcr.io/project-osrm/osrm-backend:v26.7.3` multi-platform image. Its optional host port binds to `127.0.0.1` only; Web and Rogue Dashboard use Docker networking rather than a LAN-exposed routing port. Existing installations retain their explicit `.env` image until the operator performs the graph-format migration described in the upgrading guide.
+
+## Rogue Dashboard health integration
+
+Rogue Dashboard must share RogueRoute's private network to run direct probes. Dashboard 1.0.1 detects this network automatically during install or upgrade when no other extra network is configured. To configure it explicitly, edit the dashboard's `.env`:
+
+```dotenv
+RGDASH_EXTRA_NETWORK=rogueroute-gpx
+RGDASH_ROGUEROUTE_URL=https://gpx.example.com
+```
+
+Then run `./upgrade.sh` from the Rogue Dashboard checkout. The standard cards use:
+
+| Card | Health source |
+| --- | --- |
+| Web | Docker health plus `http://rogueroute-gpx-web:9080/api/health` |
+| OSRM | Docker health plus `http://rogueroute-gpx-web:9080/api/health/osrm` |
+| Manager | Docker health plus `http://rogueroute-gpx-manager:9090/health` |
+
+Docker health remains authoritative if the private endpoint cannot be reached, while the dashboard Connection centre reports the network warning separately.
+
 ## Day-to-day commands
 
 ```bash
@@ -131,7 +154,7 @@ sudo ./rogueroute permissions
 Machine-specific settings live in `/opt/media-server/RogueRoute-GPX/.env` and must not be committed.
 
 ```dotenv
-ROGUEROUTE_VERSION=12.5.0
+ROGUEROUTE_VERSION=12.5.1
 HOST_PORT=9080
 
 OSRM_DATA_DIR=/mnt/h/osrm
@@ -141,6 +164,8 @@ OSRM_SNAP_RADIUS_METERS=250
 OSRM_SNAP_MAX_RADIUS_METERS=5000
 OSRM_SWITCH_ENABLED=true
 OSRM_MANAGER_URL=http://manager:9090
+OSRM_IMAGE=ghcr.io/project-osrm/osrm-backend:v26.7.3
+ROGUEROUTE_STARTUP_TIMEOUT_SECONDS=600
 
 GPX_MAX_TRACK_POINTS=1000
 GPX_SIMPLIFY_TOLERANCE_METERS=2.5
@@ -152,7 +177,7 @@ and manager containers and never enters `.env`, HTML, browser storage, logs or
 Nginx Proxy Manager. Public users do not need a key. A global switch lock and
 60-second cooldown prevent overlapping or rapid OSRM restarts.
 
-Use `ROGUEROUTE_VERSION=12.5.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.5.0`.
+Use `ROGUEROUTE_VERSION=12.5.1` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.5.1`.
 
 ## GPX detail modes
 
@@ -210,7 +235,7 @@ for the one-time conversion from an older copied/ZIP installation.
 - [Upgrading and rollback](docs/UPGRADING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Command reference](docs/COMMANDS.md)
-- [v12.5.0 release notes](docs/RELEASE-v12.5.0.md)
+- [v12.5.1 release notes](docs/RELEASE-v12.5.1.md)
 - [GitHub Desktop release upload](GITHUB-DESKTOP-UPLOAD.md)
 
 ## Development and local builds
@@ -226,7 +251,7 @@ pnpm test
 pnpm build
 ```
 
-The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.5.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
+The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.5.1` validates the workspace and builds AMD64 and ARM64 GHCR images.
 
 ## Acknowledgements
 
