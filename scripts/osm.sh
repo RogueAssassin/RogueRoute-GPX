@@ -9,7 +9,7 @@ get_env() { local v; v="$(grep -E "^$1=" "$ENV" | tail -n1 | cut -d= -f2- || tru
 set_env() { if grep -qE "^$1=" "$ENV"; then sed -i "s|^$1=.*|$1=$2|" "$ENV"; else printf '%s=%s\n' "$1" "$2" >> "$ENV"; fi; }
 fail() { echo "[ERROR] $*" >&2; exit 1; }
 DATA="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
-IMAGE="$(get_env OSRM_IMAGE osrm/osrm-backend:latest)"
+IMAGE="$(get_env OSRM_IMAGE ghcr.io/project-osrm/osrm-backend:v26.7.3)"
 mkdir -p "$DATA"
 
 ensure_data_writable() {

@@ -1,6 +1,6 @@
 # Installation
 
-RogueRoute GPX v12.5.0 is installed as an independent Docker Compose project.
+RogueRoute GPX v12.5.1 is installed as an independent Docker Compose project.
 It does not require Node.js, pnpm, a dashboard stack or an external Docker
 network. The public web container has no Docker access. A private manager
 sidecar mounts `/var/run/docker.sock` only so it can recreate OSRM after an
@@ -49,6 +49,11 @@ private Docker volume. It enables the internal switcher without exposing a key
 to the browser or `.env`. Never expose manager port 9090 through Nginx Proxy
 Manager or the host firewall.
 
+The runtime waits for Web, Manager and OSRM to become healthy. Large graphs can
+take several minutes to load; `ROGUEROUTE_STARTUP_TIMEOUT_SECONDS` defaults to
+600 seconds. A failed health check prints the service states and recent logs
+instead of reporting a successful but unusable start.
+
 Use `sudo usermod -aG docker USERNAME`, then log out and back in, if the normal
 administrator account cannot access Docker.
 
@@ -80,8 +85,33 @@ sudo ./rogueroute permissions
 
 Normal Git, container and OSM commands should not use `sudo` after this repair.
 
-The web interface uses port 9080. OSRM uses port 5000. Change `HOST_PORT` or
-`OSRM_HOST_PORT` when those ports are already occupied.
+The web interface uses port 9080. OSRM's optional host port 5000 binds only to
+`127.0.0.1`; normal routing uses the private Docker network. Change `HOST_PORT`
+or `OSRM_HOST_PORT` when those ports are already occupied.
+
+## Rogue Dashboard
+
+RogueRoute owns the private `rogueroute-gpx` network. Rogue Dashboard 1.0.1 or
+later auto-detects it when its `RGDASH_EXTRA_NETWORK` value is empty. To apply
+the connection explicitly in the dashboard checkout:
+
+```dotenv
+RGDASH_EXTRA_NETWORK=rogueroute-gpx
+RGDASH_ROGUEROUTE_URL=https://gpx.example.com
+```
+
+```bash
+./upgrade.sh
+```
+
+Verify the native health and shared network:
+
+```bash
+docker inspect rogueroute-gpx-web rogueroute-gpx-osrm \
+  --format '{{.Name}} {{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}'
+docker network inspect rogueroute-gpx \
+  --format '{{range $id, $container := .Containers}}{{println $container.Name}}{{end}}'
+```
 
 ## Uninstall
 
