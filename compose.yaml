@@ -31,6 +31,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Next standalone otherwise binds to Docker's generated hostname, so
+      # the loopback health check cannot reach the server.
+      HOSTNAME: 0.0.0.0
       ROUTER_MODE: osrm
       OSRM_URL: http://osrm:5000
       OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
