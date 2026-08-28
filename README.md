@@ -256,3 +256,25 @@ The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Re
 ## Acknowledgements
 
 Routing data is provided by [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), regional extracts by [Geofabrik](https://download.geofabrik.de/), and local route calculation by [OSRM](https://project-osrm.org/).
+
+## Testing channel
+
+The `testing` branch is isolated from production and uses:
+
+```text
+ghcr.io/rogueassassin/rogueroute-gpx:testing
+ghcr.io/rogueassassin/rogueroute-gpx:12.5.1-testing
+```
+
+Testing supports Docker Compose and Podman Compose. Set the runtime explicitly in `.env` when desired:
+
+```env
+ROGUEROUTE_TAG=testing
+ROGUEROUTE_RUNTIME=podman
+MEDIA_NETWORK=media-net
+CONTAINER_SOCKET=/run/user/1000/podman/podman.sock
+```
+
+For Docker use `ROGUEROUTE_RUNTIME=docker` and `CONTAINER_SOCKET=/var/run/docker.sock`.
+RogueRoute attaches its web, manager and OSRM services to the shared `media-net` network as well as its private internal network, allowing RogueDashboard to monitor the private health endpoints without exposing the manager publicly.
+
