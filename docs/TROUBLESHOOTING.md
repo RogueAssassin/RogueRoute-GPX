@@ -2,7 +2,7 @@
 
 ## Image cannot be pulled
 
-Confirm that the v12.6.0 GitHub Release workflow completed and that the GHCR
+Confirm that the v12.6.1 GitHub Release workflow completed and that the GHCR
 package is public. For a private package, log in using a token limited to
 `read:packages`.
 
@@ -24,7 +24,7 @@ minimum sanity size.
 ## OSRM reports NoSegment
 
 RogueRoute searches progressively from `OSRM_SNAP_RADIUS_METERS` to
-`OSRM_SNAP_MAX_RADIUS_METERS`. v12.6.0 defaults to 250–5,000 m. Confirm the
+`OSRM_SNAP_MAX_RADIUS_METERS`. v12.6.1 defaults to 250–5,000 m. Confirm the
 coordinate lies inside the prepared extract and that the foot profile contains
 a routable nearby way.
 
@@ -41,7 +41,7 @@ docker inspect rogueroute-gpx-osrm
 
 ## Web or OSRM is red in Rogue Dashboard
 
-Update RogueRoute to v12.6.0 and Rogue Dashboard to 1.0.1, then ensure the
+Update RogueRoute to v12.6.1 and Rogue Dashboard to 1.0.1, then ensure the
 dashboard joins RogueRoute's private network:
 
 ```dotenv
