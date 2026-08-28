@@ -186,16 +186,23 @@ doctor() {
   echo "Active graph: $graph"
   "${COMPOSE[@]}" config -q || failures=$((failures + 1))
   verify_graph || failures=$((failures + 1))
-  if "${COMPOSE[@]}" ps --status running manager | grep -q rogueroute-gpx-manager; then
+  manager_state="$(container_health rogueroute-gpx-manager)"
+  web_state="$(container_health rogueroute-gpx-web)"
+  osrm_state="$(container_health rogueroute-gpx-osrm)"
+  if [[ "$manager_state" == healthy || "$manager_state" == running ]]; then
     "${COMPOSE[@]}" exec -T manager wget -qO- http://127.0.0.1:9090/health >/dev/null || failures=$((failures + 1))
   else
-    echo "[WARN] Manager is not running. Start the stack to enable website switching."
+    echo "[WARN] Manager state: $manager_state"
   fi
-  if "${COMPOSE[@]}" ps --status running web | grep -q rogueroute-gpx-web; then
+  if [[ "$web_state" == healthy || "$web_state" == running ]]; then
     "${COMPOSE[@]}" exec -T web wget -qO- http://127.0.0.1:9080/api/health >/dev/null || failures=$((failures + 1))
     "${COMPOSE[@]}" exec -T web wget -qO- http://127.0.0.1:9080/api/health/osrm >/dev/null || failures=$((failures + 1))
   else
-    echo "[WARN] Web is not running. Start the stack to run HTTP readiness checks."
+    echo "[WARN] Web state: $web_state"
+  fi
+  if [[ "$osrm_state" != healthy && "$osrm_state" != running ]]; then
+    echo "[WARN] OSRM state: $osrm_state"
+    failures=$((failures + 1))
   fi
   (( failures == 0 )) || fail "$failures diagnostic check(s) failed."
   echo "[OK] Configuration and active graph checks passed."
@@ -247,7 +254,7 @@ case "$cmd" in
       OSRM_DATA_DIR "$(get_env OSRM_DATA_DIR /mnt/h/osrm)" \
       OSRM_ACTIVE_REGION "$(get_env OSRM_ACTIVE_REGION australia)" \
       OSRM_GRAPH "$(get_env OSRM_GRAPH australia-latest.osrm)" \
-      OSRM_IMAGE "$(get_env OSRM_IMAGE ghcr.io/project-osrm/osrm-backend:v26.7.3)" \
+      OSRM_IMAGE "$(get_env OSRM_IMAGE ghcr.io/project-osrm/osrm-backend:v26.7.3-debian)" \
       OSRM_SWITCH_ENABLED "$(get_env OSRM_SWITCH_ENABLED true)" \
       OSRM_SNAP_RADIUS_METERS "$(get_env OSRM_SNAP_RADIUS_METERS 250)" \
       OSRM_SNAP_MAX_RADIUS_METERS "$(get_env OSRM_SNAP_MAX_RADIUS_METERS 5000)" \
