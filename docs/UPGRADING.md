@@ -20,7 +20,7 @@ have finished publishing before the second command can succeed.
 
 v12.6.0 changes the default for new installations from the legacy Docker Hub
 image to the current official
-`ghcr.io/project-osrm/osrm-backend:v26.7.3` image. An existing `.env` remains
+`ghcr.io/project-osrm/osrm-backend:v26.7.3-debian` image. An existing `.env` remains
 authoritative, so the normal application update does not silently replace its
 OSRM runtime or rebuild a large graph.
 
@@ -31,7 +31,7 @@ active region's `.osm.pbf` is present. Stop the stack, update `OSRM_IMAGE` in
 ```bash
 ./rogueroute config
 ./rogueroute stop
-# Edit .env: OSRM_IMAGE=ghcr.io/project-osrm/osrm-backend:v26.7.3
+# Edit .env: OSRM_IMAGE=ghcr.io/project-osrm/osrm-backend:v26.7.3-debian
 ./rogueroute osm prepare REGION
 ./rogueroute start
 ```
