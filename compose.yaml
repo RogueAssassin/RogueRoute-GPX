@@ -38,7 +38,7 @@ services:
       OSRM_URL: http://osrm:5000
       OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
       OSRM_MANAGER_URL: ${OSRM_MANAGER_URL:-http://manager:9090}
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.5.1}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.6.0}
     depends_on:
       secrets-init:
         condition: service_completed_successfully
