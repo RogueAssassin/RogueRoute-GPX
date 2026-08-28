@@ -1,5 +1,12 @@
 # Changelog
 
+## v12.6.1 — Testing
+
+- Advanced the testing channel beyond stable v12.6.0.
+- Retains the proven Docker and rootless Podman runtime, shared media-net integration, OSRM v26.7.3 Debian image, and Podman-compatible dependency handling.
+- Reserved for follow-up testing and regression fixes before the next stable promotion.
+
+
 ## v12.6.0 — Docker and Podman runtime support
 
 - Added Docker and rootless Podman runtime support across install, operations, container health checks, and OSRM region switching.
