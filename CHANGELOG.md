@@ -1,13 +1,13 @@
 # Changelog
 
-## v12.6.0 — Docker and Podman testing channel
+## v12.6.0 — Docker and Podman runtime support
 
 - Added Docker and rootless Podman runtime support across install, operations, container health checks, and OSRM region switching.
 - Added shared `media-net` connectivity for RogueDashboard while retaining RogueRoute's private internal network.
-- Added isolated GHCR testing tags so testing can advance without changing `latest`.
-- Updated the testing toolchain to Node 26.8.1, pnpm 11.24.0, Node 26 types, and the latest Next.js-compatible TypeScript 6.x release.
+- Added isolated GHCR testing tags while promoting the proven runtime changes to stable `12.6.0` and `latest`.
+- Updated the build toolchain to Node 26.8.1, pnpm 11.24.0, and Next.js-compatible TypeScript 6.0.3.
 - Kept RogueRoute application versioning separate from the container channel through `ROGUEROUTE_TAG`.
-- Updated testing deployment documentation and runtime socket configuration.
+- Updated deployment documentation, Podman socket handling, OSRM v26.7.3 Debian image defaults, shared-network health integration, and Podman-compatible dependency handling.
 
 
 ## v12.5.1 — Reliable container health
