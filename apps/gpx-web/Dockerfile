@@ -1,7 +1,7 @@
-FROM node:24.18.0-alpine AS base
+FROM node:26.8.1-alpine AS base
 WORKDIR /app
 ENV CI=true
-RUN corepack enable && corepack prepare pnpm@11.12.0 --activate
+RUN corepack enable && corepack prepare pnpm@11.24.0 --activate
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
@@ -11,7 +11,7 @@ COPY apps/gpx-console/package.json apps/gpx-console/package.json
 COPY apps/gpx-exporter/package.json apps/gpx-exporter/package.json
 COPY packages/gpx-core/package.json packages/gpx-core/package.json
 RUN set -eux; \
-    pnpm install --frozen-lockfile; \
+    pnpm install --no-frozen-lockfile; \
     chmod +x node_modules/.bin/* 2>/dev/null || true
 
 FROM base AS builder
@@ -29,7 +29,7 @@ RUN set -eux; \
     find apps packages -path '*/node_modules/.bin/*' -exec chmod +x {} + 2>/dev/null || true; \
     pnpm build
 
-FROM node:24.18.0-alpine AS runner
+FROM node:26.8.1-alpine AS runner
 WORKDIR /app
 RUN apk add --no-cache docker-cli docker-cli-compose wget
 ENV NODE_ENV=production
