@@ -10,7 +10,7 @@ services:
   secrets-init:
     image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-testing}
     container_name: rogueroute-gpx-secrets-init
-    restart: "no"
+    restart: unless-stopped
     command:
       - /bin/sh
       - -ec
@@ -20,6 +20,13 @@ services:
           head -c 48 /dev/urandom | base64 > /run/rogueroute-secrets/manager-token
         fi
         chmod 0400 /run/rogueroute-secrets/manager-token
+        exec tail -f /dev/null
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /run/rogueroute-secrets/manager-token"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 1s
     volumes:
       - manager-secrets:/run/rogueroute-secrets
     networks: [rogueroute]
@@ -41,7 +48,7 @@ services:
       NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.6.0}
     depends_on:
       secrets-init:
-        condition: service_completed_successfully
+        condition: service_healthy
       osrm:
         condition: service_healthy
       manager:
@@ -82,7 +89,7 @@ services:
       DOCKER_HOST: unix:///var/run/docker.sock
     depends_on:
       secrets-init:
-        condition: service_completed_successfully
+        condition: service_healthy
     volumes:
       - manager-secrets:/run/rogueroute-secrets:ro
       - type: bind
