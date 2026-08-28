@@ -11,7 +11,7 @@
 [![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.6.0** · Standalone Docker Compose deployment · Local OSRM routing
+Version **12.6.0** · Docker/Podman Compose deployment · Local OSRM routing
 
 </div>
 
@@ -36,7 +36,7 @@ RogueRoute GPX accepts IITC exports, JSON, CSV and coordinate lists, routes them
 ### Requirements
 
 - 64-bit AMD64 or ARM64 Linux
-- Docker Engine and Docker Compose v2 (`docker compose`)
+- Docker Engine + Docker Compose v2, or rootless Podman + Podman Compose
 - Git, Bash, curl and OpenSSL
 - Port `9080` for the web interface
 - A dedicated folder for downloaded `.osm.pbf` and prepared `.osrm*` files
@@ -52,7 +52,7 @@ cd /opt/media-server/RogueRoute-GPX
 ### 2. Install the standalone runtime
 
 ```bash
-sudo ./install.sh \
+./install.sh \
   --data-dir /mnt/h/osrm \
   --region new-zealand
 ```
@@ -78,14 +78,14 @@ cd /opt/media-server/RogueRoute-GPX
 
 Visit `http://SERVER-IP:9080` and generate a known route. Change `HOST_PORT` in `.env` if port 9080 is already in use.
 
-## What Docker starts
+## What the container runtime starts
 
 ```mermaid
 flowchart LR
     Browser["Browser :9080"] --> Web["RogueRoute GPX web"]
     Web --> OSRM["OSRM foot router :5000"]
     Web --> Manager["Private OSRM manager"]
-    Manager --> Socket["Docker socket"]
+    Manager --> Socket["container runtime socket"]
     Manager --> OSRM
     OSRM --> Maps["External OSM/OSRM data"]
     IITC["IITC exporter"] --> Web
@@ -94,12 +94,12 @@ flowchart LR
 | Container | Purpose | Persistent dependency |
 | --- | --- | --- |
 | `rogueroute-gpx-web` | Interface, input parsing, route generation, preview and GPX export | `.env` |
-| `rogueroute-gpx-manager` | Authenticated internal region switching and OSRM-only recreation | Private secret volume, `.env`, read-only map data and Docker socket |
+| `rogueroute-gpx-manager` | Authenticated internal region switching and OSRM-only recreation | Private secret volume, `.env`, read-only map data and container runtime socket |
 | `rogueroute-gpx-osrm` | Local MLD routing using the foot profile | `OSRM_DATA_DIR` |
 
-The manager has no published port and requires the generated private token file for every management request. Only the manager mounts the Docker socket; the public web container never receives it.
+The manager has no published port and requires the generated private token file for every management request. Only the manager mounts the container runtime socket; the public web container never receives it.
 
-All long-running containers have bounded JSON logs and native Docker health checks. Web and Manager use their private HTTP endpoints; OSRM verifies both the `osrm-routed` process and its listening socket. Web waits for healthy Manager and OSRM dependencies, and `start`, `restart` and `update` wait until all three services report healthy.
+All long-running containers have bounded JSON logs and native container health checks. Web and Manager use their private HTTP endpoints; OSRM verifies both the `osrm-routed` process and its listening socket. Web waits for healthy Manager and OSRM dependencies, and `start`, `restart` and `update` wait until all three services report healthy.
 
 The default configuration uses the current official `ghcr.io/project-osrm/osrm-backend:v26.7.3-debian` multi-platform image. Its optional host port binds to `127.0.0.1` only; Web and Rogue Dashboard use Docker networking rather than a LAN-exposed routing port. Existing installations retain their explicit `.env` image until the operator performs the graph-format migration described in the upgrading guide.
 
@@ -116,11 +116,11 @@ Then run `./upgrade.sh` from the Rogue Dashboard checkout. The standard cards us
 
 | Card | Health source |
 | --- | --- |
-| Web | Docker health plus `http://rogueroute-gpx-web:9080/api/health` |
-| OSRM | Docker health plus `http://rogueroute-gpx-web:9080/api/health/osrm` |
-| Manager | Docker health plus `http://rogueroute-gpx-manager:9090/health` |
+| Web | container health plus `http://rogueroute-gpx-web:9080/api/health` |
+| OSRM | container health plus `http://rogueroute-gpx-web:9080/api/health/osrm` |
+| Manager | container health plus `http://rogueroute-gpx-manager:9090/health` |
 
-Docker health remains authoritative if the private endpoint cannot be reached, while the dashboard Connection centre reports the network warning separately.
+container health remains authoritative if the private endpoint cannot be reached, while the dashboard Connection centre reports the network warning separately.
 
 ## Day-to-day commands
 
@@ -243,15 +243,14 @@ for the one-time conversion from an older copied/ZIP installation.
 Production servers pull the prebuilt image. Repository contributors can validate the source with the pinned toolchain:
 
 ```bash
-corepack enable
-corepack prepare pnpm@11.12.0 --activate
+npm install --global pnpm@11.24.0
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
 pnpm build
 ```
 
-The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.6.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
+The supported development runtime is Node.js `26.8.1` with pnpm `11.24.0` and TypeScript `6.0.3`. Publishing the GitHub Release tagged `v12.6.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
 
 ## Acknowledgements
 
@@ -259,17 +258,12 @@ Routing data is provided by [OpenStreetMap contributors](https://www.openstreetm
 
 ## Testing channel
 
-The `testing` branch is isolated from production and uses:
-
-```text
-ghcr.io/rogueassassin/rogueroute-gpx:testing
-ghcr.io/rogueassassin/rogueroute-gpx:12.6.0-testing
-```
+The `testing` branch remains isolated from production and advances ahead of this stable release. Testing uses `ghcr.io/rogueassassin/rogueroute-gpx:testing` and version-specific `-testing` tags.
 
 Testing supports Docker Compose and Podman Compose. Set the runtime explicitly in `.env` when desired:
 
 ```env
-ROGUEROUTE_TAG=testing
+ROGUEROUTE_TAG=12.6.0
 ROGUEROUTE_RUNTIME=podman
 MEDIA_NETWORK=media-net
 CONTAINER_SOCKET=/run/user/1000/podman/podman.sock
