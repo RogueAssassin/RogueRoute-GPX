@@ -6,7 +6,7 @@ TARGET="$SOURCE"
 DATA_DIR=/mnt/h/osrm
 REGION=australia
 START=false
-OWNER="${SUDO_USER:-root}"
+OWNER="${SUDO_USER:-$(id -un)}"
 GROUP="$(id -gn "$OWNER")"
 
 while (( $# )); do
@@ -22,10 +22,23 @@ while (( $# )); do
   esac
 done
 
-[[ $EUID -eq 0 ]] || { echo "Run the installer with sudo." >&2; exit 1; }
 case "$TARGET" in /|/opt|/opt/media-server) echo "Unsafe installation path: $TARGET" >&2; exit 1 ;; esac
-command -v docker >/dev/null || { echo "Docker Engine is required: https://docs.docker.com/engine/install/" >&2; exit 1; }
-docker compose version >/dev/null || { echo "The Docker Compose plugin is required." >&2; exit 1; }
+RUNTIME="${ROGUEROUTE_RUNTIME:-auto}"
+if [[ "$RUNTIME" == auto ]]; then
+  if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
+    RUNTIME=docker
+  elif command -v podman >/dev/null && podman compose version >/dev/null 2>&1; then
+    RUNTIME=podman
+  else
+    echo "Docker Compose or Podman Compose is required." >&2
+    exit 1
+  fi
+fi
+[[ "$RUNTIME" == docker || "$RUNTIME" == podman ]] || { echo "ROGUEROUTE_RUNTIME must be auto, docker, or podman." >&2; exit 1; }
+if [[ "$RUNTIME" == podman && $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
+  echo "For rootless Podman, run ./install.sh without sudo." >&2
+  exit 1
+fi
 command -v git >/dev/null || { echo "Git is required for repository-managed updates." >&2; exit 1; }
 [[ -d "$TARGET/.git" ]] || {
   echo "$TARGET is not a Git checkout." >&2
@@ -37,8 +50,13 @@ command -v git >/dev/null || { echo "Git is required for repository-managed upda
   exit 1
 }
 
-install -d -o "$OWNER" -g "$GROUP" -m 0755 "$DATA_DIR"
-chown -R "$OWNER:$GROUP" "$TARGET"
+if [[ $EUID -eq 0 ]]; then
+  install -d -o "$OWNER" -g "$GROUP" -m 0755 "$DATA_DIR"
+  chown -R "$OWNER:$GROUP" "$TARGET"
+else
+  install -d -m 0755 "$DATA_DIR"
+  [[ -w "$TARGET" ]] || { echo "$TARGET is not writable by $(id -un)." >&2; exit 1; }
+fi
 chmod +x "$TARGET/install.sh" "$TARGET/rogueroute" "$TARGET/scripts/osm.sh"
 
 if [[ ! -f "$TARGET/.env" ]]; then
@@ -56,6 +74,21 @@ set_env() {
 VERSION="$(sed 's/^v//' "$TARGET/VERSION" | tr -d '[:space:]')"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file." >&2; exit 1; }
 set_env ROGUEROUTE_VERSION "$VERSION"
+set_env ROGUEROUTE_TAG testing
+set_env ROGUEROUTE_RUNTIME "$RUNTIME"
+set_env MEDIA_NETWORK media-net
+if [[ "$RUNTIME" == podman ]]; then
+  SOCKET="${CONTAINER_SOCKET:-/run/user/$(id -u)/podman/podman.sock}"
+  if [[ ! -S "$SOCKET" ]] && command -v systemctl >/dev/null; then
+    systemctl --user enable --now podman.socket >/dev/null 2>&1 || true
+  fi
+  [[ -S "$SOCKET" ]] || { echo "Podman API socket is unavailable at $SOCKET." >&2; exit 1; }
+else
+  SOCKET="${CONTAINER_SOCKET:-/var/run/docker.sock}"
+  [[ -S "$SOCKET" ]] || { echo "Docker socket is unavailable at $SOCKET." >&2; exit 1; }
+fi
+set_env CONTAINER_SOCKET "$SOCKET"
+"$RUNTIME" network inspect media-net >/dev/null 2>&1 || "$RUNTIME" network create media-net >/dev/null
 set_env OSRM_DATA_DIR "$DATA_DIR"
 set_env OSRM_ACTIVE_REGION "$REGION"
 
@@ -75,7 +108,7 @@ set_env OSRM_MANAGER_TOKEN_FILE /run/rogueroute-secrets/manager-token
 set_env OSRM_SWITCH_COOLDOWN_SECONDS 60
 sed -i '/^OSRM_MANAGER_TOKEN=/d; /^OSRM_SWITCH_ACCESS_KEY=/d' "$TARGET/.env"
 
-echo "RogueRoute GPX v$VERSION configured at $TARGET"
+echo "RogueRoute GPX v$VERSION testing channel configured at $TARGET ($RUNTIME)"
 echo "OSRM data directory: $DATA_DIR"
 if [[ "$START" == true ]]; then
   "$TARGET/rogueroute" start
