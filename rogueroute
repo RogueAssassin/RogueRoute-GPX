@@ -113,7 +113,16 @@ verify_graph() {
 }
 
 container_health() {
-  "$runtime" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$1" 2>/dev/null || printf 'missing\n'
+  local health state
+  health="$("$runtime" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$1" 2>/dev/null || true)"
+  state="$("$runtime" inspect --format '{{.State.Status}}' "$1" 2>/dev/null || true)"
+  if [[ -n "$health" ]]; then
+    printf '%s\n' "$health"
+  elif [[ -n "$state" ]]; then
+    printf '%s\n' "$state"
+  else
+    printf 'missing\n'
+  fi
 }
 
 wait_for_healthy() {
@@ -199,6 +208,7 @@ doctor() {
     "${COMPOSE[@]}" exec -T web wget -qO- http://127.0.0.1:9080/api/health/osrm >/dev/null || failures=$((failures + 1))
   else
     echo "[WARN] Web state: $web_state"
+    failures=$((failures + 1))
   fi
   if [[ "$osrm_state" != healthy && "$osrm_state" != running ]]; then
     echo "[WARN] OSRM state: $osrm_state"
