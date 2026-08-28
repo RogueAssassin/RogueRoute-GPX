@@ -5,12 +5,13 @@ ENV="$ROOT/.env"
 fail() { echo "[ERROR] $*" >&2; exit 1; }
 [[ -f "$ENV" ]] || { cp "$ROOT/.env.example" "$ENV"; chmod 600 "$ENV"; }
 
-runtime="${ROGUEROUTE_RUNTIME:-auto}"
+runtime="${ROGUEROUTE_RUNTIME:-$(grep -E '^ROGUEROUTE_RUNTIME=' "$ENV" | tail -n1 | cut -d= -f2- || true)}"
+runtime="${runtime:-auto}"
 if [[ "$runtime" == auto ]]; then
-  if command -v podman >/dev/null && podman compose version >/dev/null 2>&1; then
-    runtime=podman
-  elif command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
+  if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
     runtime=docker
+  elif command -v podman >/dev/null && podman compose version >/dev/null 2>&1; then
+    runtime=podman
   else
     fail "Neither Podman Compose nor Docker Compose is available."
   fi
@@ -241,6 +242,7 @@ case "$cmd" in
     printf '%-32s %s\n' \
       ROGUEROUTE_VERSION "$(get_env ROGUEROUTE_VERSION unknown)" \
       ROGUEROUTE_IMAGE "$(get_env ROGUEROUTE_IMAGE ghcr.io/rogueassassin/rogueroute-gpx)" \
+      ROGUEROUTE_TAG "$(get_env ROGUEROUTE_TAG testing)" \
       HOST_PORT "$(get_env HOST_PORT 9080)" \
       OSRM_DATA_DIR "$(get_env OSRM_DATA_DIR /mnt/h/osrm)" \
       OSRM_ACTIVE_REGION "$(get_env OSRM_ACTIVE_REGION australia)" \
