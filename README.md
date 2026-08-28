@@ -101,7 +101,7 @@ The manager has no published port and requires the generated private token file 
 
 All long-running containers have bounded JSON logs and native Docker health checks. Web and Manager use their private HTTP endpoints; OSRM verifies both the `osrm-routed` process and its listening socket. Web waits for healthy Manager and OSRM dependencies, and `start`, `restart` and `update` wait until all three services report healthy.
 
-The default configuration uses the current official `ghcr.io/project-osrm/osrm-backend:v26.7.3` multi-platform image. Its optional host port binds to `127.0.0.1` only; Web and Rogue Dashboard use Docker networking rather than a LAN-exposed routing port. Existing installations retain their explicit `.env` image until the operator performs the graph-format migration described in the upgrading guide.
+The default configuration uses the current official `ghcr.io/project-osrm/osrm-backend:v26.7.3-debian` multi-platform image. Its optional host port binds to `127.0.0.1` only; Web and Rogue Dashboard use Docker networking rather than a LAN-exposed routing port. Existing installations retain their explicit `.env` image until the operator performs the graph-format migration described in the upgrading guide.
 
 ## Rogue Dashboard health integration
 
@@ -164,7 +164,7 @@ OSRM_SNAP_RADIUS_METERS=250
 OSRM_SNAP_MAX_RADIUS_METERS=5000
 OSRM_SWITCH_ENABLED=true
 OSRM_MANAGER_URL=http://manager:9090
-OSRM_IMAGE=ghcr.io/project-osrm/osrm-backend:v26.7.3
+OSRM_IMAGE=ghcr.io/project-osrm/osrm-backend:v26.7.3-debian
 ROGUEROUTE_STARTUP_TIMEOUT_SECONDS=600
 
 GPX_MAX_TRACK_POINTS=1000
