@@ -258,12 +258,12 @@ Routing data is provided by [OpenStreetMap contributors](https://www.openstreetm
 
 ## Testing channel
 
-The `testing` branch remains isolated from production and advances ahead of this stable release. Testing uses `ghcr.io/rogueassassin/rogueroute-gpx:testing` and version-specific `-testing` tags.
+The `testing` branch is now v12.6.1 and remains isolated from stable v12.6.0. Testing uses `ghcr.io/rogueassassin/rogueroute-gpx:testing` and version-specific `-testing` tags.
 
 Testing supports Docker Compose and Podman Compose. Set the runtime explicitly in `.env` when desired:
 
 ```env
-ROGUEROUTE_TAG=12.6.0
+ROGUEROUTE_TAG=testing
 ROGUEROUTE_RUNTIME=podman
 MEDIA_NETWORK=media-net
 CONTAINER_SOCKET=/run/user/1000/podman/podman.sock
