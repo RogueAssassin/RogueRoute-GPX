@@ -18,7 +18,7 @@ existing secrets.
 Run `./rogueroute doctor` after an update. The matching GHCR release image must
 have finished publishing before the second command can succeed.
 
-v12.5.1 changes the default for new installations from the legacy Docker Hub
+v12.6.0 changes the default for new installations from the legacy Docker Hub
 image to the current official
 `ghcr.io/project-osrm/osrm-backend:v26.7.3` image. An existing `.env` remains
 authoritative, so the normal application update does not silently replace its
@@ -39,7 +39,7 @@ active region's `.osm.pbf` is present. Stop the stack, update `OSRM_IMAGE` in
 OSRM storage formats may change between release families. Re-preparation is
 required instead of attempting to run the new binary against an older graph.
 
-If the checkout or map directory was previously populated with `sudo`, v12.5.1
+If the checkout or map directory was previously populated with `sudo`, v12.6.0
 reports the ownership problem instead of leaving mixed root-owned files. Repair
 it once, then retry:
 
