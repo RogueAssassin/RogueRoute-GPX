@@ -56,7 +56,11 @@ services:
       start_period: 20s
     volumes:
       - manager-secrets:/run/rogueroute-secrets:ro
-    networks: [rogueroute]
+    networks:
+      rogueroute:
+      media-net:
+        aliases:
+          - rogueroute-gpx-web
     logging: *default-logging
     labels:
       rogue.dashboard.service: "rogueroute-web"
@@ -74,6 +78,8 @@ services:
       OSRM_MANAGER_PORT: 9090
       OSRM_MANAGER_TOKEN_FILE: /run/rogueroute-secrets/manager-token
       OSRM_SWITCH_COOLDOWN_SECONDS: ${OSRM_SWITCH_COOLDOWN_SECONDS:-60}
+      ROGUEROUTE_RUNTIME: ${ROGUEROUTE_RUNTIME:-auto}
+      DOCKER_HOST: unix:///var/run/docker.sock
     depends_on:
       secrets-init:
         condition: service_completed_successfully
@@ -91,7 +97,7 @@ services:
         target: /data
         read_only: true
       - type: bind
-        source: /var/run/docker.sock
+        source: ${CONTAINER_SOCKET:-/var/run/docker.sock}
         target: /var/run/docker.sock
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/health"]
@@ -99,7 +105,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks: [rogueroute]
+    networks:
+      rogueroute:
+      media-net:
+        aliases:
+          - rogueroute-gpx-manager
     logging: *default-logging
     labels:
       rogue.dashboard.service: "rogueroute-manager"
@@ -123,7 +133,11 @@ services:
       timeout: 3s
       retries: 20
       start_period: 120s
-    networks: [rogueroute]
+    networks:
+      rogueroute:
+      media-net:
+        aliases:
+          - rogueroute-gpx-osrm
     logging: *default-logging
     labels:
       rogue.dashboard.service: "rogueroute-osrm"
@@ -133,6 +147,9 @@ networks:
   rogueroute:
     name: rogueroute-gpx
     driver: bridge
+  media-net:
+    external: true
+    name: ${MEDIA_NETWORK:-media-net}
 
 volumes:
   manager-secrets:
