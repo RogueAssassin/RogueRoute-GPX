@@ -1,6 +1,6 @@
 {
   "name": "gpx-route-generator",
-  "version": "12.6.0",
+  "version": "12.6.1",
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "engines": {
