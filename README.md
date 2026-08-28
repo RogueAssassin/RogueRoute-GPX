@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-12.5.1-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
+[![Release](https://img.shields.io/badge/release-12.6.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
 [![Container](https://img.shields.io/badge/GHCR-ready-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/RogueRoute-GPX/pkgs/container/rogueroute-gpx)
 [![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.5.1** · Standalone Docker Compose deployment · Local OSRM routing
+Version **12.6.0** · Standalone Docker Compose deployment · Local OSRM routing
 
 </div>
 
@@ -154,7 +154,7 @@ sudo ./rogueroute permissions
 Machine-specific settings live in `/opt/media-server/RogueRoute-GPX/.env` and must not be committed.
 
 ```dotenv
-ROGUEROUTE_VERSION=12.5.1
+ROGUEROUTE_VERSION=12.6.0
 HOST_PORT=9080
 
 OSRM_DATA_DIR=/mnt/h/osrm
@@ -177,7 +177,7 @@ and manager containers and never enters `.env`, HTML, browser storage, logs or
 Nginx Proxy Manager. Public users do not need a key. A global switch lock and
 60-second cooldown prevent overlapping or rapid OSRM restarts.
 
-Use `ROGUEROUTE_VERSION=12.5.1` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.5.1`.
+Use `ROGUEROUTE_VERSION=12.6.0` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.6.0`.
 
 ## GPX detail modes
 
@@ -235,7 +235,7 @@ for the one-time conversion from an older copied/ZIP installation.
 - [Upgrading and rollback](docs/UPGRADING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Command reference](docs/COMMANDS.md)
-- [v12.5.1 release notes](docs/RELEASE-v12.5.1.md)
+- [v12.6.0 release notes](docs/RELEASE-v12.6.0.md)
 - [GitHub Desktop release upload](GITHUB-DESKTOP-UPLOAD.md)
 
 ## Development and local builds
@@ -251,7 +251,7 @@ pnpm test
 pnpm build
 ```
 
-The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.5.1` validates the workspace and builds AMD64 and ARM64 GHCR images.
+The supported development runtime is Node.js `24.18.0`. Publishing the GitHub Release tagged `v12.6.0` validates the workspace and builds AMD64 and ARM64 GHCR images.
 
 ## Acknowledgements
 
@@ -263,7 +263,7 @@ The `testing` branch is isolated from production and uses:
 
 ```text
 ghcr.io/rogueassassin/rogueroute-gpx:testing
-ghcr.io/rogueassassin/rogueroute-gpx:12.5.1-testing
+ghcr.io/rogueassassin/rogueroute-gpx:12.6.0-testing
 ```
 
 Testing supports Docker Compose and Podman Compose. Set the runtime explicitly in `.env` when desired:
