@@ -18,7 +18,7 @@
     "test": "pnpm -r --if-present test && node --test apps/gpx-web/manager/*.test.mjs"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^24.3.0",
     "typescript": "^6.0.3"
   }
 }
