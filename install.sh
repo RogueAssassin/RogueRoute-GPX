@@ -74,7 +74,7 @@ set_env() {
 VERSION="$(sed 's/^v//' "$TARGET/VERSION" | tr -d '[:space:]')"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file." >&2; exit 1; }
 set_env ROGUEROUTE_VERSION "$VERSION"
-set_env ROGUEROUTE_TAG testing
+set_env ROGUEROUTE_TAG "$VERSION"
 set_env ROGUEROUTE_RUNTIME "$RUNTIME"
 set_env MEDIA_NETWORK media-net
 if [[ "$RUNTIME" == podman ]]; then
@@ -108,7 +108,7 @@ set_env OSRM_MANAGER_TOKEN_FILE /run/rogueroute-secrets/manager-token
 set_env OSRM_SWITCH_COOLDOWN_SECONDS 60
 sed -i '/^OSRM_MANAGER_TOKEN=/d; /^OSRM_SWITCH_ACCESS_KEY=/d' "$TARGET/.env"
 
-echo "RogueRoute GPX v$VERSION testing channel configured at $TARGET ($RUNTIME)"
+echo "RogueRoute GPX v$VERSION stable channel configured at $TARGET ($RUNTIME)"
 echo "OSRM data directory: $DATA_DIR"
 if [[ "$START" == true ]]; then
   "$TARGET/rogueroute" start
