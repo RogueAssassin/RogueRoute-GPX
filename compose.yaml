@@ -116,7 +116,7 @@ services:
       rogue.dashboard.monitor-url: "http://rogueroute-gpx-manager:9090/health"
 
   osrm:
-    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:v26.7.3}
+    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:v26.7.3-debian}
     container_name: rogueroute-gpx-osrm
     restart: unless-stopped
     stop_grace_period: 30s
