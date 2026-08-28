@@ -10,6 +10,15 @@ set_env() { if grep -qE "^$1=" "$ENV"; then sed -i "s|^$1=.*|$1=$2|" "$ENV"; els
 fail() { echo "[ERROR] $*" >&2; exit 1; }
 DATA="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
 IMAGE="$(get_env OSRM_IMAGE ghcr.io/project-osrm/osrm-backend:v26.7.3-debian)"
+RUNTIME="$(get_env ROGUEROUTE_RUNTIME auto)"
+if [[ "$RUNTIME" == auto ]]; then
+  if command -v docker >/dev/null; then RUNTIME=docker
+  elif command -v podman >/dev/null; then RUNTIME=podman
+  else fail "Neither Docker nor Podman is installed."
+  fi
+fi
+[[ "$RUNTIME" == docker || "$RUNTIME" == podman ]] || fail "ROGUEROUTE_RUNTIME must be auto, docker, or podman."
+command -v "$RUNTIME" >/dev/null || fail "$RUNTIME is not installed."
 mkdir -p "$DATA"
 
 ensure_data_writable() {
@@ -96,9 +105,9 @@ prepare_region() {
     return 3
   fi
   echo "[INFO] Preparing $LABEL with $IMAGE"
-  docker run --rm -t -v "$DATA:/data" "$IMAGE" osrm-extract -p /opt/foot.lua "/data/$PBF" &&
-    docker run --rm -t -v "$DATA:/data" "$IMAGE" osrm-partition "/data/$OSRM" &&
-    docker run --rm -t -v "$DATA:/data" "$IMAGE" osrm-customize "/data/$OSRM" || return 1
+  "$RUNTIME" run --rm -t -v "$DATA:/data" "$IMAGE" osrm-extract -p /opt/foot.lua "/data/$PBF" &&
+    "$RUNTIME" run --rm -t -v "$DATA:/data" "$IMAGE" osrm-partition "/data/$OSRM" &&
+    "$RUNTIME" run --rm -t -v "$DATA:/data" "$IMAGE" osrm-customize "/data/$OSRM" || return 1
   for suffix in mldgr partition cell_metrics; do
     [[ -s "$DATA/$OSRM.$suffix" ]] || return 1
   done
@@ -220,7 +229,7 @@ HELP
     [[ -s "$DATA/$OSRM.mldgr" ]] || fail "Region is not prepared: $DATA/$OSRM.mldgr"
     set_env OSRM_ACTIVE_REGION "$region"
     set_env OSRM_GRAPH "$OSRM"
-    docker compose --env-file "$ENV" -f "$ROOT/compose.yaml" up -d --force-recreate osrm
+    "$RUNTIME" compose --env-file "$ENV" -f "$ROOT/compose.yaml" up -d --force-recreate osrm
     echo "[OK] Active OSRM region: $region ($OSRM)" ;;
   *) fail "Usage: ./rogueroute osm {list|status|path|download|download-missing|prepare|prepare-downloaded|verify|switch|help}" ;;
 esac
