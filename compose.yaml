@@ -8,7 +8,7 @@ x-logging: &default-logging
 
 services:
   secrets-init:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-12.6.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-testing}
     container_name: rogueroute-gpx-secrets-init
     restart: unless-stopped
     command:
@@ -33,7 +33,7 @@ services:
     logging: *default-logging
 
   web:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-12.6.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-testing}
     container_name: rogueroute-gpx-web
     restart: unless-stopped
     env_file: .env
@@ -45,7 +45,7 @@ services:
       OSRM_URL: http://osrm:5000
       OSRM_SWITCH_ENABLED: ${OSRM_SWITCH_ENABLED:-true}
       OSRM_MANAGER_URL: ${OSRM_MANAGER_URL:-http://manager:9090}
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.6.0}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-12.6.1}
     depends_on:
       secrets-init:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
       rogue.dashboard.monitor-url: "http://rogueroute-gpx-web:9080/api/health"
 
   manager:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-12.6.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-testing}
     container_name: rogueroute-gpx-manager
     restart: unless-stopped
     command: ["node", "/app/manager/server.mjs"]
