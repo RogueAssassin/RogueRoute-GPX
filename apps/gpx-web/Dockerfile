@@ -1,7 +1,7 @@
 FROM node:26.8.1-alpine AS base
 WORKDIR /app
 ENV CI=true
-RUN corepack enable && corepack prepare pnpm@11.24.0 --activate
+RUN npm install --global pnpm@11.24.0
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
