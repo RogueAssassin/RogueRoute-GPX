@@ -20,7 +20,8 @@ permissions:
 
 concurrency:
   group: container-${{ github.event.release.tag_name || github.ref_name }}
-  cancel-in-progress: true
+  # Never cancel a publish half-way through a multi-arch push.
+  cancel-in-progress: false
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/rogueroute-gpx

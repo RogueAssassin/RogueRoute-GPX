@@ -62,6 +62,16 @@ administrator account cannot access Docker.
 Edit `/opt/media-server/RogueRoute-GPX/.env`. Do not commit that file. The installation
 generates a persistent Server Actions encryption key automatically.
 
+`ROGUEROUTE_RUNTIME=auto` selects an engine that is actually running: Podman first, or
+Docker first when the script runs as root. Set `ROGUEROUTE_RUNTIME=podman` or `docker` to pin it.
+
+Set `HOST_BIND=127.0.0.1` when a reverse proxy on the same host is the only client of the web
+port; the default `0.0.0.0` keeps it reachable from the LAN.
+
+The web service runs as an unprivileged user with a read-only root filesystem and no
+capabilities. The manager keeps root inside its container because it uses the engine socket;
+under rootless Podman that is the unprivileged account that owns the containers.
+
 ## Updates
 
 Every normal release update uses two commands:

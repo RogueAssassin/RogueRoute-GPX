@@ -213,7 +213,16 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
     console.error("OSRM_MANAGER_TOKEN is required");
     process.exit(1);
   }
-  createManagerServer().listen(port, "0.0.0.0", () => {
+  const server = createManagerServer().listen(port, "0.0.0.0", () => {
     console.log(`RogueRoute OSRM manager listening on ${port}`);
   });
+  // Node ignores SIGTERM when it runs as PID 1 unless a handler is installed, which makes
+  // every stop or recreate wait for the container engine's kill timeout.
+  for (const signal of ["SIGTERM", "SIGINT"]) {
+    process.once(signal, () => {
+      server.close(() => process.exit(0));
+      server.closeIdleConnections();
+      setTimeout(() => process.exit(0), 5_000).unref();
+    });
+  }
 }

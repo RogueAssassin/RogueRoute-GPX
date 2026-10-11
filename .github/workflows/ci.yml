@@ -44,3 +44,55 @@ jobs:
           cp .env.example .env
           docker network create media-net >/dev/null 2>&1 || true
           docker compose --env-file .env -f compose.yaml config -q
+
+  container:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/gpx-web/Dockerfile
+          push: false
+          load: true
+          tags: rogueroute-gpx:ci
+          cache-from: type=gha
+      - name: Smoke test web (hardened runtime, health, graceful stop)
+        shell: bash
+        run: |
+          # Same restrictions compose.yaml applies: unprivileged user, read-only root, no capabilities.
+          docker run -d --name web -p 19080:9080 -e HOSTNAME=0.0.0.0 \
+            --user 1000:1000 --read-only --tmpfs /tmp --tmpfs /app/apps/gpx-web/.next/cache \
+            --cap-drop ALL --security-opt no-new-privileges:true rogueroute-gpx:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:19080/api/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:19080/api/health >/dev/null
+          curl -fsS http://127.0.0.1:19080/ >/dev/null
+          test "$(docker exec web id -u)" = "1000"
+          start=$(date +%s)
+          docker stop -t 20 web
+          elapsed=$(( $(date +%s) - start ))
+          echo "docker stop took ${elapsed}s"
+          test "$elapsed" -lt 10   # SIGTERM must be handled; an ignored SIGTERM waits for SIGKILL
+          docker logs web
+      - name: Smoke test manager (health, authentication, graceful stop)
+        shell: bash
+        run: |
+          docker run -d --name manager -p 19090:9090 -e OSRM_MANAGER_TOKEN=ci-token \
+            --security-opt no-new-privileges:true rogueroute-gpx:ci node /app/manager/server.mjs
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:19090/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:19090/health >/dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19090/status)" = "401"
+          docker run --rm rogueroute-gpx:ci docker compose version
+          start=$(date +%s)
+          docker stop -t 20 manager
+          elapsed=$(( $(date +%s) - start ))
+          echo "docker stop took ${elapsed}s"
+          test "$elapsed" -lt 10

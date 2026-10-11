@@ -7,14 +7,24 @@ fail() { echo "[ERROR] $*" >&2; exit 1; }
 
 runtime="${ROGUEROUTE_RUNTIME:-$(grep -E '^ROGUEROUTE_RUNTIME=' "$ENV" | tail -n1 | cut -d= -f2- || true)}"
 runtime="${runtime:-auto}"
+detect_runtime() {
+  # Pick an engine that is actually running, not merely installed: a leftover docker CLI or
+  # the podman-docker shim must not win over a working Podman. Rootless Podman is never
+  # driven through sudo, so Docker is tried first when running as root.
+  local engine
+  local -a candidates=(podman docker)
+  [[ $EUID -eq 0 ]] && candidates=(docker podman)
+  for engine in "${candidates[@]}"; do
+    if command -v "$engine" >/dev/null && "$engine" info >/dev/null 2>&1 &&
+      "$engine" compose version >/dev/null 2>&1; then
+      printf '%s\n' "$engine"
+      return 0
+    fi
+  done
+  return 1
+}
 if [[ "$runtime" == auto ]]; then
-  if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
-    runtime=docker
-  elif command -v podman >/dev/null && podman compose version >/dev/null 2>&1; then
-    runtime=podman
-  else
-    fail "Neither Podman Compose nor Docker Compose is available."
-  fi
+  runtime="$(detect_runtime)" || fail "Neither Podman Compose nor Docker Compose is available and running."
 fi
 [[ "$runtime" == podman || "$runtime" == docker ]] || fail "ROGUEROUTE_RUNTIME must be auto, podman, or docker."
 command -v "$runtime" >/dev/null || fail "$runtime is not installed."
