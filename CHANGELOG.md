@@ -1,5 +1,15 @@
 # Changelog
 
+## v12.6.1 — Container hardening
+
+- Ran the public web service as an unprivileged user with a read-only root filesystem, no capabilities and `no-new-privileges`.
+- Made `secrets-init` hand the manager token to the web user and stop immediately; added `no-new-privileges` to every service.
+- Added `SIGTERM` handling to the manager so stops and recreates no longer wait for the kill timeout.
+- Made `ROGUEROUTE_RUNTIME=auto` select a running engine, Podman first, or Docker first when run as root.
+- Added `HOST_BIND` to limit the published web port to one address.
+- Marked the administration scripts executable in Git and pinned LF line endings for container files.
+- Added a pull-request image build with web and manager smoke tests; an in-progress publish is never cancelled.
+
 ## v12.6.0 — Docker and Podman runtime support
 
 - Added Docker and rootless Podman runtime support across install, operations, container health checks, and OSRM region switching.
