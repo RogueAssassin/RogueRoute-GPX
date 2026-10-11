@@ -12,10 +12,12 @@ DATA="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
 IMAGE="$(get_env OSRM_IMAGE ghcr.io/project-osrm/osrm-backend:v26.7.3-debian)"
 RUNTIME="$(get_env ROGUEROUTE_RUNTIME auto)"
 if [[ "$RUNTIME" == auto ]]; then
-  if command -v docker >/dev/null; then RUNTIME=docker
-  elif command -v podman >/dev/null; then RUNTIME=podman
-  else fail "Neither Docker nor Podman is installed."
-  fi
+  # Same order as ./rogueroute: a running engine wins, Podman first unless running as root.
+  candidates=(podman docker); [[ $EUID -eq 0 ]] && candidates=(docker podman)
+  for engine in "${candidates[@]}"; do
+    if command -v "$engine" >/dev/null && "$engine" info >/dev/null 2>&1; then RUNTIME="$engine"; break; fi
+  done
+  [[ "$RUNTIME" != auto ]] || fail "Neither Docker nor Podman is installed and running."
 fi
 [[ "$RUNTIME" == docker || "$RUNTIME" == podman ]] || fail "ROGUEROUTE_RUNTIME must be auto, docker, or podman."
 command -v "$RUNTIME" >/dev/null || fail "$RUNTIME is not installed."

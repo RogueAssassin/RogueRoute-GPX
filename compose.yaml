@@ -19,10 +19,18 @@ services:
         if [ ! -s /run/rogueroute-secrets/manager-token ]; then
           head -c 48 /dev/urandom | base64 > /run/rogueroute-secrets/manager-token
         fi
+        # The web service runs as the unprivileged node user (1000) and must read the token.
+        chown 1000:1000 /run/rogueroute-secrets/manager-token
         chmod 0400 /run/rogueroute-secrets/manager-token
         exec tail -f /dev/null
+    # tail runs as PID 1 and never handles SIGTERM; stop it immediately instead of waiting
+    # out the engine's kill timeout on every stop or recreate.
+    stop_signal: SIGKILL
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "test -s /run/rogueroute-secrets/manager-token"]
+      # Healthy only once the token exists and has been handed to the web user.
+      test: ["CMD-SHELL", "test -s /run/rogueroute-secrets/manager-token && stat -c %u /run/rogueroute-secrets/manager-token | grep -qx 1000"]
       interval: 5s
       timeout: 2s
       retries: 5
@@ -36,6 +44,18 @@ services:
     image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-12.6.0}
     container_name: rogueroute-gpx-web
     restart: unless-stopped
+    stop_grace_period: 15s
+    # The public-facing service needs no privileges: unprivileged user, read-only root
+    # filesystem and no capabilities. Works unchanged under rootless Podman and Docker.
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/apps/gpx-web/.next/cache
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
     environment:
       # Next standalone otherwise binds to Docker's generated hostname, so
@@ -54,7 +74,8 @@ services:
       manager:
         condition: service_healthy
     ports:
-      - "${HOST_PORT:-9080}:9080"
+      # Set HOST_BIND=127.0.0.1 when a reverse proxy on the same host is the only client.
+      - "${HOST_BIND:-0.0.0.0}:${HOST_PORT:-9080}:9080"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9080/api/health"]
       interval: 30s
@@ -77,6 +98,12 @@ services:
     image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-12.6.0}
     container_name: rogueroute-gpx-manager
     restart: unless-stopped
+    stop_grace_period: 15s
+    # The manager stays root inside its container: it must use the engine socket and rewrite
+    # the deployment .env. Under rootless Podman that maps to the unprivileged host account.
+    security_opt:
+      - label=disable
+      - no-new-privileges:true
     command: ["node", "/app/manager/server.mjs"]
     env_file: .env
     environment:
@@ -127,6 +154,8 @@ services:
     container_name: rogueroute-gpx-osrm
     restart: unless-stopped
     stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
     command: ["osrm-routed", "--algorithm", "mld", "/data/${OSRM_GRAPH:-australia-latest.osrm}"]
     volumes:
       - type: bind

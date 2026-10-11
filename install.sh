@@ -24,15 +24,27 @@ done
 
 case "$TARGET" in /|/opt|/opt/media-server) echo "Unsafe installation path: $TARGET" >&2; exit 1 ;; esac
 RUNTIME="${ROGUEROUTE_RUNTIME:-auto}"
+detect_runtime() {
+  # Pick an engine that is actually running, not merely installed: a leftover docker CLI or
+  # the podman-docker shim must not win over a working Podman. Rootless Podman is never
+  # driven through sudo, so Docker is tried first when running as root.
+  local engine
+  local -a candidates=(podman docker)
+  [[ $EUID -eq 0 ]] && candidates=(docker podman)
+  for engine in "${candidates[@]}"; do
+    if command -v "$engine" >/dev/null && "$engine" info >/dev/null 2>&1 &&
+      "$engine" compose version >/dev/null 2>&1; then
+      printf '%s\n' "$engine"
+      return 0
+    fi
+  done
+  return 1
+}
 if [[ "$RUNTIME" == auto ]]; then
-  if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
-    RUNTIME=docker
-  elif command -v podman >/dev/null && podman compose version >/dev/null 2>&1; then
-    RUNTIME=podman
-  else
-    echo "Docker Compose or Podman Compose is required." >&2
+  RUNTIME="$(detect_runtime)" || {
+    echo "A running Docker or Podman engine with its Compose provider is required." >&2
     exit 1
-  fi
+  }
 fi
 [[ "$RUNTIME" == docker || "$RUNTIME" == podman ]] || { echo "ROGUEROUTE_RUNTIME must be auto, docker, or podman." >&2; exit 1; }
 if [[ "$RUNTIME" == podman && $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
