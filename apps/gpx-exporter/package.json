@@ -1,6 +1,6 @@
 {
-  "name": "@rogue/gpx-exporter",
-  "version": "12.6.3",
+  "name": "@rogueroute-gpx/exporter",
+  "version": "13.0.0",
   "private": true,
   "engines": {
     "node": "26.8.1",
@@ -12,6 +12,6 @@
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@rogue/gpx-core": "workspace:*"
+    "@rogueroute-gpx/core": "workspace:*"
   }
 }

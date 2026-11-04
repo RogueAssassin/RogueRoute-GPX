@@ -1,6 +1,6 @@
 {
-  "name": "gpx-route-generator",
-  "version": "12.6.3",
+  "name": "rogueroute-gpx",
+  "version": "13.0.0",
   "private": true,
   "packageManager": "pnpm@11.24.0",
   "engines": {
@@ -8,14 +8,14 @@
     "pnpm": "11.24.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @rogue/gpx-web dev",
+    "dev": "pnpm --filter @rogueroute-gpx/web dev",
     "build": "pnpm -r build",
-    "start": "pnpm --filter @rogue/gpx-web start",
-    "console": "pnpm --filter @rogue/gpx-console start",
+    "start": "pnpm --filter @rogueroute-gpx/web start",
+    "console": "pnpm --filter @rogueroute-gpx/console start",
     "version:check": "bash scripts/version.sh check",
     "version:set": "bash scripts/version.sh set",
-    "typecheck": "pnpm --filter @rogue/gpx-core build && pnpm -r typecheck",
-    "test": "pnpm -r --if-present test && node --test apps/gpx-web/manager/*.test.mjs"
+    "typecheck": "pnpm --filter @rogueroute-gpx/core build && pnpm -r typecheck",
+    "test": "pnpm -r --if-present test && node --test apps/gpx-web/supervisor/*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

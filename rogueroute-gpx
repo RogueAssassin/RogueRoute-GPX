@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+# rogueroute-gpx host administration. Everything runs in one container; map commands are
+# executed inside it, so the host only needs Docker or Podman with Compose.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV="$ROOT/.env"
+CONTAINER=rogueroute-gpx
+fail() { echo "[ERROR] $*" >&2; exit 1; }
+[[ -f "$ENV" ]] || { cp "$ROOT/.env.example" "$ENV"; chmod 600 "$ENV"; }
+
+get_env() {
+  local value
+  value="$(grep -E "^${1}=" "$ENV" | tail -n1 | cut -d= -f2- || true)"
+  printf '%s\n' "${value:-${2:-}}"
+}
+
+set_env() {
+  if grep -qE "^${1}=" "$ENV"; then
+    sed -i "s|^${1}=.*|${1}=${2}|" "$ENV"
+  else
+    printf '%s=%s\n' "$1" "$2" >> "$ENV"
+  fi
+}
+
+detect_runtime() {
+  # Pick an engine that is running, not merely installed. Rootless Podman is never driven
+  # through sudo, so Docker is tried first when running as root.
+  local engine
+  local -a candidates=(podman docker)
+  [[ $EUID -eq 0 ]] && candidates=(docker podman)
+  for engine in "${candidates[@]}"; do
+    if command -v "$engine" >/dev/null && "$engine" info >/dev/null 2>&1 &&
+      "$engine" compose version >/dev/null 2>&1; then
+      printf '%s\n' "$engine"
+      return 0
+    fi
+  done
+  return 1
+}
+
+runtime="${ROGUEROUTE_RUNTIME:-$(get_env ROGUEROUTE_RUNTIME auto)}"
+if [[ "$runtime" == auto ]]; then
+  runtime="$(detect_runtime)" || fail "Neither Podman Compose nor Docker Compose is available and running."
+fi
+[[ "$runtime" == podman || "$runtime" == docker ]] || fail "ROGUEROUTE_RUNTIME must be auto, podman, or docker."
+command -v "$runtime" >/dev/null || fail "$runtime is not installed."
+
+COMPOSE=("$runtime" compose --env-file "$ENV" -f "$ROOT/compose.yaml")
+[[ "$runtime" == podman && $EUID -ne 0 ]] && COMPOSE+=(-f "$ROOT/compose.podman.yaml")
+
+repository_version() {
+  local tag version
+  [[ -r "$ROOT/VERSION" ]] || fail "Missing VERSION file. This deployment must be a complete Git checkout."
+  tag="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+  version="${tag#v}"
+  [[ "$tag" == "v$version" && "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Invalid VERSION value: $tag"
+  printf '%s\n' "$version"
+}
+
+image_tag() {
+  # The testing branch publishes VERSION-testing; stable releases publish VERSION.
+  case "$(get_env ROGUEROUTE_CHANNEL stable)" in
+    testing) printf '%s-testing\n' "$1" ;;
+    stable) printf '%s\n' "$1" ;;
+    *) fail "ROGUEROUTE_CHANNEL must be stable or testing." ;;
+  esac
+}
+
+prepare_environment() {
+  local network data
+  if [[ -z "$(get_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)" ]]; then
+    command -v openssl >/dev/null || fail "OpenSSL is required to generate runtime secrets."
+    set_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$(openssl rand -base64 32)"
+  fi
+  [[ -n "$(get_env PUID)" ]] || set_env PUID "$(id -u "${SUDO_USER:-$(id -un)}")"
+  [[ -n "$(get_env PGID)" ]] || set_env PGID "$(id -g "${SUDO_USER:-$(id -un)}")"
+  # Settings that only existed for the v12 multi-container layout.
+  sed -i -E '/^(OSRM_MANAGER_URL|OSRM_MANAGER_TOKEN|OSRM_MANAGER_TOKEN_FILE|OSRM_SWITCH_ACCESS_KEY|OSRM_SWITCH_ENABLED|CONTAINER_SOCKET|OSRM_IMAGE|OSRM_HOST_PORT|OSRM_GRAPH|OSRM_PBF)=/d' "$ENV"
+  set_env ROGUEROUTE_RUNTIME "$runtime"
+  chmod 600 "$ENV" 2>/dev/null || true
+  network="$(get_env MEDIA_NETWORK media-net)"
+  "$runtime" network inspect "$network" >/dev/null 2>&1 || "$runtime" network create "$network" >/dev/null
+  "$runtime" network inspect rogueroute-gpx >/dev/null 2>&1 || "$runtime" network create rogueroute-gpx >/dev/null
+  data="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
+  [[ -d "$data" ]] || mkdir -p "$data" 2>/dev/null || fail "Cannot create $data. Run once: sudo ./rogueroute-gpx permissions"
+}
+
+remove_v12_layout() {
+  # v12 ran web, manager, osrm and secrets-init as separate containers. Remove them and the
+  # manager's secret volume so the single v13 container can start. The rogueroute-gpx network
+  # stays: v13 uses it too, and Rogue Dashboard joins it.
+  local name found=false
+  for name in rogueroute-gpx-web rogueroute-gpx-manager rogueroute-gpx-osrm rogueroute-gpx-secrets-init; do
+    if "$runtime" container inspect "$name" >/dev/null 2>&1; then
+      found=true
+      "$runtime" rm -f "$name" >/dev/null
+    fi
+  done
+  if [[ "$found" == true ]]; then
+    echo "[INFO] Removed the v12 containers."
+    "$runtime" volume rm rogueroute-gpx-manager-secrets >/dev/null 2>&1 || true
+  fi
+}
+
+container_health() {
+  local health
+  health="$("$runtime" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER" 2>/dev/null || true)"
+  printf '%s\n' "${health:-missing}"
+}
+
+wait_for_healthy() {
+  local timeout deadline state
+  timeout=180
+  deadline=$((SECONDS + timeout))
+  echo "[INFO] Waiting for the website to report healthy."
+  while (( SECONDS < deadline )); do
+    state="$(container_health)"
+    case "$state" in
+      healthy) echo "[OK] rogueroute-gpx is healthy. OSRM loads its graph in the background:"; osm status || true; return 0 ;;
+      unhealthy|exited|dead) "${COMPOSE[@]}" logs --tail=100 >&2 || true; fail "rogueroute-gpx became $state." ;;
+    esac
+    sleep 2
+  done
+  "${COMPOSE[@]}" logs --tail=100 >&2 || true
+  fail "rogueroute-gpx did not become healthy within ${timeout}s."
+}
+
+require_running() {
+  [[ "$("$runtime" inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null || true)" == true ]] ||
+    fail "The rogueroute-gpx container is not running. Start it with: ./rogueroute-gpx start"
+}
+
+osm() {
+  require_running
+  local -a tty=()
+  [[ -t 0 && -t 1 ]] && tty=(-it)
+  "$runtime" exec "${tty[@]}" "$CONTAINER" rogueroute-gpx osm "$@"
+}
+
+ensure_writable() {
+  [[ -w "$ROOT" && -w "$ENV" ]] || fail "Deployment files are not writable by $(id -un). Run once: sudo ./rogueroute-gpx permissions"
+}
+
+doctor() {
+  local failures=0 data
+  data="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
+  echo "rogueroute-gpx v$(get_env ROGUEROUTE_VERSION unknown) ($runtime)"
+  echo "Deployment: $ROOT"
+  echo "Map data:   $data"
+  "${COMPOSE[@]}" config -q || failures=$((failures + 1))
+  [[ -w "$data" ]] || { echo "[WARN] $data is not writable by $(id -un); downloads and preparation will fail."; failures=$((failures + 1)); }
+  echo "Container:  $(container_health)"
+  if [[ "$(container_health)" == healthy ]]; then
+    osm status || failures=$((failures + 1))
+  else
+    failures=$((failures + 1))
+  fi
+  (( failures == 0 )) || fail "$failures diagnostic check(s) failed."
+  echo "[OK] All checks passed."
+}
+
+show_help() {
+  cat <<'HELP'
+rogueroute-gpx administration
+
+Usage: ./rogueroute-gpx COMMAND [OPTIONS]
+
+Container:
+  start                 Pull the image and start the container
+  stop                  Stop and remove the container (map data is kept)
+  restart               Pull and recreate the container
+  update                Apply VERSION from Git, migrate older layouts, pull and recreate
+  status                Show container state
+  logs                  Follow container logs
+  doctor                Check configuration, permissions, container and OSRM state
+  config                Print the effective non-secret configuration
+  version               Show the configured version
+  permissions           (sudo) Give your account the checkout and map data directory
+
+Maps (run inside the container):
+  osm list | status | download REGION... | download-missing --yes | prepare REGION...
+  osm prepare-downloaded --yes | switch REGION | verify REGION | job | help
+HELP
+}
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  start)
+    prepare_environment
+    remove_v12_layout
+    "${COMPOSE[@]}" pull
+    "${COMPOSE[@]}" up -d --remove-orphans
+    wait_for_healthy ;;
+  stop) "${COMPOSE[@]}" down ;;
+  restart)
+    prepare_environment
+    remove_v12_layout
+    "${COMPOSE[@]}" pull
+    "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
+    wait_for_healthy ;;
+  update)
+    ensure_writable
+    prepare_environment
+    version="$(repository_version)"
+    set_env ROGUEROUTE_VERSION "$version"
+    set_env ROGUEROUTE_TAG "$(image_tag "$version")"
+    remove_v12_layout
+    "${COMPOSE[@]}" pull
+    "${COMPOSE[@]}" up -d --remove-orphans
+    wait_for_healthy
+    echo "[OK] rogueroute-gpx v$version is applied." ;;
+  permissions)
+    [[ $EUID -eq 0 ]] || fail "Run: sudo ./rogueroute-gpx permissions"
+    owner="${SUDO_USER:-root}"
+    group="$(id -gn "$owner")"
+    data="$(get_env OSRM_DATA_DIR /mnt/h/osrm)"
+    install -d -o "$owner" -g "$group" "$data"
+    chown -R "$owner:$group" "$ROOT" "$data"
+    chmod 600 "$ENV"
+    chmod +x "$ROOT/install.sh" "$ROOT/rogueroute-gpx" "$ROOT/rogueroute"
+    echo "[OK] $owner owns the deployment and map data directories." ;;
+  status) "${COMPOSE[@]}" ps ;;
+  logs) "${COMPOSE[@]}" logs --tail=200 -f "$@" ;;
+  doctor) doctor ;;
+  config)
+    printf '%-36s %s\n' \
+      ROGUEROUTE_VERSION "$(get_env ROGUEROUTE_VERSION unknown)" \
+      ROGUEROUTE_IMAGE "$(get_env ROGUEROUTE_IMAGE ghcr.io/rogueassassin/rogueroute-gpx)" \
+      ROGUEROUTE_CHANNEL "$(get_env ROGUEROUTE_CHANNEL stable)" \
+      ROGUEROUTE_TAG "$(get_env ROGUEROUTE_TAG "$(repository_version)")" \
+      ROGUEROUTE_RUNTIME "$runtime" \
+      HOST_BIND "$(get_env HOST_BIND 0.0.0.0)" \
+      HOST_PORT "$(get_env HOST_PORT 9080)" \
+      PUID/PGID "$(get_env PUID)/$(get_env PGID)" \
+      MEDIA_NETWORK "$(get_env MEDIA_NETWORK media-net)" \
+      OSRM_DATA_DIR "$(get_env OSRM_DATA_DIR /mnt/h/osrm)" \
+      OSRM_ACTIVE_REGION "$(get_env OSRM_ACTIVE_REGION australia)" \
+      OSRM_PROFILE "$(get_env OSRM_PROFILE foot)" \
+      OSRM_SWITCH_COOLDOWN_SECONDS "$(get_env OSRM_SWITCH_COOLDOWN_SECONDS 60)" \
+      ADMIN_TOKEN "$([[ -n "$(get_env ADMIN_TOKEN)" ]] && echo set || echo 'not set (website map administration off)')" ;;
+  version) echo "rogueroute-gpx v$(get_env ROGUEROUTE_VERSION unknown)" ;;
+  osm) osm "$@" ;;
+  help|-h|--help) show_help ;;
+  *) fail "Unknown command: $cmd. Run: ./rogueroute-gpx help" ;;
+esac

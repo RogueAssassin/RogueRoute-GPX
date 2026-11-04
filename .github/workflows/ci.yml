@@ -38,62 +38,98 @@ jobs:
       - name: Validate release surfaces and shell syntax
         run: |
           bash scripts/version.sh check
-          bash -n install.sh rogueroute scripts/osm.sh scripts/osm-region-catalog.sh scripts/version.sh
+          bash -n install.sh rogueroute rogueroute-gpx scripts/version.sh
+          test -x rogueroute-gpx && test -x rogueroute && test -x install.sh
       - name: Validate Compose configuration
         run: |
           cp .env.example .env
-          docker network create media-net >/dev/null 2>&1 || true
-          docker network create rogueroute-gpx >/dev/null 2>&1 || true
+          docker network create media-net >/dev/null
+          docker network create rogueroute-gpx >/dev/null
           docker compose --env-file .env -f compose.yaml config -q
+          docker compose --env-file .env -f compose.yaml -f compose.podman.yaml config -q
 
   container:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/gpx-web/Dockerfile
+          file: Dockerfile
           push: false
           load: true
-          tags: rogueroute-gpx:ci
+          tags: ghcr.io/rogueassassin/rogueroute-gpx:ci
           cache-from: type=gha
-      - name: Smoke test web (hardened runtime, health, graceful stop)
+      - name: Start through compose with two tiny test regions
         shell: bash
         run: |
-          # Same restrictions compose.yaml applies: unprivileged user, read-only root, no capabilities.
-          docker run -d --name web -p 19080:9080 -e HOSTNAME=0.0.0.0 \
-            --user 1000:1000 --read-only --tmpfs /tmp --tmpfs /app/apps/gpx-web/.next/cache \
-            --cap-drop ALL --security-opt no-new-privileges:true rogueroute-gpx:ci
-          for _ in $(seq 1 30); do
-            curl -fsS http://127.0.0.1:19080/api/health && break
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:19080/api/health >/dev/null
+          set -euo pipefail
+          data="$RUNNER_TEMP/osrm"; mkdir -p "$data"
+          cat > "$RUNNER_TEMP/regions.json" <<'JSON'
+          { "regions": [
+            { "key": "andorra", "label": "Andorra", "group": "test", "graph": "andorra", "url": "https://download.geofabrik.de/europe/andorra-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[1.40, 42.42, 1.80, 42.66]] },
+            { "key": "liechtenstein", "label": "Liechtenstein", "group": "test", "graph": "liechtenstein", "url": "https://download.geofabrik.de/europe/liechtenstein-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[9.47, 47.04, 9.64, 47.28]] }
+          ] }
+          JSON
+          cp .env.example .env
+          sed -i "s|^OSRM_DATA_DIR=.*|OSRM_DATA_DIR=$data|; s|^ROGUEROUTE_TAG=.*|ROGUEROUTE_TAG=ci|; s|^PUID=.*|PUID=$(id -u)|; s|^PGID=.*|PGID=$(id -g)|; s|^OSRM_ACTIVE_REGION=.*|OSRM_ACTIVE_REGION=andorra|; s|^OSRM_SWITCH_COOLDOWN_SECONDS=.*|OSRM_SWITCH_COOLDOWN_SECONDS=0|; s|^HOST_PORT=.*|HOST_PORT=19080|" .env
+          echo "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
+          cat > "$RUNNER_TEMP/ci.yaml" <<YAML
+          services:
+            rogueroute-gpx:
+              volumes:
+                - type: bind
+                  source: $RUNNER_TEMP/regions.json
+                  target: /app/regions.json
+                  read_only: true
+          YAML
+          docker network create media-net >/dev/null
+          docker network create rogueroute-gpx >/dev/null
+          docker compose --env-file .env -f compose.yaml -f "$RUNNER_TEMP/ci.yaml" up -d
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19080/api/health && break; sleep 1; done
+          echo
+          curl -fsS http://127.0.0.1:19080/api/health | jq -e '.osrm.state == "no-graph"'
+          test "$(docker exec rogueroute-gpx id -u)" = "$(id -u)"
           curl -fsS http://127.0.0.1:19080/ >/dev/null
-          test "$(docker exec web id -u)" = "1000"
-          start=$(date +%s)
-          docker stop -t 20 web
-          elapsed=$(( $(date +%s) - start ))
-          echo "docker stop took ${elapsed}s"
-          test "$elapsed" -lt 10   # SIGTERM must be handled; an ignored SIGTERM waits for SIGKILL
-          docker logs web
-      - name: Smoke test manager (health, authentication, graceful stop)
+      - name: Download and prepare inside the container
         shell: bash
         run: |
-          docker run -d --name manager -p 19090:9090 -e OSRM_MANAGER_TOKEN=ci-token \
-            --security-opt no-new-privileges:true rogueroute-gpx:ci node /app/manager/server.mjs
-          for _ in $(seq 1 30); do
-            curl -fsS http://127.0.0.1:19090/health && break
-            sleep 1
+          set -euo pipefail
+          docker exec rogueroute-gpx rogueroute-gpx osm download andorra liechtenstein
+          docker exec rogueroute-gpx rogueroute-gpx osm prepare andorra liechtenstein
+          docker exec rogueroute-gpx rogueroute-gpx osm status
+          # The first prepared region is loaded automatically when nothing was served.
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:19080/api/health/osrm >/dev/null 2>&1 && break; sleep 1
           done
-          curl -fsS http://127.0.0.1:19090/health >/dev/null
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19090/status)" = "401"
-          docker run --rm rogueroute-gpx:ci docker compose version
+          curl -fsS http://127.0.0.1:19080/api/health/osrm | jq -e '.ok and .activeRegion == "andorra"'
+          test -s "$RUNNER_TEMP/osrm/.rogueroute-gpx/state.json"
+      - name: Route with automatic region switching
+        shell: bash
+        run: |
+          set -euo pipefail
+          route() {
+            curl -fsS -X POST http://127.0.0.1:19080/api/generate -H 'content-type: application/json' \
+              -d "$(jq -n --arg input "$1" '{input: $input, routeMode: "preserve-order"}')"
+          }
+          route $'42.5063,1.5218,A\n42.5078,1.5211,B' | tee /tmp/andorra.json | jq -e '.region.key == "andorra" and .region.switched == false and (.gpx | contains("<trk"))' >/dev/null
+          route $'47.1410,9.5209,A\n47.1395,9.5230,B' | tee /tmp/liechtenstein.json | jq -e '.region.key == "liechtenstein" and .region.switched == true and (.gpx | contains("<trk"))' >/dev/null
+          curl -fsS http://127.0.0.1:19080/api/regions | jq -e '.activeRegion == "liechtenstein" and .osrm.state == "ready"'
+          # Waypoints outside every prepared region get a clear error instead of a switch.
+          code=$(curl -s -o /tmp/outside.json -w '%{http_code}' -X POST http://127.0.0.1:19080/api/generate \
+            -H 'content-type: application/json' -d '{"input":"-37.8136,144.9631\n-37.8160,144.9690"}')
+          test "$code" = 400 && jq -e '.error | test("not inside any")' /tmp/outside.json
+          # Admin endpoints are closed without ADMIN_TOKEN.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19080/api/admin/jobs)" = 401
+      - name: Graceful stop
+        if: always()
+        shell: bash
+        run: |
+          docker logs rogueroute-gpx 2>&1 | tail -80
           start=$(date +%s)
-          docker stop -t 20 manager
+          docker stop -t 30 rogueroute-gpx
           elapsed=$(( $(date +%s) - start ))
           echo "docker stop took ${elapsed}s"
-          test "$elapsed" -lt 10
+          test "$elapsed" -lt 20
