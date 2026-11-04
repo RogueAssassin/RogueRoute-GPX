@@ -1,11 +1,33 @@
 # Changelog
 
-## v12.6.1 — Testing
+## v13.0.0 — One container, automatic regions
 
-- Advanced the testing channel beyond stable v12.6.0.
-- Retains the proven Docker and rootless Podman runtime, shared media-net integration, OSRM v26.7.3 Debian image, and Podman-compatible dependency handling.
-- Reserved for follow-up testing and regression fixes before the next stable promotion.
+- Rebuilt the runtime as a single `rogueroute-gpx` container: website, OSRM, region switching, and map download/preparation. The manager, secrets-init and separate OSRM containers, the engine socket mount and the secrets volume are gone.
+- Region switching restarts `osrm-routed` inside the container under a supervisor, with rollback to the previous graph, so it behaves the same on Docker and Podman.
+- Routes pick the prepared region containing all waypoints and switch automatically; the Map region panel can force a region and shows OSRM state.
+- `osm` commands run inside the container; optional website map administration with `ADMIN_TOKEN`.
+- One region catalog, `regions.json`, with areas for automatic selection.
+- Lowercase `rogueroute-gpx` naming for the repository, install path, script, packages and IITC plugin. `./rogueroute` forwards to `./rogueroute-gpx`.
+- `./rogueroute-gpx update` migrates v12 installs and keeps Rogue Dashboard compatibility.
 
+## v12.6.3 — OSRM container handover
+
+- Fixed website region switching failing with `the container name "rogueroute-gpx-osrm" is already in use` on Podman hosts: the manager now removes the current OSRM container before recreating it, because Docker Compose does not recognise a container created by `podman compose`.
+- `./rogueroute start`, `restart` and `update` replace an OSRM container left by the region switcher, and `./rogueroute osm switch` frees the name before recreating OSRM.
+
+## v12.6.2 — Podman region switching
+
+- Fixed website region switching failing with `network rogueroute-gpx was found but has incorrect label com.docker.compose.network` on Podman hosts: the private `rogueroute-gpx` network is now external and pre-created by `install.sh` and `./rogueroute`, so Docker Compose in the manager accepts a network created by `podman compose`.
+
+## v12.6.1 — Container hardening
+
+- Ran the public web service as an unprivileged user with a read-only root filesystem, no capabilities and `no-new-privileges`.
+- Made `secrets-init` hand the manager token to the web user and stop immediately; added `no-new-privileges` to every service.
+- Added `SIGTERM` handling to the manager so stops and recreates no longer wait for the kill timeout.
+- Made `ROGUEROUTE_RUNTIME=auto` select a running engine, Podman first, or Docker first when run as root.
+- Added `HOST_BIND` to limit the published web port to one address.
+- Marked the administration scripts executable in Git and pinned LF line endings for container files.
+- Added a pull-request image build with web and manager smoke tests; an in-progress publish is never cancelled.
 
 ## v12.6.0 — Docker and Podman runtime support
 

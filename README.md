@@ -6,178 +6,124 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-12.6.1-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/RogueRoute-GPX/releases)
-[![Container](https://img.shields.io/badge/GHCR-ready-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/RogueRoute-GPX/pkgs/container/rogueroute-gpx)
-[![No Node](https://img.shields.io/badge/server-no_node_or_pnpm-ff2bd6?style=for-the-badge)](#install-from-scratch)
+[![Release](https://img.shields.io/badge/release-13.0.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
+[![Container](https://img.shields.io/badge/GHCR-one_container-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/rogueroute-gpx/pkgs/container/rogueroute-gpx)
+[![Engines](https://img.shields.io/badge/runtime-docker_%7C_podman-ff2bd6?style=for-the-badge)](#requirements)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **12.6.1** · Docker/Podman Compose deployment · Local OSRM routing
+Version **13.0.0** · One container · Local OSRM routing with automatic regions
 
 </div>
 
-RogueRoute GPX accepts IITC exports, JSON, CSV and coordinate lists, routes them along OpenStreetMap roads and walking tracks, and exports GPX files that are detailed enough to follow without overwhelming GPX applications. The production server pulls a prebuilt GHCR image—there is no Node.js, TypeScript or pnpm build on the host.
+RogueRoute GPX accepts IITC exports, JSON, CSV and coordinate lists, routes them along OpenStreetMap roads and walking tracks, and exports GPX files that are detailed enough to follow without overwhelming GPX applications.
+
+Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM routing engine, region switching, and map download and preparation. It runs the same way on Docker and on rootless Podman, and it never needs access to the container engine socket.
 
 ## Why RogueRoute GPX?
 
 | | What you get |
 | --- | --- |
-| 🥾 | **Follow the real path** — local OSRM routing uses mapped roads, footways and walking tracks instead of drawing straight lines. |
-| 🧲 | **Recover difficult portals** — strict routing progressively searches from 250 m up to the configurable 5,000 m snap limit. |
-| 🗺️ | **See the route before export** — the interactive map shows the route, original waypoints, automatic snap corrections and failures. |
-| 📍 | **Keep important geometry** — adaptive simplification retains endpoints, leg boundaries and meaningful bends. |
-| 📦 | **Produce manageable GPX files** — Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
-| 🌏 | **Manage regional maps** — resumable Geofabrik downloads and Docker-based OSRM preparation are included. |
-| 🐳 | **Keep the server light** — the application runs from GHCR and OSRM runs in its own container. |
-| 🔄 | **Switch from the website** — an authenticated internal manager validates the graph and recreates only OSRM. |
-| 🧱 | **Stay independent** — RogueRoute uses its own Docker network and is not part of Rogue Dashboard or another media stack. |
+| 🥾 | **Follow the real path.** Local OSRM routing uses mapped roads, footways and walking tracks instead of drawing straight lines. |
+| 🌏 | **Automatic regions.** Paste waypoints anywhere you have a prepared map; RogueRoute picks the matching region and loads it. |
+| 🧲 | **Recover difficult portals.** Strict routing searches progressively from 250 m up to a configurable 5,000 m snap limit. |
+| 🗺️ | **See the route before export.** The map shows the route, the original waypoints, automatic snap corrections and failures. |
+| 📦 | **Manageable GPX files.** Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
+| 🧰 | **Maps managed in place.** Resumable Geofabrik downloads and OSRM preparation run inside the container, from the CLI or the website. |
+| 🐳 | **One container.** No sidecars, no engine socket, no shared secrets volume. |
 
 ## Install from scratch
 
 ### Requirements
 
 - 64-bit AMD64 or ARM64 Linux
-- Docker Engine + Docker Compose v2, or rootless Podman + Podman Compose
-- Git, Bash, curl and OpenSSL
+- Docker Engine with Docker Compose v2, or rootless Podman with Podman Compose
+- Git, Bash and OpenSSL
 - Port `9080` for the web interface
-- A dedicated folder for downloaded `.osm.pbf` and prepared `.osrm*` files
+- A folder for downloaded `.osm.pbf` and prepared `.osrm*` files, with enough space and RAM
+  for the regions you want (see `./rogueroute-gpx osm list`)
 
-### 1. Clone directly into the permanent installation folder
-
-```bash
-sudo install -d -o "$USER" -g "$(id -gn)" /opt/media-server/RogueRoute-GPX
-git clone https://github.com/RogueAssassin/RogueRoute-GPX.git /opt/media-server/RogueRoute-GPX
-cd /opt/media-server/RogueRoute-GPX
-```
-
-### 2. Install the standalone runtime
+### 1. Clone into the permanent folder
 
 ```bash
-./install.sh \
-  --data-dir /mnt/h/osrm \
-  --region new-zealand
+sudo install -d -o "$USER" -g "$(id -gn)" /opt/media-server/rogueroute-gpx
+git clone https://github.com/RogueAssassin/rogueroute-gpx.git /opt/media-server/rogueroute-gpx
+cd /opt/media-server/rogueroute-gpx
 ```
 
-The installation remains a Git checkout. The installer creates the ignored
-machine-local `.env`, preserves the external OSRM data folder, generates a
-persistent encryption key and pins the container to the repository's
-`VERSION`.
-
-### 3. Prepare the first map region
-
-Skip the download and preparation commands when a complete graph already exists in `/mnt/h/osrm`.
+### 2. Install, start and build the first region
 
 ```bash
-cd /opt/media-server/RogueRoute-GPX
-./rogueroute osm list
-./rogueroute osm download new-zealand
-./rogueroute osm prepare new-zealand
-./rogueroute start
+./install.sh --data-dir /mnt/h/osrm --region new-zealand --start
 ```
 
-### 4. Open RogueRoute
+The installer writes the ignored `.env`, sets the container user to your account, starts
+the container, then downloads and prepares the region if it is not prepared already. Run it
+without `--start` to only configure.
 
-Visit `http://SERVER-IP:9080` and generate a known route. Change `HOST_PORT` in `.env` if port 9080 is already in use.
+### 3. Open RogueRoute GPX
 
-## What the container runtime starts
+Visit `http://SERVER-IP:9080`. Change `HOST_PORT` in `.env` if port 9080 is taken.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    Browser["Browser :9080"] --> Web["RogueRoute GPX web"]
-    Web --> OSRM["OSRM foot router :5000"]
-    Web --> Manager["Private OSRM manager"]
-    Manager --> Socket["container runtime socket"]
-    Manager --> OSRM
-    OSRM --> Maps["External OSM/OSRM data"]
+    Browser["Browser :9080"] --> Web
     IITC["IITC exporter"] --> Web
+    subgraph container["container: rogueroute-gpx"]
+        Supervisor["supervisor (PID 1)"] --> Web["website"]
+        Supervisor --> OSRM["osrm-routed :5000 (internal)"]
+        Supervisor --> Jobs["download / prepare jobs"]
+        Web -- "control socket" --> Supervisor
+    end
+    OSRM --> Maps["OSRM_DATA_DIR → /data"]
+    Jobs --> Maps
 ```
 
-| Container | Purpose | Persistent dependency |
-| --- | --- | --- |
-| `rogueroute-gpx-web` | Interface, input parsing, route generation, preview and GPX export | `.env` |
-| `rogueroute-gpx-manager` | Authenticated internal region switching and OSRM-only recreation | Private secret volume, `.env`, read-only map data and container runtime socket |
-| `rogueroute-gpx-osrm` | Local MLD routing using the foot profile | `OSRM_DATA_DIR` |
-
-The manager has no published port and requires the generated private token file for every management request. Only the manager mounts the container runtime socket; the public web container never receives it.
-
-All long-running containers have bounded JSON logs and native container health checks. Web and Manager use their private HTTP endpoints; OSRM verifies both the `osrm-routed` process and its listening socket. Web waits for healthy Manager and OSRM dependencies, and `start`, `restart` and `update` wait until all three services report healthy.
-
-The default configuration uses the current official `ghcr.io/project-osrm/osrm-backend:v26.7.3-debian` multi-platform image. Its optional host port binds to `127.0.0.1` only; Web and Rogue Dashboard use Docker networking rather than a LAN-exposed routing port. Existing installations retain their explicit `.env` image until the operator performs the graph-format migration described in the upgrading guide.
-
-## Rogue Dashboard health integration
-
-Rogue Dashboard must share RogueRoute's private network to run direct probes. Dashboard 1.0.1 detects this network automatically during install or upgrade when no other extra network is configured. To configure it explicitly, edit the dashboard's `.env`:
-
-```dotenv
-RGDASH_EXTRA_NETWORK=rogueroute-gpx
-RGDASH_ROGUEROUTE_URL=https://gpx.example.com
-```
-
-Then run `./upgrade.sh` from the Rogue Dashboard checkout. The standard cards use:
-
-| Card | Health source |
-| --- | --- |
-| Web | container health plus `http://rogueroute-gpx-web:9080/api/health` |
-| OSRM | container health plus `http://rogueroute-gpx-web:9080/api/health/osrm` |
-| Manager | container health plus `http://rogueroute-gpx-manager:9090/health` |
-
-container health remains authoritative if the private endpoint cannot be reached, while the dashboard Connection centre reports the network warning separately.
+- The **supervisor** starts the website and `osrm-routed` as child processes. To switch region
+  it stops `osrm-routed` and starts it on the other graph. If the new graph fails to load, it
+  goes back to the previous one. The last served region is saved in
+  `OSRM_DATA_DIR/.rogueroute-gpx/state.json`.
+- When you **generate a route**, the website finds the prepared region whose area contains all
+  your waypoints (the active region first, otherwise the smallest match, so Germany beats
+  Europe) and switches to it if needed. Pick a region in the **Map region** panel to override.
+- Region switches are global (one OSRM serves every visitor), so they are serialised and
+  rate-limited by `OSRM_SWITCH_COOLDOWN_SECONDS`.
+- The image is built from the official `ghcr.io/project-osrm/osrm-backend` image, so the OSRM
+  tools and routing profiles are upstream's own.
 
 ## Day-to-day commands
 
 ```bash
-# Start the pinned containers
-./rogueroute start
+./rogueroute-gpx start          # pull and start the container
+./rogueroute-gpx update         # after git pull: apply VERSION, migrate, pull, recreate
+./rogueroute-gpx doctor         # configuration, permissions, container and OSRM state
+./rogueroute-gpx logs
+./rogueroute-gpx stop           # map data is kept
 
-# Update the repository, synchronize VERSION and apply the matching image
-git pull --ff-only
-./rogueroute update
-
-# One-time ownership repair, only if an update reports a permissions error
-sudo ./rogueroute permissions
-
-# View status and follow logs
-./rogueroute status
-./rogueroute logs
-./rogueroute doctor
-./rogueroute config
-
-# Restart or stop without removing map data
-./rogueroute restart
-./rogueroute stop
-
-# Select another prepared region
-./rogueroute osm switch australia
+./rogueroute-gpx osm status     # active region and every region's state
+./rogueroute-gpx osm download japan
+./rogueroute-gpx osm prepare japan
+./rogueroute-gpx osm switch japan  # optional: routes switch automatically
 ```
+
+See the [command reference](docs/commands.md) and [maps guide](docs/osm.md).
 
 ## Configuration
 
-Machine-specific settings live in `/opt/media-server/RogueRoute-GPX/.env` and must not be committed.
+Machine-specific settings live in `/opt/media-server/rogueroute-gpx/.env` and must not be
+committed. The most useful ones:
 
-```dotenv
-ROGUEROUTE_VERSION=12.6.1
-HOST_PORT=9080
-
-OSRM_DATA_DIR=/mnt/h/osrm
-OSRM_ACTIVE_REGION=new-zealand
-OSRM_GRAPH=new-zealand-latest.osrm
-OSRM_SNAP_RADIUS_METERS=250
-OSRM_SNAP_MAX_RADIUS_METERS=5000
-OSRM_SWITCH_ENABLED=true
-OSRM_MANAGER_URL=http://manager:9090
-OSRM_IMAGE=ghcr.io/project-osrm/osrm-backend:v26.7.3-debian
-ROGUEROUTE_STARTUP_TIMEOUT_SECONDS=600
-
-GPX_MAX_TRACK_POINTS=1000
-GPX_SIMPLIFY_TOLERANCE_METERS=2.5
-```
-
-Docker generates the manager token inside the private
-`rogueroute-gpx-manager-secrets` volume. It is mounted read-only into the web
-and manager containers and never enters `.env`, HTML, browser storage, logs or
-Nginx Proxy Manager. Public users do not need a key. A global switch lock and
-60-second cooldown prevent overlapping or rapid OSRM restarts.
-
-Use `ROGUEROUTE_VERSION=12.6.1` for a reproducible deployment. The matching image is `ghcr.io/rogueassassin/rogueroute-gpx:12.6.1`.
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `OSRM_DATA_DIR` | `/mnt/h/osrm` | Map folder, mounted at `/data` |
+| `OSRM_ACTIVE_REGION` | `australia` | Region loaded on the very first start |
+| `OSRM_SWITCH_COOLDOWN_SECONDS` | `60` | Minimum time between automatic or public switches |
+| `ADMIN_TOKEN` | empty | Set to a long random value to download and prepare maps from the website |
+| `HOST_BIND` / `HOST_PORT` | `0.0.0.0` / `9080` | Where the website is published |
+| `PUID` / `PGID` | your account | Container user, so map files stay yours |
+| `ROGUEROUTE_RUNTIME` | `auto` | `podman`, `docker`, or detect a running engine |
+| `GPX_MAX_TRACK_POINTS` | `1000` | Point budget for Automatic GPX detail |
 
 ## GPX detail modes
 
@@ -189,58 +135,22 @@ Use `ROGUEROUTE_VERSION=12.6.1` for a reproducible deployment. The matching imag
 
 Automatic simplification does not remove submitted waypoints or routed leg boundaries.
 
-## OSM regions
+## Rogue Dashboard
 
-```bash
-./rogueroute osm list
-./rogueroute osm status
-./rogueroute osm path
-./rogueroute osm download australia new-zealand japan
-./rogueroute osm download-missing --yes
-./rogueroute osm prepare new-zealand
-./rogueroute osm prepare-downloaded --yes
-./rogueroute osm verify new-zealand
-./rogueroute osm switch new-zealand
-```
-
-`download-missing` processes every catalog entry without a completed PBF,
-including resumable partials, while skipping existing downloads. The command
-asks for confirmation because the full catalog is very large; `--yes` is for
-unattended operation. `prepare-downloaded` builds every downloaded region that
-does not yet have a complete MLD graph. Both batch commands continue after an
-individual failure and print a final summary.
-
-Downloads retry transient failures and retain `.part` files for a later resume.
-Preparation runs `osrm-extract`, `osrm-partition` and `osrm-customize`, then
-verifies the required MLD outputs before selecting the graph.
-
-Large regions can require significant RAM, storage and processing time. Prefer country or sub-region extracts over continents and the full planet.
-
-## Upgrade without losing maps
-
-```bash
-cd /opt/media-server/RogueRoute-GPX && git pull --ff-only
-./rogueroute update
-```
-
-`update` reads the tracked `VERSION`, updates only the version field in the
-ignored `.env`, pulls that exact GHCR image, and applies the Compose stack.
-External map data and existing secrets are untouched. See the upgrading guide
-for the one-time conversion from an older copied/ZIP installation.
+The container joins the `rogueroute-gpx` and `media-net` networks and still answers as
+`rogueroute-gpx-web`, so existing Rogue Dashboard settings keep working. The cards use
+`/api/health` (website) and `/api/health/osrm` (routing engine).
 
 ## Documentation
 
-- [Installation](docs/INSTALL.md)
-- [OSM downloads and OSRM preparation](docs/OSM.md)
-- [Upgrading and rollback](docs/UPGRADING.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Command reference](docs/COMMANDS.md)
-- [v12.6.1 release notes](docs/RELEASE-v12.6.1.md)
-- [GitHub Desktop release upload](GITHUB-DESKTOP-UPLOAD.md)
+- [Installation](docs/install.md)
+- [Maps: download, prepare, switch](docs/osm.md)
+- [Upgrading, including from v12](docs/upgrading.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Command reference](docs/commands.md)
+- [v13.0.0 release notes](docs/releases/v13.0.0.md)
 
-## Development and local builds
-
-Production servers pull the prebuilt image. Repository contributors can validate the source with the pinned toolchain:
+## Development
 
 ```bash
 npm install --global pnpm@11.24.0
@@ -248,27 +158,18 @@ pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
 pnpm build
+docker build -t rogueroute-gpx:dev .
 ```
 
-The supported development runtime is Node.js `26.8.1` with pnpm `11.24.0` and TypeScript `6.0.3`. Publishing the GitHub Release tagged `v12.6.1` validates the workspace and builds AMD64 and ARM64 GHCR images.
+`pnpm dev` runs the website on its own; without the supervisor it routes against
+`OSRM_URL` (default `http://127.0.0.1:5000`) and skips automatic region switching.
+
+The supported toolchain is Node.js `26.8.1`, pnpm `11.24.0` and TypeScript `6.0.3`. Pushing to
+`main` or publishing a release builds AMD64 and ARM64 images. The `testing` branch publishes
+`ghcr.io/rogueassassin/rogueroute-gpx:testing`.
 
 ## Acknowledgements
 
-Routing data is provided by [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), regional extracts by [Geofabrik](https://download.geofabrik.de/), and local route calculation by [OSRM](https://project-osrm.org/).
-
-## Testing channel
-
-The `testing` branch is now v12.6.1 and remains isolated from stable v12.6.1. Testing uses `ghcr.io/rogueassassin/rogueroute-gpx:testing` and version-specific `-testing` tags.
-
-Testing supports Docker Compose and Podman Compose. Set the runtime explicitly in `.env` when desired:
-
-```env
-ROGUEROUTE_TAG=testing
-ROGUEROUTE_RUNTIME=podman
-MEDIA_NETWORK=media-net
-CONTAINER_SOCKET=/run/user/1000/podman/podman.sock
-```
-
-For Docker use `ROGUEROUTE_RUNTIME=docker` and `CONTAINER_SOCKET=/var/run/docker.sock`.
-RogueRoute attaches its web, manager and OSRM services to the shared `media-net` network as well as its private internal network, allowing RogueDashboard to monitor the private health endpoints without exposing the manager publicly.
-
+Routing data is provided by [OpenStreetMap contributors](https://www.openstreetmap.org/copyright),
+regional extracts by [Geofabrik](https://download.geofabrik.de/), and route calculation by
+[OSRM](https://project-osrm.org/) (BSD-2-Clause), which is bundled in the container image.

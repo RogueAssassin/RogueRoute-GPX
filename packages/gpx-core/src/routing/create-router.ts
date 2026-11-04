@@ -13,10 +13,8 @@ export function createRouterFromEnv(env: {
   const mode = (env.ROUTER_MODE ?? "osrm").toLowerCase();
 
   if (mode === "osrm") {
-    // Docker Compose DNS uses the service name (`osrm`). The container is named
-    // `rogueroute-osrm` for logs/Dozzle, but app-to-OSRM traffic should use
-    // http://osrm:5000 so it survives container-name changes.
-    const osrmUrl = env.OSRM_URL?.trim() || "http://osrm:5000";
+    // osrm-routed runs inside the same container, supervised next to the web server.
+    const osrmUrl = env.OSRM_URL?.trim() || "http://127.0.0.1:5000";
 
     const rawProfile = (env.OSRM_PROFILE ?? "foot").toLowerCase();
     const profile = rawProfile === "bike" || rawProfile === "car" ? rawProfile : "foot";
