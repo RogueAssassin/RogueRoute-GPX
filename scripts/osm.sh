@@ -231,7 +231,10 @@ HELP
     [[ -s "$DATA/$OSRM.mldgr" ]] || fail "Region is not prepared: $DATA/$OSRM.mldgr"
     set_env OSRM_ACTIVE_REGION "$region"
     set_env OSRM_GRAPH "$OSRM"
-    "$RUNTIME" compose --env-file "$ENV" -f "$ROOT/compose.yaml" up -d --force-recreate osrm
+    # The container may have been created by the website switcher's Docker Compose, which this
+    # host's compose tool does not recognise; remove it so its fixed name is free.
+    "$RUNTIME" rm -f rogueroute-gpx-osrm >/dev/null 2>&1 || true
+    "$RUNTIME" compose --env-file "$ENV" -f "$ROOT/compose.yaml" up -d --no-deps --force-recreate osrm
     echo "[OK] Active OSRM region: $region ($OSRM)" ;;
   *) fail "Usage: ./rogueroute osm {list|status|path|download|download-missing|prepare|prepare-downloaded|verify|switch|help}" ;;
 esac
