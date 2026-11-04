@@ -102,6 +102,20 @@ async function waitForContainerHealth(containerName) {
   throw new Error(`${containerName} did not become healthy within ${startupTimeoutMs / 1000} seconds`);
 }
 
+async function recreateOsrm() {
+  // The host may have started the stack with podman-compose, whose containers Docker Compose
+  // does not recognise as its own: it would then try to create a second container with the
+  // same fixed name and fail. Remove the current OSRM container first, whoever created it.
+  await execFileAsync("docker", ["rm", "-f", "rogueroute-gpx-osrm"], { timeout: 60_000 }).catch(() => {});
+  const result = await execFileAsync(
+    "docker",
+    ["compose", "--env-file", envFile, "-f", composeFile, "up", "-d", "--no-deps", "--force-recreate", "osrm"],
+    { timeout: 180_000, maxBuffer: 4 * 1024 * 1024 },
+  );
+  await waitForContainerHealth("rogueroute-gpx-osrm");
+  return result;
+}
+
 function send(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
   response.end(JSON.stringify(payload));
@@ -148,24 +162,14 @@ async function switchRegion(payload) {
   });
   await writeFile(envFile, next, { mode: 0o600 });
   try {
-    const result = await execFileAsync(
-      "docker",
-      ["compose", "--env-file", envFile, "-f", composeFile, "up", "-d", "--force-recreate", "osrm"],
-      { timeout: 180_000, maxBuffer: 4 * 1024 * 1024 },
-    );
-    await waitForContainerHealth("rogueroute-gpx-osrm");
+    const result = await recreateOsrm();
     lastSwitchAt = Date.now();
     return { ok: true, activeRegion: region, graph, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
     await writeFile(envFile, previous, { mode: 0o600 });
     let rollbackMessage = "Previous OSRM configuration was restored.";
     try {
-      await execFileAsync(
-        "docker",
-        ["compose", "--env-file", envFile, "-f", composeFile, "up", "-d", "--force-recreate", "osrm"],
-        { timeout: 180_000, maxBuffer: 4 * 1024 * 1024 },
-      );
-      await waitForContainerHealth("rogueroute-gpx-osrm");
+      await recreateOsrm();
     } catch (rollbackError) {
       rollbackMessage = `Configuration was restored, but OSRM rollback needs attention: ${rollbackError instanceof Error ? rollbackError.message : rollbackError}`;
     }

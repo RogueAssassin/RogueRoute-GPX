@@ -1,5 +1,10 @@
 # Changelog
 
+## v12.6.3 — OSRM container handover
+
+- Fixed website region switching failing with `the container name "rogueroute-gpx-osrm" is already in use` on Podman hosts: the manager now removes the current OSRM container before recreating it, because Docker Compose does not recognise a container created by `podman compose`.
+- `./rogueroute start`, `restart` and `update` replace an OSRM container left by the region switcher, and `./rogueroute osm switch` frees the name before recreating OSRM.
+
 ## v12.6.2 — Podman region switching
 
 - Fixed website region switching failing with `network rogueroute-gpx was found but has incorrect label com.docker.compose.network` on Podman hosts: the private `rogueroute-gpx` network is now external and pre-created by `install.sh` and `./rogueroute`, so Docker Compose in the manager accepts a network created by `podman compose`.

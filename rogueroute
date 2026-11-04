@@ -136,6 +136,25 @@ container_health() {
   fi
 }
 
+compose_owner() {
+  # Which compose implementation created a container: podman-compose, Docker Compose, or neither.
+  "$runtime" inspect --format '{{with index .Config.Labels "io.podman.compose.project"}}podman{{else}}{{with index .Config.Labels "com.docker.compose.project"}}docker{{else}}none{{end}}{{end}}' "$1" 2>/dev/null || true
+}
+
+release_foreign_osrm() {
+  # Website region switches recreate OSRM with Docker Compose inside the manager. When the host
+  # uses podman-compose, that container is not recognised here and its fixed name would block
+  # creation, so replace it whenever its owner differs from the rest of the stack.
+  local osrm manager
+  osrm="$(compose_owner rogueroute-gpx-osrm)"
+  [[ -n "$osrm" ]] || return 0
+  manager="$(compose_owner rogueroute-gpx-manager)"
+  if [[ "$osrm" != "$manager" ]]; then
+    echo "[INFO] Replacing the OSRM container created by the region switcher."
+    "$runtime" rm -f rogueroute-gpx-osrm >/dev/null
+  fi
+}
+
 wait_for_healthy() {
   local timeout deadline state web manager osrm
   timeout="$(get_env ROGUEROUTE_STARTUP_TIMEOUT_SECONDS 600)"
@@ -234,6 +253,7 @@ case "$cmd" in
   start)
     verify_graph || fail "The active OSRM graph is incomplete."
     "${COMPOSE[@]}" pull
+    release_foreign_osrm
     "${COMPOSE[@]}" up -d --remove-orphans
     wait_for_healthy
     "${COMPOSE[@]}" ps ;;
@@ -241,6 +261,7 @@ case "$cmd" in
   restart)
     verify_graph || fail "The active OSRM graph is incomplete."
     "${COMPOSE[@]}" pull
+    release_foreign_osrm
     "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
     wait_for_healthy
     "${COMPOSE[@]}" ps ;;
@@ -249,6 +270,7 @@ case "$cmd" in
     sync_repository_version
     verify_graph || fail "The active OSRM graph is incomplete."
     "${COMPOSE[@]}" pull
+    release_foreign_osrm
     "${COMPOSE[@]}" up -d --remove-orphans
     wait_for_healthy
     "${COMPOSE[@]}" images

@@ -1,6 +1,6 @@
 # Installation
 
-RogueRoute GPX v12.6.2 is installed as an independent Docker Compose project.
+RogueRoute GPX v12.6.3 is installed as an independent Docker Compose project.
 It does not require Node.js, pnpm, a dashboard stack or an external Docker
 network. The public web container has no Docker access. A private manager
 sidecar mounts `/var/run/docker.sock` only so it can recreate OSRM after an
