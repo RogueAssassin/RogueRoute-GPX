@@ -181,8 +181,11 @@ services:
 
 networks:
   rogueroute:
+    # Pre-created by install.sh and ./rogueroute. External so that a network created by one
+    # compose implementation (podman-compose labels it differently) is accepted by another,
+    # e.g. Docker Compose inside the manager when it recreates OSRM during a region switch.
+    external: true
     name: rogueroute-gpx
-    driver: bridge
   media-net:
     external: true
     name: ${MEDIA_NETWORK:-media-net}

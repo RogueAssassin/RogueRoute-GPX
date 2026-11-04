@@ -101,6 +101,7 @@ else
 fi
 set_env CONTAINER_SOCKET "$SOCKET"
 "$RUNTIME" network inspect media-net >/dev/null 2>&1 || "$RUNTIME" network create media-net >/dev/null
+"$RUNTIME" network inspect rogueroute-gpx >/dev/null 2>&1 || "$RUNTIME" network create rogueroute-gpx >/dev/null
 set_env OSRM_DATA_DIR "$DATA_DIR"
 set_env OSRM_ACTIVE_REGION "$REGION"
 

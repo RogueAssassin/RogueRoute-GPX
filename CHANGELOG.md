@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed website region switching failing with `network rogueroute-gpx was found but has incorrect label com.docker.compose.network` on Podman hosts: the private `rogueroute-gpx` network is now external and pre-created by `install.sh` and `./rogueroute`, so Docker Compose in the manager accepts a network created by `podman compose`.
+
 ## v12.6.1 — Container hardening
 
 - Ran the public web service as an unprivileged user with a read-only root filesystem, no capabilities and `no-new-privileges`.

@@ -65,6 +65,7 @@ ensure_runtime_network() {
   local network socket uid
   network="$(get_env MEDIA_NETWORK media-net)"
   "$runtime" network inspect "$network" >/dev/null 2>&1 || "$runtime" network create "$network" >/dev/null
+  "$runtime" network inspect rogueroute-gpx >/dev/null 2>&1 || "$runtime" network create rogueroute-gpx >/dev/null
   if [[ "$runtime" == podman ]]; then
     uid="$(id -u)"
     socket="$(get_env CONTAINER_SOCKET "/run/user/$uid/podman/podman.sock")"
