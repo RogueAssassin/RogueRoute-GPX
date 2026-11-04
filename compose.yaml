@@ -8,8 +8,8 @@ services:
     container_name: rogueroute-gpx
     restart: unless-stopped
     stop_grace_period: 30s
-    # Runs as your account so map files stay yours. Rootless Podman adds keep-id in
-    # compose.podman.yaml so the same IDs map to your host user.
+    # Runs as your account so map files stay yours. Rootless Podman runs as container root
+    # instead (compose.podman.yaml), which is your host account in its user namespace.
     user: "${PUID:-1000}:${PGID:-1000}"
     read_only: true
     tmpfs:

@@ -20,7 +20,8 @@ so day-to-day commands do not need `sudo`.
 
 Install Podman and a Compose provider (`podman compose` works with either `podman-compose`
 or Docker Compose). Run everything as your normal account, never with `sudo`. The script adds
-`compose.podman.yaml`, which sets `userns_mode: keep-id` so files the container writes in the
+`compose.podman.yaml`, which runs the container as root inside your rootless user namespace
+(that is your own account on the host), so files the container writes in the
 map folder are owned by you. No Podman API socket is needed.
 
 ## Install
