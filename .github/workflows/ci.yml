@@ -43,6 +43,7 @@ jobs:
         run: |
           cp .env.example .env
           docker network create media-net >/dev/null 2>&1 || true
+          docker network create rogueroute-gpx >/dev/null 2>&1 || true
           docker compose --env-file .env -f compose.yaml config -q
 
   container:
