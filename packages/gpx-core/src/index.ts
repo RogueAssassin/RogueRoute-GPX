@@ -10,6 +10,7 @@ export * from "./routing/router";
 export * from "./routing/direct-router";
 export * from "./routing/osrm-router";
 export * from "./routing/create-router";
+export * from "./routing/resolve-region";
 export * from "./stats/compute-route-stats";
 export * from "./gpx/build-gpx";
 export * from "./gpx/simplify-track";

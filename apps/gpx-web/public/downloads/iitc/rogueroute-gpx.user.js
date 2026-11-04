@@ -1,15 +1,15 @@
 // ==UserScript==
 // @id             rogueroute-gpx-exporter
 // @name           IITC Plugin: RogueRoute GPX Exporter
-// @namespace      https://github.com/RogueAssassin/RogueRoute-GPX
+// @namespace      https://github.com/RogueAssassin/rogueroute-gpx
 // @category       Layer
-// @version        12.6.3
-// @description    Smart IITC exporter for RogueRoute GPX v12.6.3 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
+// @version        13.0.0
+// @description    Smart IITC exporter for RogueRoute GPX v13.0.0 with selected/view/polygon/circle export, loop building, preflight checks, and direct website handoff.
 // @author         RogueAssassin
-// @homepageURL    https://github.com/RogueAssassin/RogueRoute-GPX
-// @supportURL     https://github.com/RogueAssassin/RogueRoute-GPX/issues
-// @updateURL      https://raw.githubusercontent.com/RogueAssassin/RogueRoute-GPX/main/apps/gpx-web/public/downloads/iitc/rogueroute-exporter.user.js
-// @downloadURL    https://raw.githubusercontent.com/RogueAssassin/RogueRoute-GPX/main/apps/gpx-web/public/downloads/iitc/rogueroute-exporter.user.js
+// @homepageURL    https://github.com/RogueAssassin/rogueroute-gpx
+// @supportURL     https://github.com/RogueAssassin/rogueroute-gpx/issues
+// @updateURL      https://raw.githubusercontent.com/RogueAssassin/rogueroute-gpx/main/apps/gpx-web/public/downloads/iitc/rogueroute-gpx.user.js
+// @downloadURL    https://raw.githubusercontent.com/RogueAssassin/rogueroute-gpx/main/apps/gpx-web/public/downloads/iitc/rogueroute-gpx.user.js
 // @match          https://intel.ingress.com/*
 // @grant          none
 // ==/UserScript==
@@ -31,7 +31,7 @@ function wrapper(plugin_info) {
   };
 
   const plugin = {
-    pluginVersion: "12.6.3",
+    pluginVersion: "13.0.0",
     polyline: null,
 
     loadSelected() {

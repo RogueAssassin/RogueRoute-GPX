@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
+import RegionPanel from "../components/region-panel";
+
 const RouteMap = dynamic(() => import("../components/route-map"), {
   ssr: false,
   loading: () => (
@@ -20,14 +22,6 @@ const RouteMap = dynamic(() => import("../components/route-map"), {
 });
 
 type Point = [number, number];
-
-type OsrmRegion = {
-  key: string;
-  label: string;
-  pbf: string;
-  graph: string;
-  group: string;
-};
 
 type BuildInfo = {
   app: string;
@@ -56,6 +50,7 @@ type GenerateResponse = {
     warnings?: string[];
   };
   cache?: "hit" | "miss";
+  region?: { key: string; label: string; switched: boolean } | null;
   gpx: string;
   plan: {
     orderedWaypoints: Array<{
@@ -158,13 +153,7 @@ export default function HomePage() {
   >([]);
   const [loading, setLoading] = useState(false);
   const [importNotice, setImportNotice] = useState<string | null>(null);
-  const [regions, setRegions] = useState<OsrmRegion[]>([]);
-  const [activeRegion, setActiveRegion] = useState("australia");
-  const [selectedRegion, setSelectedRegion] = useState("australia");
-  const [switchingRegion, setSwitchingRegion] = useState(false);
-  const [regionSwitchEnabled, setRegionSwitchEnabled] = useState(false);
-  const [regionManagerReady, setRegionManagerReady] = useState(false);
-  const [regionNotice, setRegionNotice] = useState<string | null>(null);
+  const [regionChoice, setRegionChoice] = useState("auto");
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
 
   useEffect(() => {
@@ -181,6 +170,8 @@ export default function HomePage() {
       "rogue.geometryDetail",
     );
 
+    const savedRegion = window.localStorage.getItem("rogue.region");
+    if (savedRegion) setRegionChoice(savedRegion);
     if (savedRouteMode) setRouteMode(savedRouteMode);
     if (savedRouteName) setRouteName(savedRouteName);
     if (savedStrictLand) setStrictLandRouting(savedStrictLand === "true");
@@ -211,10 +202,13 @@ export default function HomePage() {
       }
     }
 
-    void refreshRegions();
     void refreshBuildInfo();
   }, []);
 
+  useEffect(
+    () => window.localStorage.setItem("rogue.region", regionChoice),
+    [regionChoice],
+  );
   useEffect(
     () => window.localStorage.setItem("rogue.routeMode", routeMode),
     [routeMode],
@@ -266,6 +260,7 @@ export default function HomePage() {
   }
 
   function resetLocalBrowserState() {
+    window.localStorage.removeItem("rogue.region");
     window.localStorage.removeItem("rogue.routeMode");
     window.localStorage.removeItem("rogue.routeName");
     window.localStorage.removeItem("rogue.strictLandRouting");
@@ -273,54 +268,6 @@ export default function HomePage() {
     window.localStorage.removeItem("rogue.allowManualOverride");
     window.localStorage.removeItem("rogue.geometryDetail");
     window.location.reload();
-  }
-
-  async function refreshRegions() {
-    try {
-      const response = await fetch("/api/osrm/regions", { cache: "no-store" });
-      const data = await response.json();
-      if (Array.isArray(data.regions)) setRegions(data.regions);
-      setRegionSwitchEnabled(Boolean(data.switchEnabled));
-      setRegionManagerReady(Boolean(data.managerReady));
-      if (data.switchEnabled && data.managerError) {
-        setRegionNotice(`OSRM manager unavailable: ${data.managerError}`);
-      }
-      if (data.activeRegion) {
-        setActiveRegion(data.activeRegion);
-        setSelectedRegion(data.activeRegion);
-      }
-    } catch {
-      setRegionNotice(
-        "Region catalogue is unavailable from the web container.",
-      );
-    }
-  }
-
-  async function switchRegion() {
-    setSwitchingRegion(true);
-    setError(null);
-    setRegionNotice(`Switching OSRM to ${selectedRegion}...`);
-    try {
-      const response = await fetch("/api/osrm/regions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ region: selectedRegion }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Failed to switch OSRM region");
-      setActiveRegion(data.activeRegion || selectedRegion);
-      setRegionNotice(
-        `OSRM region ready: ${data.activeRegion || selectedRegion}`,
-      );
-    } catch (err) {
-      setRegionNotice(null);
-      setError(
-        err instanceof Error ? err.message : "Failed to switch OSRM region",
-      );
-    } finally {
-      setSwitchingRegion(false);
-    }
   }
 
   async function generate() {
@@ -342,6 +289,7 @@ export default function HomePage() {
           allowFerries,
           allowManualOverride,
           geometryDetail,
+          region: regionChoice,
         }),
       });
 
@@ -455,7 +403,7 @@ export default function HomePage() {
                   boxShadow: "0 0 18px #22d3ee",
                 }}
               />
-              RogueRoute-GPX · Cyber Neon Wolf OSRM Edition
+              RogueRoute GPX · Cyber Neon Wolf OSRM Edition
             </div>
             <h1 style={{ margin: 0, fontSize: 48, lineHeight: 1.05 }}>
               RogueRoute GPX
@@ -499,7 +447,7 @@ export default function HomePage() {
                 "OSRM road/path routing",
                 "Snap-to-network guards",
                 "IITC Alt-click legend",
-                "Regional OSM downloader",
+                "Auto region switching",
               ].map((item) => (
                 <span
                   key={item}
@@ -697,15 +645,15 @@ export default function HomePage() {
               />
             </label>
             <a
-              href="/downloads/iitc/rogueroute-exporter.user.js"
+              href="/downloads/iitc/rogueroute-gpx.user.js"
               style={{ ...buttonLink, background: "rgba(88,28,135,0.42)" }}
             >
               Install in Tampermonkey
             </a>
             <a
-              href="/downloads/iitc/rogueroute-exporter.user.js"
+              href="/downloads/iitc/rogueroute-gpx.user.js"
               style={buttonLink}
-              download="rogueroute-exporter.user.js"
+              download="rogueroute-gpx.user.js"
             >
               Download IITC Plugin
             </a>
@@ -851,73 +799,11 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div style={subPanelStyle}>
-              <strong>OSRM Region Switcher</strong>
-              <p style={{ margin: "8px 0", color: "#cbd5e1" }}>
-                One OSRM container stays running. Pick a prepared region and
-                RogueRoute will update .env, restart OSRM, then continue routing
-                against that graph.
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <select
-                  value={selectedRegion}
-                  onChange={(event) => setSelectedRegion(event.target.value)}
-                  style={{ ...inputStyle, minWidth: 230 }}
-                >
-                  {(regions.length
-                    ? regions
-                    : [
-                        {
-                          key: "australia",
-                          label: "Australia",
-                          pbf: "australia-latest.osm.pbf",
-                          graph: "australia-latest.osrm",
-                          group: "core",
-                        },
-                      ]
-                  ).map((region) => (
-                    <option key={region.key} value={region.key}>
-                      {region.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={switchRegion}
-                  disabled={
-                    switchingRegion ||
-                    selectedRegion === activeRegion ||
-                    !regionSwitchEnabled ||
-                    !regionManagerReady
-                  }
-                  style={secondaryButton}
-                >
-                  {switchingRegion ? "Switching..." : "Switch OSRM Region"}
-                </button>
-                <button onClick={refreshRegions} style={secondaryButton}>
-                  Refresh
-                </button>
-              </div>
-              <div style={{ marginTop: 8, color: "#cbd5e1" }}>
-                Active region:{" "}
-                <span style={{ color: "#22d3ee" }}>{activeRegion}</span>
-                {" · Manager: "}
-                <span style={{ color: regionManagerReady ? "#41d99b" : "#f59e0b" }}>
-                  {regionManagerReady ? "Ready" : regionSwitchEnabled ? "Unavailable" : "Disabled"}
-                </span>
-              </div>
-              {regionNotice && (
-                <div style={{ ...noticeStyle, marginTop: 10 }}>
-                  {regionNotice}
-                </div>
-              )}
-            </div>
+            <RegionPanel
+              choice={regionChoice}
+              onChoiceChange={setRegionChoice}
+              lastUsed={result?.region ?? null}
+            />
 
             <div style={subPanelStyle}>
               <strong>Warnings</strong>

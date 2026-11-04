@@ -1,0 +1,5 @@
+# Added by ./rogueroute-gpx when the runtime is rootless Podman: map the container user to
+# your host account so files written to OSRM_DATA_DIR stay owned by you.
+services:
+  rogueroute-gpx:
+    userns_mode: keep-id

@@ -104,7 +104,7 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/gpx-web/Dockerfile
+          file: Dockerfile
           platforms: ${{ (github.event_name != 'workflow_dispatch' || inputs.publish) && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           push: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
           load: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
