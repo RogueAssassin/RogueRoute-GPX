@@ -36,6 +36,10 @@ RUN set -eux; \
     pnpm build
 
 FROM ${OSRM_IMAGE} AS runner
+# Node needs libatomic, which the OSRM image does not ship.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libatomic1 && \
+    rm -rf /var/lib/apt/lists/*
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 ENV NODE_ENV=production \
