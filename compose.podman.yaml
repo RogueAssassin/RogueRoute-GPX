@@ -1,5 +1,9 @@
-# Added by ./rogueroute-gpx when the runtime is rootless Podman: map the container user to
-# your host account so files written to OSRM_DATA_DIR stay owned by you.
+# Added by ./rogueroute-gpx when the runtime is rootless Podman.
+#
+# In a rootless user namespace, container root is your own host account, so running as 0:0
+# keeps files written to OSRM_DATA_DIR owned by you. (userns_mode: keep-id would do the same
+# but podman-compose runs containers in a pod, and Podman refuses --userns together with
+# --pod.) All capabilities stay dropped and no-new-privileges still applies.
 services:
   rogueroute-gpx:
-    userns_mode: keep-id
+    user: "0:0"

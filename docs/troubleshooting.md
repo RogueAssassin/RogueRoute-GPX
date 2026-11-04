@@ -54,7 +54,7 @@ sudo ./rogueroute-gpx permissions
 ```
 
 On rootless Podman, make sure you run the script as your normal account (not `sudo`), so
-`compose.podman.yaml` applies `keep-id`.
+`compose.podman.yaml` applies (container root = your account).
 
 ## OSRM reports NoSegment
 
