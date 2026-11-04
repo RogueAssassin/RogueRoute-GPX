@@ -74,7 +74,8 @@ set_env() {
 VERSION="$(sed 's/^v//' "$TARGET/VERSION" | tr -d '[:space:]')"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file." >&2; exit 1; }
 set_env ROGUEROUTE_VERSION "$VERSION"
-set_env ROGUEROUTE_TAG "$VERSION"
+CHANNEL="$(grep -E "^ROGUEROUTE_CHANNEL=" "$TARGET/.env" | tail -n1 | cut -d= -f2- || true)"
+if [[ "${CHANNEL:-stable}" == testing ]]; then set_env ROGUEROUTE_TAG "$VERSION-testing"; else set_env ROGUEROUTE_TAG "$VERSION"; fi
 set_env ROGUEROUTE_RUNTIME "$RUNTIME"
 set_env PUID "$(id -u "$OWNER")"
 set_env PGID "$(id -g "$OWNER")"

@@ -57,6 +57,15 @@ repository_version() {
   printf '%s\n' "$version"
 }
 
+image_tag() {
+  # The testing branch publishes VERSION-testing; stable releases publish VERSION.
+  case "$(get_env ROGUEROUTE_CHANNEL stable)" in
+    testing) printf '%s-testing\n' "$1" ;;
+    stable) printf '%s\n' "$1" ;;
+    *) fail "ROGUEROUTE_CHANNEL must be stable or testing." ;;
+  esac
+}
+
 prepare_environment() {
   local network data
   if [[ -z "$(get_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)" ]]; then
@@ -194,7 +203,7 @@ case "$cmd" in
     prepare_environment
     version="$(repository_version)"
     set_env ROGUEROUTE_VERSION "$version"
-    set_env ROGUEROUTE_TAG "$version"
+    set_env ROGUEROUTE_TAG "$(image_tag "$version")"
     remove_v12_layout
     "${COMPOSE[@]}" pull
     "${COMPOSE[@]}" up -d --remove-orphans
@@ -217,6 +226,7 @@ case "$cmd" in
     printf '%-36s %s\n' \
       ROGUEROUTE_VERSION "$(get_env ROGUEROUTE_VERSION unknown)" \
       ROGUEROUTE_IMAGE "$(get_env ROGUEROUTE_IMAGE ghcr.io/rogueassassin/rogueroute-gpx)" \
+      ROGUEROUTE_CHANNEL "$(get_env ROGUEROUTE_CHANNEL stable)" \
       ROGUEROUTE_TAG "$(get_env ROGUEROUTE_TAG "$(repository_version)")" \
       ROGUEROUTE_RUNTIME "$runtime" \
       HOST_BIND "$(get_env HOST_BIND 0.0.0.0)" \

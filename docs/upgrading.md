@@ -77,3 +77,17 @@ it and your v12 `.env` or scripts refer to that path):
 git checkout 50b3682   # v12.6.3 on main
 ./rogueroute update
 ```
+
+## Testing channel
+
+The `testing` branch publishes `VERSION-testing` images (for example `13.0.0-testing`). To
+run a server on it, check out `testing` and set the channel before updating:
+
+```bash
+git fetch origin && git checkout testing && git pull --ff-only
+sed -i 's/^ROGUEROUTE_CHANNEL=.*/ROGUEROUTE_CHANNEL=testing/' .env || true
+grep -q '^ROGUEROUTE_CHANNEL=' .env || echo 'ROGUEROUTE_CHANNEL=testing' >> .env
+./rogueroute-gpx update
+```
+
+Set `ROGUEROUTE_CHANNEL=stable` and check out `main` to return to stable releases.
