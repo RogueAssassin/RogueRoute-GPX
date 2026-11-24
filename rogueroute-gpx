@@ -185,6 +185,19 @@ remove_v12_layout() {
   fi
 }
 
+remove_previous_container() {
+  # Compose recreates the container anyway, so clear the old one first. podman-compose also
+  # keeps it in a pod (pod_rogueroute-gpx): a container whose pod is gone, or a pod left
+  # without its container, makes `up` fail with "no pod with name or ID pod_rogueroute-gpx".
+  # Map data, .env and the map queue live on disk and are not affected.
+  if "$runtime" container inspect "$CONTAINER" >/dev/null 2>&1; then
+    "$runtime" rm -f "$CONTAINER" >/dev/null
+  fi
+  if [[ "$runtime" == podman ]] && podman pod inspect "pod_$CONTAINER" >/dev/null 2>&1; then
+    podman pod rm -f "pod_$CONTAINER" >/dev/null && echo "[INFO] Removed the previous Podman pod."
+  fi
+}
+
 container_health() {
   local health
   health="$("$runtime" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER" 2>/dev/null || true)"
@@ -276,6 +289,7 @@ case "$cmd" in
     prepare_environment
     remove_v12_layout
     "${COMPOSE[@]}" pull
+    remove_previous_container
     "${COMPOSE[@]}" up -d --remove-orphans
     wait_for_healthy ;;
   stop) "${COMPOSE[@]}" down ;;
@@ -283,6 +297,7 @@ case "$cmd" in
     prepare_environment
     remove_v12_layout
     "${COMPOSE[@]}" pull
+    remove_previous_container
     "${COMPOSE[@]}" up -d --force-recreate --remove-orphans
     wait_for_healthy ;;
   update)
@@ -310,6 +325,7 @@ case "$cmd" in
     set_env ROGUEROUTE_TAG "$(image_tag "$version")"
     remove_v12_layout
     "${COMPOSE[@]}" pull
+    remove_previous_container
     "${COMPOSE[@]}" up -d --remove-orphans
     wait_for_healthy
     echo "[OK] rogueroute-gpx v$version is applied." ;;

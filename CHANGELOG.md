@@ -1,5 +1,9 @@
 # Changelog
 
+## v13.1.1 — Clear stale Podman pods on start
+
+- `start`, `restart` and `update` remove the previous container, and on Podman the `pod_rogueroute-gpx` pod, after pulling and before starting. This fixes `Error: no pod with name or ID pod_rogueroute-gpx found` under podman-compose when a container outlived its pod. Map data, `.env` and the map queue are not affected.
+
 ## v13.1.0 — Background map queue and /maps
 
 - Map download and preparation run in a persistent background queue: one region at a time, smallest first, at low CPU priority. It resumes after a restart or update, and downloaded-but-unprepared regions are queued automatically (`ROGUEROUTE_AUTO_PREPARE`).

@@ -11,6 +11,16 @@ Start with:
 Log lines are prefixed: `[supervisor]`, `[osrm]`, `[maps]`; website
 output is unprefixed.
 
+## "no pod with name or ID pod_rogueroute-gpx found"
+
+podman-compose keeps the container in a pod, and the container outlived its pod. Since v13.1.1,
+`start`, `restart` and `update` remove both before starting. On an older checkout, clear them
+by hand (map data, `.env` and the queue are kept):
+
+```bash
+podman rm -f rogueroute-gpx; podman pod rm -f pod_rogueroute-gpx; ./rogueroute-gpx start
+```
+
 ## Image cannot be pulled
 
 Check that the publish workflow for the version in `VERSION` finished and that the GHCR
