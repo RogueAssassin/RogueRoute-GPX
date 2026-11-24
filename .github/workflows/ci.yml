@@ -97,6 +97,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Diagnostics only: can the runner and the container reach Geofabrik?
+          curl -sSI --max-time 20 https://download.geofabrik.de/europe/andorra-latest.osm.pbf | head -3 || true
+          docker exec rogueroute-gpx node -e 'fetch("https://download.geofabrik.de/europe/andorra-latest.osm.pbf",{method:"HEAD"}).then(r=>console.log("container HEAD",r.status),e=>console.log("container HEAD failed",e.cause??e))' || true
           # One command queues download and preparation; --wait blocks until both are done.
           docker exec rogueroute-gpx rogueroute-gpx osm add andorra liechtenstein --wait
           docker exec rogueroute-gpx rogueroute-gpx osm status

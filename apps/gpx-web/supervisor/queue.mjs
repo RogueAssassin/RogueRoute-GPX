@@ -17,6 +17,12 @@ const PREPARED_DISK_FACTOR = 3;
 const EXTRACT_MEMORY_FACTOR = 2.5;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const gb = (bytes) => `${(bytes / 1e9).toFixed(1)} GB`;
+/** Node reports network errors as "fetch failed"; the cause holds the useful part. */
+const describe = (error) => {
+  const cause = error?.cause;
+  const detail = cause ? [cause.code, cause.message].filter(Boolean).join(" ") : "";
+  return detail && !error.message.includes(detail) ? `${error.message} (${detail})` : error.message;
+};
 
 async function sizeOf(path) {
   try {
@@ -348,11 +354,11 @@ export class MapQueue {
         if (this.cancelling || this.stopping) throw new Cancelled();
         if (error.code === "disk-full") throw error;
         lastError = error;
-        this.log(`Attempt ${attempt} failed: ${error.message}. Partial file kept for resume.`);
+        this.log(`Attempt ${attempt} failed: ${describe(error)}. Partial file kept for resume.`);
         if (attempt < 5) await sleep(3_000 * attempt);
       }
     }
-    if (lastError) throw lastError;
+    if (lastError) throw new Error(`Download failed: ${describe(lastError)}`);
 
     const size = await sizeOf(part);
     if (size < 1_048_576) throw new Error(`Download is unexpectedly small (${size} bytes).`);
