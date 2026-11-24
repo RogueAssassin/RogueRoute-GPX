@@ -4,7 +4,7 @@ name: rogueroute-gpx
 # Region switches restart osrm-routed inside the container; nothing needs the engine socket.
 services:
   rogueroute-gpx:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-13.1.1}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-13.2.0}
     container_name: rogueroute-gpx
     restart: unless-stopped
     stop_grace_period: 30s
@@ -23,7 +23,7 @@ services:
     environment:
       ROGUEROUTE_DATA_DIR: /data
       OSRM_REGION: ${OSRM_ACTIVE_REGION:-australia}
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-13.1.1}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-13.2.0}
     ports:
       # Set HOST_BIND=127.0.0.1 when a reverse proxy on the same host is the only client.
       - "${HOST_BIND:-0.0.0.0}:${HOST_PORT:-9080}:9080"

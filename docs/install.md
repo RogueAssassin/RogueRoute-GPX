@@ -1,7 +1,7 @@
 # Installation
 
-rogueroute-gpx runs as one container. The host needs Docker or Podman with Compose, Git,
-Bash and OpenSSL. It does not need Node.js, pnpm, curl or the OSRM tools: those are inside
+rogueroute-gpx runs as one container. The host needs Docker or Podman with Compose, Git and
+Bash. It does not need Node.js, pnpm, curl or the OSRM tools: those are inside
 the image.
 
 ## Docker (Ubuntu or Debian)

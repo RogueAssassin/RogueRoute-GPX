@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-13.1.1-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
+[![Release](https://img.shields.io/badge/release-13.2.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
 [![Container](https://img.shields.io/badge/GHCR-one_container-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/rogueroute-gpx/pkgs/container/rogueroute-gpx)
 [![Engines](https://img.shields.io/badge/runtime-docker_%7C_podman-ff2bd6?style=for-the-badge)](#requirements)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **13.1.1** · One container · Local OSRM routing with automatic regions
+Version **13.2.0** · One container · Local OSRM routing with automatic regions
 
 </div>
 
@@ -43,7 +43,7 @@ Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM ro
 
 - 64-bit AMD64 or ARM64 Linux
 - Docker Engine with Docker Compose v2, or rootless Podman with Podman Compose
-- Git, Bash and OpenSSL
+- Git and Bash (Node.js, pnpm and the OSRM tools are inside the image)
 - Port `9080` for the web interface
 - A folder for downloaded `.osm.pbf` and prepared `.osrm*` files, with enough space and RAM
   for the regions you want (see `./rogueroute-gpx osm list`)
@@ -64,12 +64,31 @@ cd /opt/media-server/rogueroute-gpx
 
 The installer writes the ignored `.env`, sets the container user to your account, starts
 the container, then downloads and prepares the region (waiting for it) if it is not prepared
-already. Run it
-without `--start` to only configure.
+already. Run it without `--start` to only configure.
 
 ### 3. Open RogueRoute GPX
 
-Visit `http://SERVER-IP:9080`. Change `HOST_PORT` in `.env` if port 9080 is taken.
+Visit `http://SERVER-IP:9080` for the route builder and `http://SERVER-IP:9080/maps` for map
+status. Change `HOST_PORT` in `.env` if port 9080 is taken.
+
+## Updating
+
+```bash
+cd /opt/media-server/rogueroute-gpx
+./rogueroute-gpx update
+```
+
+`update` fast-forwards the checkout to the latest commit of your channel, applies `VERSION`,
+tidies `.env` (your values are kept and a backup is saved), clears the previous container (and
+Podman pod), pulls that exact image and recreates the container. Queued map work resumes
+afterwards.
+
+| Channel | Branch | Image tags | Switch with |
+| --- | --- | --- | --- |
+| **stable** (default) | `main` | `X.Y.Z`, `X.Y`, `X`, `latest` | `./rogueroute-gpx update stable` |
+| **testing** | `testing` | `X.Y.Z-testing`, `testing` | `./rogueroute-gpx update testing` |
+
+See [upgrading](docs/upgrading.md) for moving from v12 and for rolling back.
 
 ## How it works
 
@@ -109,7 +128,6 @@ flowchart LR
 ```bash
 ./rogueroute-gpx start          # pull and start the container
 ./rogueroute-gpx update         # pull the latest code for your channel, apply it, recreate
-./rogueroute-gpx update testing # switch to the testing channel (update stable to go back)
 ./rogueroute-gpx doctor         # configuration, permissions, container and OSRM state
 ./rogueroute-gpx logs
 ./rogueroute-gpx stop           # map data is kept
@@ -127,12 +145,15 @@ Open `http://SERVER-IP:9080/maps` to see the same progress in a browser. See the
 ## Configuration
 
 Machine-specific settings live in `/opt/media-server/rogueroute-gpx/.env` and must not be
-committed. The most useful ones:
+committed. [`.env.example`](.env.example) lists every setting in sections with an explanation
+for each. The most useful ones:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
+| `ROGUEROUTE_CHANNEL` | `stable` | `stable` or `testing`; change it with `./rogueroute-gpx update CHANNEL` |
 | `OSRM_DATA_DIR` | `/mnt/h/osrm` | Map folder, mounted at `/data` |
 | `OSRM_ACTIVE_REGION` | `australia` | Region loaded on the very first start |
+| `OSRM_PROFILE` | `foot` | Routing profile: `foot`, `bike` or `car` (re-prepare maps after changing) |
 | `OSRM_SWITCH_COOLDOWN_SECONDS` | `60` | Minimum time between automatic or public switches |
 | `ADMIN_TOKEN` | empty | Set to a long random value to manage the map queue from `/maps` |
 | `ROGUEROUTE_AUTO_PREPARE` | `true` | Queue downloaded but unprepared regions at start |
@@ -166,7 +187,8 @@ The container joins the `rogueroute-gpx` and `media-net` networks and still answ
 - [Upgrading, including from v12](docs/upgrading.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Command reference](docs/commands.md)
-- [v13.1.1 release notes](docs/releases/v13.1.1.md)
+- [v13.2.0 release notes](docs/releases/v13.2.0.md) · [all release notes](docs/releases/) ·
+  [changelog](CHANGELOG.md)
 
 ## Development
 
