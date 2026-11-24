@@ -69,8 +69,8 @@ jobs:
           data="$RUNNER_TEMP/osrm"; mkdir -p "$data"
           cat > "$RUNNER_TEMP/regions.json" <<'JSON'
           { "regions": [
-            { "key": "andorra", "label": "Andorra", "group": "test", "graph": "andorra", "url": "https://download.geofabrik.de/europe/andorra-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[1.40, 42.42, 1.80, 42.66]] },
-            { "key": "liechtenstein", "label": "Liechtenstein", "group": "test", "graph": "liechtenstein", "url": "https://download.geofabrik.de/europe/liechtenstein-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[9.47, 47.04, 9.64, 47.28]] }
+            { "key": "andorra", "label": "Andorra", "group": "test", "graph": "andorra", "url": "https://download.openstreetmap.fr/extracts/europe/andorra-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[1.40, 42.42, 1.80, 42.66]] },
+            { "key": "san-marino", "label": "San Marino", "group": "test", "graph": "san-marino", "url": "https://download.openstreetmap.fr/extracts/europe/san_marino-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[12.40, 43.89, 12.52, 43.99]] }
           ] }
           JSON
           cp .env.example .env
@@ -96,11 +96,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Diagnostics only: can the runner and the container reach Geofabrik?
-          curl -sSI --max-time 20 https://download.geofabrik.de/europe/andorra-latest.osm.pbf | head -3 || true
-          docker exec rogueroute-gpx node -e 'fetch("https://download.geofabrik.de/europe/andorra-latest.osm.pbf",{method:"HEAD"}).then(r=>console.log("container HEAD",r.status),e=>console.log("container HEAD failed",e.cause??e))' || true
+          # Test maps come from the openstreetmap.fr mirror: Geofabrik refuses connections from
+          # GitHub runners at times. Diagnostics only, from the runner and the container:
+          curl -sSI --max-time 20 https://download.openstreetmap.fr/extracts/europe/andorra-latest.osm.pbf | head -1 || true
+          docker exec rogueroute-gpx node -e 'fetch("https://download.openstreetmap.fr/extracts/europe/andorra-latest.osm.pbf",{method:"HEAD"}).then(r=>console.log("container HEAD",r.status),e=>console.log("container HEAD failed",e.cause??e))' || true
           # One command queues download and preparation; --wait blocks until both are done.
-          docker exec rogueroute-gpx rogueroute-gpx osm add andorra liechtenstein --wait
+          docker exec rogueroute-gpx rogueroute-gpx osm add andorra san-marino --wait
           docker exec rogueroute-gpx rogueroute-gpx osm status
           docker exec rogueroute-gpx rogueroute-gpx osm queue
           test -s "$RUNNER_TEMP/osrm/.rogueroute-gpx/queue.json"
@@ -121,8 +122,8 @@ jobs:
               -d "$(jq -n --arg input "$1" '{input: $input, routeMode: "preserve-order"}')"
           }
           route $'42.5063,1.5218,A\n42.5078,1.5211,B' | tee /tmp/andorra.json | jq -e '.region.key == "andorra" and .region.switched == false and (.gpx | contains("<trk"))' >/dev/null
-          route $'47.1410,9.5209,A\n47.1395,9.5230,B' | tee /tmp/liechtenstein.json | jq -e '.region.key == "liechtenstein" and .region.switched == true and (.gpx | contains("<trk"))' >/dev/null
-          curl -fsS http://127.0.0.1:19080/api/regions | jq -e '.activeRegion == "liechtenstein" and .osrm.state == "ready"'
+          route $'43.9356,12.4473,A\n43.9367,12.4485,B' | tee /tmp/san-marino.json | jq -e '.region.key == "san-marino" and .region.switched == true and (.gpx | contains("<trk"))' >/dev/null
+          curl -fsS http://127.0.0.1:19080/api/regions | jq -e '.activeRegion == "san-marino" and .osrm.state == "ready"'
           # Waypoints outside every prepared region get a clear error instead of a switch.
           code=$(curl -s -o /tmp/outside.json -w '%{http_code}' -X POST http://127.0.0.1:19080/api/generate \
             -H 'content-type: application/json' -d '{"input":"-37.8136,144.9631\n-37.8160,144.9690"}')
