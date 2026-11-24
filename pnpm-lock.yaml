@@ -17,19 +17,19 @@ importers:
 
   apps/gpx-console:
     dependencies:
-      '@rogue/gpx-core':
+      '@rogueroute-gpx/core':
         specifier: workspace:*
         version: link:../../packages/gpx-core
 
   apps/gpx-exporter:
     dependencies:
-      '@rogue/gpx-core':
+      '@rogueroute-gpx/core':
         specifier: workspace:*
         version: link:../../packages/gpx-core
 
   apps/gpx-web:
     dependencies:
-      '@rogue/gpx-core':
+      '@rogueroute-gpx/core':
         specifier: workspace:*
         version: link:../../packages/gpx-core
       leaflet:

@@ -8,7 +8,48 @@ import {
   parseWaypointsFromText,
   OsrmRoutingError,
   normalizeWaypoints,
-} from "@rogue/gpx-core";
+  resolveRegion,
+} from "@rogueroute-gpx/core";
+import { control, ControlError, getStatus, SWITCH_TIMEOUT_MS } from "../../../lib/control";
+
+type RegionChoice = { key: string; label: string; switched: boolean } | null;
+
+/**
+ * Make sure OSRM serves a graph that covers the waypoints: the requested region, or on
+ * "auto" the region found from the coordinates. Switches the graph when needed.
+ * Returns null when no supervisor is running (local development against a plain OSRM).
+ */
+async function ensureRegion(points: { lat: number; lng: number }[], requested: string): Promise<RegionChoice> {
+  if ((process.env.ROUTER_MODE ?? "osrm").toLowerCase() !== "osrm") return null;
+  const status = await getStatus().catch((error) => {
+    if (error instanceof ControlError && error.code === "unavailable") return null;
+    throw error;
+  });
+  if (!status) return null;
+
+  const candidates = status.regions.map((region) => ({
+    key: region.key,
+    label: region.label,
+    bounds: region.bounds,
+    prepared: region.state === "prepared",
+  }));
+  let target: { key: string; label: string; prepared: boolean } | undefined;
+  if (requested && requested !== "auto") {
+    target = candidates.find((region) => region.key === requested);
+    if (!target) throw new Error(`Unknown region: ${requested}`);
+    if (!target.prepared) throw new Error(`${target.label} is not prepared on this server.`);
+  } else {
+    const resolution = resolveRegion(points, candidates, status.activeRegion ?? undefined);
+    if (!resolution.ok) throw new Error(resolution.message);
+    target = resolution.region;
+  }
+
+  if (target.key === status.activeRegion && status.osrm.state === "ready") {
+    return { key: target.key, label: target.label, switched: false };
+  }
+  const result = await control<{ region: string; switched: boolean }>("POST", "/switch", { region: target.key }, SWITCH_TIMEOUT_MS);
+  return { key: target.key, label: target.label, switched: result.switched };
+}
 
 const configuredCacheLimit = Number(process.env.ROUTE_CACHE_LIMIT ?? "100");
 const ROUTE_CACHE_LIMIT = Number.isFinite(configuredCacheLimit)
@@ -78,8 +119,10 @@ export async function POST(request: Request) {
             ? parseWaypointsFromCsv(input)
             : parseWaypointsFromText(input);
     previewWaypoints = normalizeWaypoints(rawWaypoints);
+    const region = await ensureRegion(previewWaypoints, String(body.region ?? "auto"));
 
     const generationRequest = {
+      region: region?.key ?? null,
       rawWaypoints,
       request: {
         mode: routeMode,
@@ -111,6 +154,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ...(cached as Record<string, unknown>),
         cache: "hit",
+        region,
       });
     }
 
@@ -118,6 +162,7 @@ export async function POST(request: Request) {
     const responsePayload = {
       ...result,
       cache: "miss",
+      region,
       mapState: payload?.map,
       source: payload?.source,
       requestOptions: {

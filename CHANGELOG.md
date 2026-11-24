@@ -1,5 +1,27 @@
 # Changelog
 
+## v13.1.0 — Background map queue and /maps
+
+- Map download and preparation run in a persistent background queue: one region at a time, smallest first, at low CPU priority. It resumes after a restart or update, and downloaded-but-unprepared regions are queued automatically (`ROGUEROUTE_AUTO_PREPARE`).
+- Failures are recorded with step and reason (out of memory is detected) and do not stop the rest; `osm retry` queues them again. Free disk space is checked before downloads and preparation, and a memory warning is logged when a region probably will not fit.
+- New public `/maps` page: regions ready, in progress (step, download progress, speed and time) and waiting, refreshed live. Queue administration (add, remove, retry, cancel, pause, resume, log, disk and memory) moved there behind `ADMIN_TOKEN`.
+- New CLI: `osm add`, `osm queue [pause|resume|cancel|clear|remove]`, `osm retry`, `osm follow`, `osm prepare-all`; `--wait` blocks until regions finish. `osm download`/`prepare` now queue and return.
+- New settings: `ROGUEROUTE_AUTO_PREPARE`, `ROGUEROUTE_PREPARE_THREADS`, `ROGUEROUTE_PREPARE_NICE`.
+- API: `/api/maps` (public) and `/api/admin/queue` replace `/api/admin/jobs`.
+- `./rogueroute-gpx update [stable|testing]` fast-forwards the checkout to the channel's branch before applying it; naming a channel switches branch, `.env` channel and image tag in one step.
+- `.env` is rewritten in the layout of the new sectioned, commented `.env.example` on start/update, keeping your values, dropping unused settings (`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, v12 manager keys) and saving a backup.
+- README screenshots of the route builder and the map status page.
+
+## v13.0.0 — One container, automatic regions
+
+- Rebuilt the runtime as a single `rogueroute-gpx` container: website, OSRM, region switching, and map download/preparation. The manager, secrets-init and separate OSRM containers, the engine socket mount and the secrets volume are gone.
+- Region switching restarts `osrm-routed` inside the container under a supervisor, with rollback to the previous graph, so it behaves the same on Docker and Podman.
+- Routes pick the prepared region containing all waypoints and switch automatically; the Map region panel can force a region and shows OSRM state.
+- `osm` commands run inside the container; optional website map administration with `ADMIN_TOKEN`.
+- One region catalog, `regions.json`, with areas for automatic selection.
+- Lowercase `rogueroute-gpx` naming for the repository, install path, script, packages and IITC plugin. `./rogueroute` forwards to `./rogueroute-gpx`.
+- `./rogueroute-gpx update` migrates v12 installs and keeps Rogue Dashboard compatibility.
+
 ## v12.6.3 — OSRM container handover
 
 - Fixed website region switching failing with `the container name "rogueroute-gpx-osrm" is already in use` on Podman hosts: the manager now removes the current OSRM container before recreating it, because Docker Compose does not recognise a container created by `podman compose`.

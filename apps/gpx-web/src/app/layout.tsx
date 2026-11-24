@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RogueRoute-GPX",
+  title: "RogueRoute GPX",
   description:
     "Cyber Neon Wolf OSRM-first GPX route generation with IITC export, road/path-following geometry, strict land routing, and RogueAssassin branding.",
   icons: {

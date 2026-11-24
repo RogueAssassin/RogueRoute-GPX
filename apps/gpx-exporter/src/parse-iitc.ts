@@ -1,5 +1,5 @@
-import type { ExportPayload } from "@rogue/gpx-core";
-import { normalizeWaypoints } from "@rogue/gpx-core";
+import type { ExportPayload } from "@rogueroute-gpx/core";
+import { normalizeWaypoints } from "@rogueroute-gpx/core";
 
 export type IitcMarker = {
   lat: number;

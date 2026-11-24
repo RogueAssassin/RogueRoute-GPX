@@ -1,4 +1,4 @@
-import { generateRoute } from "@rogue/gpx-core";
+import { generateRoute } from "@rogueroute-gpx/core";
 
 async function main() {
   const result = await generateRoute({
