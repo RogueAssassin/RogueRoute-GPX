@@ -66,17 +66,100 @@ image_tag() {
   esac
 }
 
+# Settings that no longer do anything: the v12 multi-container layout, and a Next.js
+# server-actions key the app never used. tidy_env drops them.
+OBSOLETE_KEYS=(OSRM_MANAGER_URL OSRM_MANAGER_TOKEN OSRM_MANAGER_TOKEN_FILE OSRM_SWITCH_ACCESS_KEY
+  OSRM_SWITCH_ENABLED CONTAINER_SOCKET OSRM_IMAGE OSRM_HOST_PORT OSRM_GRAPH OSRM_PBF
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)
+DEFAULT_IMAGE=ghcr.io/rogueassassin/rogueroute-gpx
+
+# Rewrite .env in the layout of .env.example: template comments and order, your values, no
+# obsolete settings. Settings the template does not know are kept at the end. The previous
+# file is saved as .env.backup-<time> when anything changed (the last five are kept).
+tidy_env() {
+  local template="$ROOT/.env.example" tmp backup line key obsolete
+  local -A known=()
+  local -a extras=()
+  [[ -f "$template" ]] || return 0
+  tmp="$(mktemp "$ROOT/.env.tidy.XXXXXX")"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^([A-Z][A-Z0-9_]*)= ]]; then
+      key="${BASH_REMATCH[1]}"
+      known[$key]=1
+      if grep -qE "^${key}=" "$ENV"; then
+        printf '%s=%s\n' "$key" "$(grep -E "^${key}=" "$ENV" | tail -n1 | cut -d= -f2-)"
+      else
+        printf '%s\n' "$line"
+      fi
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$template" > "$tmp"
+  while IFS= read -r line; do
+    [[ "$line" =~ ^([A-Z][A-Z0-9_]*)= ]] || continue
+    key="${BASH_REMATCH[1]}"
+    [[ -n "${known[$key]:-}" ]] && continue
+    for obsolete in "${OBSOLETE_KEYS[@]}"; do [[ "$key" == "$obsolete" ]] && continue 2; done
+    # The template only mentions the official image in a comment; keep a custom one.
+    [[ "$key" == ROGUEROUTE_IMAGE && "${line#*=}" == "$DEFAULT_IMAGE" ]] && continue
+    known[$key]=1
+    extras+=("$(grep -E "^${key}=" "$ENV" | tail -n1)")
+  done < "$ENV"
+  if (( ${#extras[@]} )); then
+    printf '\n\n# ------------------------------------------------------------------------------\n'
+    printf '# Your additional settings (not in .env.example)\n'
+    printf '# ------------------------------------------------------------------------------\n\n'
+    printf '%s\n' "${extras[@]}"
+  fi >> "$tmp"
+  if cmp -s "$tmp" "$ENV"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  backup="$ROOT/.env.backup-$(date +%Y%m%d-%H%M%S)"
+  cp -p "$ENV" "$backup"
+  chmod 600 "$tmp" "$backup" 2>/dev/null || true
+  mv "$tmp" "$ENV"
+  echo "[INFO] Tidied .env (previous version: $(basename "$backup"))."
+  # shellcheck disable=SC2012 # names are generated above and contain no spaces
+  ls -1t "$ROOT"/.env.backup-* 2>/dev/null | tail -n +6 | xargs -r rm -f
+}
+
+# Bring the checkout to the branch for the channel and fast-forward it. Leaves your .env,
+# maps and local files alone; refuses when tracked files were edited.
+sync_checkout() {
+  local channel="$1" branch current
+  case "$channel" in
+    stable) branch=main ;;
+    testing) branch=testing ;;
+    *) fail "Unknown channel: $channel (use stable or testing)." ;;
+  esac
+  command -v git >/dev/null && git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 ||
+    fail "$ROOT is not a Git checkout; clone https://github.com/RogueAssassin/rogueroute-gpx.git."
+  if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]]; then
+    git -C "$ROOT" status --short --untracked-files=no >&2
+    fail "Tracked files were changed locally. Save them (git stash) or discard them (git checkout -- .), then run this again."
+  fi
+  echo "[INFO] Fetching $branch from origin."
+  git -C "$ROOT" fetch --quiet origin "$branch" || fail "Could not fetch $branch from origin."
+  current="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
+  if [[ "$current" != "$branch" ]]; then
+    echo "[INFO] Switching the checkout from $current to $branch."
+    if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+      git -C "$ROOT" checkout --quiet "$branch"
+    else
+      git -C "$ROOT" checkout --quiet -b "$branch" --track "origin/$branch"
+    fi
+  fi
+  git -C "$ROOT" merge --ff-only --quiet "origin/$branch" ||
+    fail "Your $branch branch has commits that are not on origin/$branch. Reset it with: git reset --hard origin/$branch"
+}
+
 prepare_environment() {
   local network data
-  if [[ -z "$(get_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)" ]]; then
-    command -v openssl >/dev/null || fail "OpenSSL is required to generate runtime secrets."
-    set_env NEXT_SERVER_ACTIONS_ENCRYPTION_KEY "$(openssl rand -base64 32)"
-  fi
   [[ -n "$(get_env PUID)" ]] || set_env PUID "$(id -u "${SUDO_USER:-$(id -un)}")"
   [[ -n "$(get_env PGID)" ]] || set_env PGID "$(id -g "${SUDO_USER:-$(id -un)}")"
-  # Settings that only existed for the v12 multi-container layout.
-  sed -i -E '/^(OSRM_MANAGER_URL|OSRM_MANAGER_TOKEN|OSRM_MANAGER_TOKEN_FILE|OSRM_SWITCH_ACCESS_KEY|OSRM_SWITCH_ENABLED|CONTAINER_SOCKET|OSRM_IMAGE|OSRM_HOST_PORT|OSRM_GRAPH|OSRM_PBF)=/d' "$ENV"
   set_env ROGUEROUTE_RUNTIME "$runtime"
+  tidy_env
   chmod 600 "$ENV" 2>/dev/null || true
   network="$(get_env MEDIA_NETWORK media-net)"
   "$runtime" network inspect "$network" >/dev/null 2>&1 || "$runtime" network create "$network" >/dev/null
@@ -169,7 +252,9 @@ Container:
   start                 Pull the image and start the container
   stop                  Stop and remove the container (map data is kept)
   restart               Pull and recreate the container
-  update                Apply VERSION from Git, migrate older layouts, pull and recreate
+  update [CHANNEL]      Pull the latest code for the channel (stable = main, testing = testing),
+                        apply it and recreate the container. Giving a channel switches to it.
+                        --no-fetch skips the Git step (use what is checked out).
   status                Show container state
   logs                  Follow container logs
   doctor                Check configuration, permissions, container and OSRM state
@@ -202,6 +287,23 @@ case "$cmd" in
     wait_for_healthy ;;
   update)
     ensure_writable
+    channel="$(get_env ROGUEROUTE_CHANNEL stable)"
+    fetch=true
+    for arg in "$@"; do
+      case "$arg" in
+        stable|main) channel=stable ;;
+        testing) channel=testing ;;
+        --no-fetch) fetch=false ;;
+        *) fail "Usage: ./rogueroute-gpx update [stable|testing] [--no-fetch]" ;;
+      esac
+    done
+    if [[ "$fetch" == true && "${ROGUEROUTE_SYNCED:-}" != 1 ]]; then
+      sync_checkout "$channel"
+      set_env ROGUEROUTE_CHANNEL "$channel"
+      # The pull may have changed this script; finish the update with the new copy.
+      ROGUEROUTE_SYNCED=1 exec "$ROOT/rogueroute-gpx" update --no-fetch
+    fi
+    set_env ROGUEROUTE_CHANNEL "$channel"
     prepare_environment
     version="$(repository_version)"
     set_env ROGUEROUTE_VERSION "$version"

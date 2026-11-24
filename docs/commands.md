@@ -10,7 +10,7 @@ works and forwards to `./rogueroute-gpx`.
 | `./rogueroute-gpx start` | Pull the pinned image and start the container. |
 | `./rogueroute-gpx stop` | Stop and remove the container. Map data is kept. |
 | `./rogueroute-gpx restart` | Pull and recreate the container. |
-| `./rogueroute-gpx update` | Apply `VERSION` from Git, remove the v12 containers if present, pull and recreate. |
+| `./rogueroute-gpx update [CHANNEL]` | Fast-forward to the channel's branch, apply `VERSION`, tidy `.env`, pull and recreate. Naming a channel switches to it. |
 | `sudo ./rogueroute-gpx permissions` | Give your account the checkout, `.env` and map folder. |
 | `./rogueroute-gpx status` | Container state. |
 | `./rogueroute-gpx logs` | Follow logs (website, supervisor, OSRM and the map queue share one stream). |

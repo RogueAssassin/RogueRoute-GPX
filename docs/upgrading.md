@@ -6,12 +6,23 @@ The installation is a Git checkout. Settings stay in the ignored `.env`; maps st
 ## Normal update
 
 ```bash
-cd /opt/media-server/rogueroute-gpx && git pull --ff-only
+cd /opt/media-server/rogueroute-gpx
 ./rogueroute-gpx update
 ```
 
-`update` applies `VERSION` to `.env`, pulls that exact image and recreates the container.
-Wait for the publish workflow for that version to finish first.
+`update` fast-forwards the checkout to the latest commit of your channel's branch (`main` for
+stable, `testing` for testing), applies `VERSION`, tidies `.env`, pulls that exact image and
+recreates the container. Wait for the publish workflow for that version to finish first.
+It stops without changing anything if tracked files in the checkout were edited.
+`--no-fetch` skips the Git step and uses what is checked out.
+
+## Your .env
+
+On `start`, `restart` and `update` the script rewrites `.env` in the layout of `.env.example`:
+section headings and comments, your values kept, and settings that no longer do anything
+removed (the v12 manager settings and `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`). Settings the
+template does not know are kept under "Your additional settings". The previous file is saved
+as `.env.backup-<time>` (the last five are kept).
 
 ## From v13.0 to v13.1
 
@@ -90,16 +101,22 @@ git checkout 50b3682   # v12.6.3 on main
 ./rogueroute update
 ```
 
-## Testing channel
+## Switching channel
 
-The `testing` branch publishes `VERSION-testing` images (for example `13.0.0-testing`). To
-run a server on it, check out `testing` and set the channel before updating:
+The `testing` branch publishes `VERSION-testing` images (for example `13.1.0-testing`) and is
+where changes are tried before they reach `main`. One command switches the checkout, the
+channel in `.env` and the image tag together:
 
 ```bash
-git fetch origin && git checkout testing && git pull --ff-only
-sed -i 's/^ROGUEROUTE_CHANNEL=.*/ROGUEROUTE_CHANNEL=testing/' .env || true
-grep -q '^ROGUEROUTE_CHANNEL=' .env || echo 'ROGUEROUTE_CHANNEL=testing' >> .env
-./rogueroute-gpx update
+./rogueroute-gpx update testing    # testing branch and images
+./rogueroute-gpx update stable     # back to main and stable releases
 ```
 
-Set `ROGUEROUTE_CHANNEL=stable` and check out `main` to return to stable releases.
+After that, a plain `./rogueroute-gpx update` stays on the chosen channel.
+
+Installs from before v13.1 do not have this yet. Switch the checkout by hand once:
+
+```bash
+git fetch origin && git checkout main && git pull --ff-only
+./rogueroute-gpx update stable
+```

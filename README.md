@@ -108,7 +108,8 @@ flowchart LR
 
 ```bash
 ./rogueroute-gpx start          # pull and start the container
-./rogueroute-gpx update         # after git pull: apply VERSION, migrate, pull, recreate
+./rogueroute-gpx update         # pull the latest code for your channel, apply it, recreate
+./rogueroute-gpx update testing # switch to the testing channel (update stable to go back)
 ./rogueroute-gpx doctor         # configuration, permissions, container and OSRM state
 ./rogueroute-gpx logs
 ./rogueroute-gpx stop           # map data is kept
@@ -183,7 +184,7 @@ docker build -t rogueroute-gpx:dev .
 
 The supported toolchain is Node.js `26.8.1`, pnpm `11.24.0` and TypeScript `6.0.3`. Pushing to
 `main` or publishing a release builds AMD64 and ARM64 images. The `testing` branch publishes
-`ghcr.io/rogueassassin/rogueroute-gpx:testing`.
+`ghcr.io/rogueassassin/rogueroute-gpx:VERSION-testing` and `:testing`.
 
 ## Acknowledgements
 

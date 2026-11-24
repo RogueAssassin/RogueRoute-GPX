@@ -8,6 +8,8 @@
 - New CLI: `osm add`, `osm queue [pause|resume|cancel|clear|remove]`, `osm retry`, `osm follow`, `osm prepare-all`; `--wait` blocks until regions finish. `osm download`/`prepare` now queue and return.
 - New settings: `ROGUEROUTE_AUTO_PREPARE`, `ROGUEROUTE_PREPARE_THREADS`, `ROGUEROUTE_PREPARE_NICE`.
 - API: `/api/maps` (public) and `/api/admin/queue` replace `/api/admin/jobs`.
+- `./rogueroute-gpx update [stable|testing]` fast-forwards the checkout to the channel's branch before applying it; naming a channel switches branch, `.env` channel and image tag in one step.
+- `.env` is rewritten in the layout of the new sectioned, commented `.env.example` on start/update, keeping your values, dropping unused settings (`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, v12 manager keys) and saving a backup.
 - README screenshots of the route builder and the map status page.
 
 ## v13.0.0 — One container, automatic regions

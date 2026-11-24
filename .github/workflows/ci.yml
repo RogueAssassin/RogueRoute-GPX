@@ -75,7 +75,6 @@ jobs:
           JSON
           cp .env.example .env
           sed -i "s|^OSRM_DATA_DIR=.*|OSRM_DATA_DIR=$data|; s|^ROGUEROUTE_TAG=.*|ROGUEROUTE_TAG=ci|; s|^PUID=.*|PUID=$(id -u)|; s|^PGID=.*|PGID=$(id -g)|; s|^OSRM_ACTIVE_REGION=.*|OSRM_ACTIVE_REGION=andorra|; s|^OSRM_SWITCH_COOLDOWN_SECONDS=.*|OSRM_SWITCH_COOLDOWN_SECONDS=0|; s|^HOST_PORT=.*|HOST_PORT=19080|" .env
-          echo "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
           cat > "$RUNNER_TEMP/ci.yaml" <<YAML
           services:
             rogueroute-gpx:
