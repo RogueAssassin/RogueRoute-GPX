@@ -19,15 +19,6 @@ type OsrmStatus = {
   cooldownRemainingSeconds: number;
 };
 
-type Job = {
-  type: "download" | "prepare";
-  regions: string[];
-  status: "running" | "succeeded" | "failed";
-  currentRegion: string | null;
-  progress: { bytes: number; total: number | null } | null;
-  log: { seq: number; line: string }[];
-};
-
 const STATE_COLOURS: Record<string, string> = {
   ready: "#41d99b",
   loading: "#f59e0b",
@@ -39,6 +30,7 @@ const STATE_COLOURS: Record<string, string> = {
 
 const TOKEN_KEY = "rogueroute-gpx.adminToken";
 
+/** The admin token saved on the /maps page, if any; it lets "Load now" skip the cooldown. */
 function readToken() {
   try {
     return window.sessionStorage.getItem(TOKEN_KEY) ?? "";
@@ -46,6 +38,8 @@ function readToken() {
     return "";
   }
 }
+
+type MapsSummary = { current: string | null; step: string | null; pending: number };
 
 export default function RegionPanel({
   choice,
@@ -59,12 +53,10 @@ export default function RegionPanel({
   const [regions, setRegions] = useState<Region[]>([]);
   const [osrm, setOsrm] = useState<OsrmStatus | null>(null);
   const [activeRegion, setActiveRegion] = useState<string | null>(null);
-  const [adminEnabled, setAdminEnabled] = useState(false);
+  const [maps, setMaps] = useState<MapsSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [token, setToken] = useState("");
-  const [adminRegion, setAdminRegion] = useState("");
-  const [job, setJob] = useState<Job | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -74,7 +66,7 @@ export default function RegionPanel({
       setRegions(data.regions);
       setOsrm(data.osrm);
       setActiveRegion(data.activeRegion);
-      setAdminEnabled(Boolean(data.adminEnabled));
+      setMaps(data.maps ?? null);
       setNotice(null);
     } catch (error) {
       setOsrm({ state: "unavailable", region: null, error: null, switchTarget: null, cooldownRemainingSeconds: 0 });
@@ -82,29 +74,19 @@ export default function RegionPanel({
     }
   }, []);
 
-  const refreshJob = useCallback(async (adminToken: string) => {
-    if (!adminToken) return;
-    const response = await fetch("/api/admin/jobs", { cache: "no-store", headers: { authorization: `Bearer ${adminToken}` } });
-    const data = await response.json().catch(() => ({}));
-    if (response.ok) setJob(data.job ?? null);
-    else setNotice(data.error || "Admin token rejected.");
-  }, []);
-
   useEffect(() => {
     setToken(readToken());
     void refresh();
   }, [refresh]);
 
-  // Poll while something is changing: a graph loading or a map job running.
-  const changing = osrm?.state === "loading" || osrm?.state === "switching" || job?.status === "running";
+  // Poll quickly while a graph loads, slowly while map work runs in the background.
+  const changing = osrm?.state === "loading" || osrm?.state === "switching";
+  const mapWork = Boolean(maps?.current);
   useEffect(() => {
-    if (!changing) return;
-    const timer = window.setInterval(() => {
-      void refresh();
-      void refreshJob(token);
-    }, 3_000);
+    if (!changing && !mapWork) return;
+    const timer = window.setInterval(() => void refresh(), changing ? 3_000 : 15_000);
     return () => window.clearInterval(timer);
-  }, [changing, refresh, refreshJob, token]);
+  }, [changing, mapWork, refresh]);
 
   useEffect(() => {
     if (lastUsed) void refresh();
@@ -133,34 +115,11 @@ export default function RegionPanel({
     }
   }
 
-  async function startJob(type: "download" | "prepare") {
-    if (!adminRegion) return setNotice("Pick a region first.");
-    const response = await fetch("/api/admin/jobs", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ type, regions: [adminRegion] }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return setNotice(data.error || `Failed to start ${type}.`);
-    setJob(data.job);
-    setNotice(`${type === "download" ? "Download" : "Preparation"} of ${label(adminRegion)} started.`);
-  }
-
-  function saveToken(value: string) {
-    setToken(value);
-    try {
-      window.sessionStorage.setItem(TOKEN_KEY, value);
-    } catch {
-      /* session storage unavailable */
-    }
-  }
-
   const stateLabel = osrm
     ? osrm.state === "switching" || osrm.state === "loading"
       ? `loading ${label(osrm.switchTarget ?? osrm.region)}`
       : osrm.state
     : "checking";
-  const progress = job?.progress?.total ? Math.round((job.progress.bytes / job.progress.total) * 100) : null;
 
   return (
     <div style={subPanelStyle}>
@@ -204,52 +163,14 @@ export default function RegionPanel({
       {osrm?.error && <div style={{ ...noticeStyle, marginTop: 10 }}>{osrm.error}</div>}
       {notice && <div style={{ ...noticeStyle, marginTop: 10 }}>{notice}</div>}
 
-      {adminEnabled && (
-        <details style={{ marginTop: 12 }}>
-          <summary style={{ cursor: "pointer", color: "#93c5fd" }}>Map administration</summary>
-          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <input
-              type="password"
-              placeholder="Admin token"
-              value={token}
-              onChange={(event) => saveToken(event.target.value)}
-              style={inputStyle}
-            />
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <select value={adminRegion} onChange={(event) => setAdminRegion(event.target.value)} style={{ ...inputStyle, minWidth: 230 }}>
-                <option value="">Choose a region…</option>
-                {regions.map((region) => (
-                  <option key={region.key} value={region.key}>
-                    {region.label} · {region.state} · {region.download}
-                  </option>
-                ))}
-              </select>
-              <button onClick={() => void startJob("download")} disabled={!token} style={secondaryButton}>
-                Download
-              </button>
-              <button onClick={() => void startJob("prepare")} disabled={!token} style={secondaryButton}>
-                Prepare
-              </button>
-              <button
-                onClick={() => adminRegion && void switchNow(adminRegion)}
-                disabled={!token || !adminRegion || busy}
-                style={secondaryButton}
-              >
-                Load now
-              </button>
-              <button onClick={() => void refreshJob(token)} disabled={!token} style={secondaryButton}>
-                Job status
-              </button>
-            </div>
-            {job && (
-              <div style={{ ...noticeStyle, fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto" }}>
-                {`${job.type} ${job.regions.join(", ")}: ${job.status}${job.currentRegion ? ` (${job.currentRegion}${progress !== null ? ` ${progress}%` : ""})` : ""}\n`}
-                {job.log.slice(-30).map((entry) => entry.line).join("\n")}
-              </div>
-            )}
-          </div>
-        </details>
-      )}
+      <div style={{ marginTop: 10, color: "#cbd5e1" }}>
+        {maps?.current
+          ? `Map work in the background: ${label(maps.current)}${maps.step ? ` (${maps.step})` : ""}${maps.pending ? `, ${maps.pending} more waiting` : ""}. `
+          : null}
+        <a href="/maps" style={{ color: "#93c5fd" }}>
+          Map status{maps?.current ? "" : " and downloads"} →
+        </a>
+      </div>
     </div>
   );
 }

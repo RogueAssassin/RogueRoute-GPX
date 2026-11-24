@@ -88,14 +88,12 @@ run() { "$@"; }
 if [[ "$START" == true ]]; then
   run "$TARGET/rogueroute-gpx" start
   if ! run "$TARGET/rogueroute-gpx" osm verify "$REGION" >/dev/null 2>&1; then
-    run "$TARGET/rogueroute-gpx" osm download "$REGION"
-    run "$TARGET/rogueroute-gpx" osm prepare "$REGION"
+    run "$TARGET/rogueroute-gpx" osm add "$REGION" --wait
   fi
   run "$TARGET/rogueroute-gpx" osm status
 else
   echo "Next steps:"
   echo "  cd $TARGET"
   echo "  ./rogueroute-gpx start"
-  echo "  ./rogueroute-gpx osm download $REGION"
-  echo "  ./rogueroute-gpx osm prepare $REGION"
+  echo "  ./rogueroute-gpx osm add $REGION"
 fi

@@ -1,6 +1,7 @@
 import { createServer, request } from "node:http";
 import { unlink } from "node:fs/promises";
 import { fileState } from "./catalog.mjs";
+import { diskSpace, memoryLimit } from "./queue.mjs";
 import { ControlError } from "./osrm.mjs";
 
 async function readJson(req) {
@@ -19,7 +20,9 @@ async function readJson(req) {
   }
 }
 
-export async function statusPayload({ catalog, dataDir, osrm, jobs }) {
+export async function statusPayload({ catalog, dataDir, osrm, queue }) {
+  const maps = queue.status({ log: false });
+  const queued = new Set(maps.pending.map((item) => item.region));
   const regions = await Promise.all(
     catalog.map(async (region) => ({
       key: region.key,
@@ -29,16 +32,27 @@ export async function statusPayload({ catalog, dataDir, osrm, jobs }) {
       expanded: region.expanded,
       bounds: region.bounds,
       state: await fileState(dataDir, region),
+      queue: maps.current?.region === region.key ? "working" : queued.has(region.key) ? "queued" : null,
+      failure: maps.failures[region.key] ?? null,
+      preparedAt: maps.history[region.key]?.preparedAt ?? null,
     })),
   );
-  return { ok: true, activeRegion: osrm.region?.key ?? null, osrm: osrm.status(), job: jobs.status(), regions };
+  return {
+    ok: true,
+    activeRegion: osrm.region?.key ?? null,
+    osrm: osrm.status(),
+    queue: maps,
+    disk: await diskSpace(dataDir),
+    memory: await memoryLimit(),
+    regions,
+  };
 }
 
 /**
  * Control API over a unix socket inside the container. Only processes in the container (the
  * web server and the rogueroute-gpx CLI) can reach it; nothing is published on the network.
  */
-export async function startControlServer({ socketPath, catalog, dataDir, osrm, jobs, log }) {
+export async function startControlServer({ socketPath, catalog, dataDir, osrm, queue, log }) {
   const server = createServer(async (req, res) => {
     const send = (status, payload) => {
       res.writeHead(status, { "content-type": "application/json" });
@@ -46,18 +60,20 @@ export async function startControlServer({ socketPath, catalog, dataDir, osrm, j
     };
     try {
       if (req.method === "GET" && req.url === "/status") {
-        return send(200, await statusPayload({ catalog, dataDir, osrm, jobs }));
+        return send(200, await statusPayload({ catalog, dataDir, osrm, queue }));
       }
       if (req.method === "POST" && req.url === "/switch") {
         const body = await readJson(req);
         return send(200, { ok: true, ...(await osrm.switchTo(String(body.region || ""), { force: body.force === true })) });
       }
-      if (req.method === "GET" && req.url === "/jobs") {
-        return send(200, { ok: true, job: jobs.status() });
+      const url = new URL(req.url, "http://supervisor");
+      if (req.method === "GET" && url.pathname === "/queue") {
+        return send(200, { ok: true, queue: queue.status({ since: Number(url.searchParams.get("since")) || 0 }) });
       }
-      if (req.method === "POST" && req.url === "/jobs") {
+      if (req.method === "POST" && url.pathname === "/queue") {
         const body = await readJson(req);
-        return send(202, { ok: true, job: jobs.start({ type: body.type, regions: body.regions }) });
+        const result = await queue.act({ action: String(body.action || ""), regions: body.regions, goal: body.goal });
+        return send(200, { ok: true, ...result, queue: queue.status({ log: false }) });
       }
       send(404, { error: "Not found" });
     } catch (error) {

@@ -13,6 +13,18 @@ cd /opt/media-server/rogueroute-gpx && git pull --ff-only
 `update` applies `VERSION` to `.env`, pulls that exact image and recreates the container.
 Wait for the publish workflow for that version to finish first.
 
+## From v13.0 to v13.1
+
+A normal update. Map download and preparation now run in a background queue:
+
+- Regions already downloaded but not prepared are queued automatically on the first start
+  (set `ROGUEROUTE_AUTO_PREPARE=false` in `.env` first if you do not want that).
+- `osm download` and `osm prepare` return straight away; add `--wait` to block as before.
+  `osm job` is now `osm follow`.
+- The website region panel no longer has Map administration; it moved to `/maps`.
+- A v13.0 job still running when you update stops. Its region is still downloaded, so
+  automatic preparation queues it again on start. From v13.1 on, queued work resumes by itself.
+
 ## From v12 to v13
 
 v13 replaces the four v12 containers (`rogueroute-gpx-web`, `-manager`, `-osrm`,

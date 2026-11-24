@@ -37,8 +37,8 @@ cd /opt/media-server/rogueroute-gpx
 
 - creates `.env` from `.env.example` (mode 600) and pins `ROGUEROUTE_VERSION` to `VERSION`
 - sets `PUID`/`PGID` to your account and `OSRM_DATA_DIR`/`OSRM_ACTIVE_REGION` from the flags
-- with `--start`: starts the container, then downloads and prepares the region unless it is
-  already prepared
+- with `--start`: starts the container, then queues the region and waits until it is downloaded
+  and prepared (skipped when it is already prepared)
 
 Use `sudo ./install.sh` only if the map folder must be created somewhere your account cannot
 write (Docker only); it hands ownership back to you.
@@ -53,8 +53,7 @@ Edit `/opt/media-server/rogueroute-gpx/.env`; never commit it. Notable settings:
 
 - `ROGUEROUTE_RUNTIME=auto` selects a running engine: Podman first, or Docker first as root.
 - `HOST_BIND=127.0.0.1` when a reverse proxy on the same host is the only client.
-- `ADMIN_TOKEN` enables map download and preparation from the website (Map region panel →
-  Map administration). Leave it empty to keep that to the CLI.
+- `ADMIN_TOKEN` enables map queue management on the website (`/maps`, Map administration). Leave it empty to keep that to the CLI.
 - `OSRM_SWITCH_COOLDOWN_SECONDS` limits how often visitors' routes can change the region.
 
 The container runs as `PUID:PGID` with a read-only root filesystem, no capabilities and

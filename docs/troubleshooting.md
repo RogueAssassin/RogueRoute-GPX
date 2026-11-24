@@ -8,7 +8,7 @@ Start with:
 ./rogueroute-gpx logs
 ```
 
-Log lines are prefixed: `[supervisor]`, `[osrm]`, `[job download]`, `[job prepare]`; website
+Log lines are prefixed: `[supervisor]`, `[osrm]`, `[maps]`; website
 output is unprefixed.
 
 ## Image cannot be pulled
@@ -21,8 +21,7 @@ package is public. For a private package, log in with a token limited to `read:p
 No region is prepared yet:
 
 ```bash
-./rogueroute-gpx osm download REGION
-./rogueroute-gpx osm prepare REGION
+./rogueroute-gpx osm add REGION
 ```
 
 ## OSRM state is `failed`
@@ -31,8 +30,27 @@ The log shows why `osrm-routed` stopped. Common causes:
 
 - **Not enough memory** for the graph (the process is killed). Use a smaller region.
 - **Graph built by an older OSRM release.** Graph formats change between OSRM versions.
-  Delete that region's `*.osrm*` files and run `osrm prepare` again.
+  Delete that region's `*.osrm*` files and run `./rogueroute-gpx osm add REGION` again.
 - A crash while serving is restarted automatically up to five times with backoff.
+
+## A region shows Failed on /maps
+
+`./rogueroute-gpx osm queue` (or Map administration on `/maps`) shows the step and reason.
+
+- **Killed, most likely out of memory** during `extract`: the host or container does not have
+  enough RAM for that extract. Use smaller country regions instead, add memory or swap, then
+  `./rogueroute-gpx osm retry REGION`.
+- **Not enough disk space**: free space in `OSRM_DATA_DIR` (about the download size for a
+  download, three times the extract size for preparation), then retry.
+- **Checksum mismatch**: the download was damaged; retry starts it cleanly.
+
+Failed regions are skipped by automatic preparation until you retry them.
+
+## Map work is slowing the server down
+
+Preparation already runs at nice 10. Set `ROGUEROUTE_PREPARE_NICE=19` and
+`ROGUEROUTE_PREPARE_THREADS` to fewer cores in `.env`, then `./rogueroute-gpx restart` (the
+queue resumes), or `./rogueroute-gpx osm queue pause` until a quieter time.
 
 ## "Region switching is cooling down"
 

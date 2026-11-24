@@ -51,18 +51,30 @@ export async function fileState(dataDir, region) {
 
 const stateDir = (dataDir) => join(dataDir, ".rogueroute-gpx");
 
-export async function readState(dataDir) {
+/** Read a JSON file from /data/.rogueroute-gpx; a missing or damaged file reads as {}. */
+export async function readStateFile(dataDir, name) {
   try {
-    return JSON.parse(await readFile(join(stateDir(dataDir), "state.json"), "utf8"));
+    return JSON.parse(await readFile(join(stateDir(dataDir), name), "utf8"));
   } catch {
     return {};
   }
 }
 
-export async function writeState(dataDir, state) {
+/** Write a JSON file in /data/.rogueroute-gpx atomically (temp file, then rename). */
+export async function writeStateFile(dataDir, name, value) {
   const dir = stateDir(dataDir);
   await mkdir(dir, { recursive: true });
-  const file = join(dir, "state.json");
-  await writeFile(`${file}.tmp`, `${JSON.stringify(state, null, 2)}\n`);
+  const file = join(dir, name);
+  await writeFile(`${file}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
   await rename(`${file}.tmp`, file);
+}
+
+export const readState = (dataDir) => readStateFile(dataDir, "state.json");
+export const writeState = (dataDir, state) => writeStateFile(dataDir, "state.json", state);
+
+/** Upper bound of a catalog size such as "2-4GB" or "300MB-2GB", in bytes (0 when unknown). */
+export function catalogBytes(text) {
+  const match = /([\d.]+)\s*(MB|GB)\s*$/i.exec(String(text ?? ""));
+  if (!match) return 0;
+  return Number(match[1]) * (match[2].toUpperCase() === "GB" ? 1e9 : 1e6);
 }

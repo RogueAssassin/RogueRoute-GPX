@@ -97,9 +97,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker exec rogueroute-gpx rogueroute-gpx osm download andorra liechtenstein
-          docker exec rogueroute-gpx rogueroute-gpx osm prepare andorra liechtenstein
+          # One command queues download and preparation; --wait blocks until both are done.
+          docker exec rogueroute-gpx rogueroute-gpx osm add andorra liechtenstein --wait
           docker exec rogueroute-gpx rogueroute-gpx osm status
+          docker exec rogueroute-gpx rogueroute-gpx osm queue
+          test -s "$RUNNER_TEMP/osrm/.rogueroute-gpx/queue.json"
+          curl -fsS http://127.0.0.1:19080/api/maps | jq -e '[.regions[] | select(.state == "prepared")] | length == 2'
+          curl -fsS http://127.0.0.1:19080/maps | grep -q "Map status"
           # The first prepared region is loaded automatically when nothing was served.
           for _ in $(seq 1 60); do
             curl -fsS http://127.0.0.1:19080/api/health/osrm >/dev/null 2>&1 && break; sleep 1
@@ -122,7 +126,7 @@ jobs:
             -H 'content-type: application/json' -d '{"input":"-37.8136,144.9631\n-37.8160,144.9690"}')
           test "$code" = 400 && jq -e '.error | test("not inside any")' /tmp/outside.json
           # Admin endpoints are closed without ADMIN_TOKEN.
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19080/api/admin/jobs)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19080/api/admin/queue)" = 401
       - name: Graceful stop
         if: always()
         shell: bash

@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // rogueroute-gpx supervisor: PID 1 of the single container. Runs the web server and
 // osrm-routed as child processes, switches regions by restarting osrm-routed on another
-// graph, and runs download/prepare jobs. No container engine access is needed.
+// graph, and runs the background map queue (download and prepare). No container engine
+// access is needed.
 import { spawn } from "node:child_process";
 import { loadCatalog } from "./catalog.mjs";
 import { startControlServer } from "./control.mjs";
-import { JobRunner } from "./jobs.mjs";
 import { OsrmService } from "./osrm.mjs";
+import { MapQueue } from "./queue.mjs";
 
 const env = process.env;
 const number = (value, fallback, min = 0) => {
+  if (value === undefined || String(value).trim() === "") return fallback; // empty .env value: default
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= min ? parsed : fallback;
 };
@@ -27,14 +29,17 @@ const config = {
   startupTimeoutMs: number(env.ROGUEROUTE_STARTUP_TIMEOUT_SECONDS, 600, 30) * 1000,
   cooldownMs: number(env.OSRM_SWITCH_COOLDOWN_SECONDS, 60, 0) * 1000,
   initialRegion: env.OSRM_REGION || env.OSRM_ACTIVE_REGION || "",
+  autoPrepare: !/^(0|false|no|off)$/i.test(env.ROGUEROUTE_AUTO_PREPARE || "true"),
+  threads: number(env.ROGUEROUTE_PREPARE_THREADS, 0, 0),
+  niceness: Math.min(19, number(env.ROGUEROUTE_PREPARE_NICE, 10, 0)),
 };
 
 const log = (line) => console.log(`${new Date().toISOString()} ${line}`);
 
 const catalog = await loadCatalog(config.catalogFile);
 const osrm = new OsrmService({ ...config, port: config.osrmPort, catalog, log });
-const jobs = new JobRunner({ ...config, catalog, osrm, log });
-const control = await startControlServer({ ...config, catalog, osrm, jobs, log });
+const queue = new MapQueue({ ...config, catalog, osrm, log });
+const control = await startControlServer({ ...config, catalog, osrm, queue, log });
 log(`[supervisor] control socket ${config.socketPath}`);
 
 let web = null;
@@ -71,7 +76,7 @@ async function shutdown(signal) {
   setTimeout(() => process.exit(0), 25_000).unref();
   const webExited = web ? new Promise((resolve) => web.once("exit", resolve)) : Promise.resolve();
   web?.kill("SIGTERM");
-  await Promise.all([webExited, osrm.stop()]);
+  await Promise.all([webExited, osrm.stop(), queue.stop()]);
   control.close();
   process.exit(0);
 }
@@ -79,4 +84,9 @@ for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => void shut
 
 startWeb();
 // The website comes up immediately; OSRM loads in the background and reports its state.
-osrm.boot(config.initialRegion).catch((error) => log(`[osrm] boot failed: ${error.message}`));
+osrm
+  .boot(config.initialRegion)
+  .catch((error) => log(`[osrm] boot failed: ${error.message}`))
+  // Map work starts after the first graph is chosen, so it never competes with the boot load.
+  .then(() => queue.init())
+  .catch((error) => log(`[maps] queue failed to start: ${error.message}`));

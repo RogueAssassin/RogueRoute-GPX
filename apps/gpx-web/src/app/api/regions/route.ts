@@ -11,6 +11,11 @@ export async function GET() {
         activeRegion: status.activeRegion,
         osrm: status.osrm,
         regions: publicRegions(status),
+        maps: {
+          current: status.queue.current?.region ?? null,
+          step: status.queue.current?.step ?? null,
+          pending: status.queue.pending.length,
+        },
         adminEnabled: Boolean(process.env.ADMIN_TOKEN?.trim()),
       },
       { headers: { "cache-control": "no-store" } },

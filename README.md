@@ -6,18 +6,23 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-13.0.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
+[![Release](https://img.shields.io/badge/release-13.1.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
 [![Container](https://img.shields.io/badge/GHCR-one_container-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/rogueroute-gpx/pkgs/container/rogueroute-gpx)
 [![Engines](https://img.shields.io/badge/runtime-docker_%7C_podman-ff2bd6?style=for-the-badge)](#requirements)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **13.0.0** · One container · Local OSRM routing with automatic regions
+Version **13.1.0** · One container · Local OSRM routing with automatic regions
 
 </div>
 
 RogueRoute GPX accepts IITC exports, JSON, CSV and coordinate lists, routes them along OpenStreetMap roads and walking tracks, and exports GPX files that are detailed enough to follow without overwhelming GPX applications.
 
 Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM routing engine, region switching, and map download and preparation. It runs the same way on Docker and on rootless Podman, and it never needs access to the container engine socket.
+
+<p align="center">
+  <img src="docs/assets/screenshot-route-builder.png" alt="RogueRoute GPX route builder: generator, operations deck, map preview and the Map region panel" width="49%">
+  <img src="docs/assets/screenshot-maps.png" alt="Map status page: regions ready, the region being prepared, the queue and every region's state" width="49%">
+</p>
 
 ## Why RogueRoute GPX?
 
@@ -28,7 +33,8 @@ Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM ro
 | 🧲 | **Recover difficult portals.** Strict routing searches progressively from 250 m up to a configurable 5,000 m snap limit. |
 | 🗺️ | **See the route before export.** The map shows the route, the original waypoints, automatic snap corrections and failures. |
 | 📦 | **Manageable GPX files.** Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
-| 🧰 | **Maps managed in place.** Resumable Geofabrik downloads and OSRM preparation run inside the container, from the CLI or the website. |
+| 🧰 | **Maps build themselves.** A background queue downloads and prepares regions one at a time, smallest first, at low CPU priority. It resumes after a restart and auto-prepares anything already downloaded. |
+| 📊 | **Map status page.** `/maps` shows what is ready, what is being built (step, progress, time) and what is still waiting, with admin controls behind `ADMIN_TOKEN`. |
 | 🐳 | **One container.** No sidecars, no engine socket, no shared secrets volume. |
 
 ## Install from scratch
@@ -57,7 +63,8 @@ cd /opt/media-server/rogueroute-gpx
 ```
 
 The installer writes the ignored `.env`, sets the container user to your account, starts
-the container, then downloads and prepares the region if it is not prepared already. Run it
+the container, then downloads and prepares the region (waiting for it) if it is not prepared
+already. Run it
 without `--start` to only configure.
 
 ### 3. Open RogueRoute GPX
@@ -73,7 +80,7 @@ flowchart LR
     subgraph container["container: rogueroute-gpx"]
         Supervisor["supervisor (PID 1)"] --> Web["website"]
         Supervisor --> OSRM["osrm-routed :5000 (internal)"]
-        Supervisor --> Jobs["download / prepare jobs"]
+        Supervisor --> Jobs["map queue (download, prepare)"]
         Web -- "control socket" --> Supervisor
     end
     OSRM --> Maps["OSRM_DATA_DIR → /data"]
@@ -89,6 +96,11 @@ flowchart LR
   Europe) and switches to it if needed. Pick a region in the **Map region** panel to override.
 - Region switches are global (one OSRM serves every visitor), so they are serialised and
   rate-limited by `OSRM_SWITCH_COOLDOWN_SECONDS`.
+- The **map queue** works through regions in the background: download (resumable, MD5 checked),
+  then `osrm-extract`, `osrm-partition` and `osrm-customize`. It is saved in
+  `OSRM_DATA_DIR/.rogueroute-gpx/queue.json`, checks free disk space first, warns when a region
+  probably needs more memory than the container has, and records why a region failed (for
+  example killed for lack of memory) without stopping the rest.
 - The image is built from the official `ghcr.io/project-osrm/osrm-backend` image, so the OSRM
   tools and routing profiles are upstream's own.
 
@@ -101,13 +113,15 @@ flowchart LR
 ./rogueroute-gpx logs
 ./rogueroute-gpx stop           # map data is kept
 
-./rogueroute-gpx osm status     # active region and every region's state
-./rogueroute-gpx osm download japan
-./rogueroute-gpx osm prepare japan
+./rogueroute-gpx osm status     # active region, map queue and every region's state
+./rogueroute-gpx osm add japan  # queue: download if needed, then prepare (runs in the background)
+./rogueroute-gpx osm prepare-downloaded   # queue everything downloaded but not prepared
+./rogueroute-gpx osm follow     # watch the map log; Ctrl-C stops watching, not the work
+./rogueroute-gpx osm retry      # queue failed regions again
 ./rogueroute-gpx osm switch japan  # optional: routes switch automatically
 ```
 
-See the [command reference](docs/commands.md) and [maps guide](docs/osm.md).
+Open `http://SERVER-IP:9080/maps` to see the same progress in a browser. See the [command reference](docs/commands.md) and [maps guide](docs/osm.md).
 
 ## Configuration
 
@@ -119,7 +133,10 @@ committed. The most useful ones:
 | `OSRM_DATA_DIR` | `/mnt/h/osrm` | Map folder, mounted at `/data` |
 | `OSRM_ACTIVE_REGION` | `australia` | Region loaded on the very first start |
 | `OSRM_SWITCH_COOLDOWN_SECONDS` | `60` | Minimum time between automatic or public switches |
-| `ADMIN_TOKEN` | empty | Set to a long random value to download and prepare maps from the website |
+| `ADMIN_TOKEN` | empty | Set to a long random value to manage the map queue from `/maps` |
+| `ROGUEROUTE_AUTO_PREPARE` | `true` | Queue downloaded but unprepared regions at start |
+| `ROGUEROUTE_PREPARE_THREADS` | all cores | Limit the cores used by map preparation |
+| `ROGUEROUTE_PREPARE_NICE` | `10` | CPU priority of map preparation (0-19, higher is gentler) |
 | `HOST_BIND` / `HOST_PORT` | `0.0.0.0` / `9080` | Where the website is published |
 | `PUID` / `PGID` | your account | Container user, so map files stay yours |
 | `ROGUEROUTE_RUNTIME` | `auto` | `podman`, `docker`, or detect a running engine |
@@ -148,7 +165,7 @@ The container joins the `rogueroute-gpx` and `media-net` networks and still answ
 - [Upgrading, including from v12](docs/upgrading.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Command reference](docs/commands.md)
-- [v13.0.0 release notes](docs/releases/v13.0.0.md)
+- [v13.1.0 release notes](docs/releases/v13.1.0.md)
 
 ## Development
 

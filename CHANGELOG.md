@@ -1,5 +1,15 @@
 # Changelog
 
+## v13.1.0 — Background map queue and /maps
+
+- Map download and preparation run in a persistent background queue: one region at a time, smallest first, at low CPU priority. It resumes after a restart or update, and downloaded-but-unprepared regions are queued automatically (`ROGUEROUTE_AUTO_PREPARE`).
+- Failures are recorded with step and reason (out of memory is detected) and do not stop the rest; `osm retry` queues them again. Free disk space is checked before downloads and preparation, and a memory warning is logged when a region probably will not fit.
+- New public `/maps` page: regions ready, in progress (step, download progress, speed and time) and waiting, refreshed live. Queue administration (add, remove, retry, cancel, pause, resume, log, disk and memory) moved there behind `ADMIN_TOKEN`.
+- New CLI: `osm add`, `osm queue [pause|resume|cancel|clear|remove]`, `osm retry`, `osm follow`, `osm prepare-all`; `--wait` blocks until regions finish. `osm download`/`prepare` now queue and return.
+- New settings: `ROGUEROUTE_AUTO_PREPARE`, `ROGUEROUTE_PREPARE_THREADS`, `ROGUEROUTE_PREPARE_NICE`.
+- API: `/api/maps` (public) and `/api/admin/queue` replace `/api/admin/jobs`.
+- README screenshots of the route builder and the map status page.
+
 ## v13.0.0 — One container, automatic regions
 
 - Rebuilt the runtime as a single `rogueroute-gpx` container: website, OSRM, region switching, and map download/preparation. The manager, secrets-init and separate OSRM containers, the engine socket mount and the secrets volume are gone.

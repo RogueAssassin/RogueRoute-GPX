@@ -430,6 +430,9 @@ export default function HomePage() {
               <span>
                 Router: {buildInfo ? `${buildInfo.routerMode}/${buildInfo.osrmProfile}` : "unknown"}
               </span>
+              <a href="/maps" style={{ ...miniButtonStyle, textDecoration: "none" }}>
+                Map status
+              </a>
               <button type="button" onClick={resetLocalBrowserState} style={miniButtonStyle}>
                 Reset browser cache
               </button>

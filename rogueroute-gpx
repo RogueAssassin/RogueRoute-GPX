@@ -178,8 +178,10 @@ Container:
   permissions           (sudo) Give your account the checkout and map data directory
 
 Maps (run inside the container):
-  osm list | status | download REGION... | download-missing --yes | prepare REGION...
-  osm prepare-downloaded --yes | switch REGION | verify REGION | job | help
+  osm status | list | add REGION... | download REGION... | prepare-downloaded | prepare-all --yes
+  osm queue [pause|resume|cancel|clear|remove REGION...] | retry [REGION...] | follow
+  osm switch REGION | verify REGION | help
+  Map work runs in the background; the website shows it at /maps.
 HELP
 }
 

@@ -11,7 +11,12 @@ export type SupervisorRegion = {
   expanded: string;
   bounds: [number, number, number, number][];
   state: RegionState;
+  queue: "working" | "queued" | null;
+  failure: MapFailure | null;
+  preparedAt: string | null;
 };
+
+export type MapFailure = { message: string; step: string | null; at: string };
 
 export type OsrmStatus = {
   state: "stopped" | "no-graph" | "loading" | "ready" | "switching" | "failed";
@@ -23,25 +28,34 @@ export type OsrmStatus = {
   cooldownRemainingSeconds: number;
 };
 
-export type JobStatus = {
-  id: string;
-  type: "download" | "prepare";
-  regions: string[];
-  status: "running" | "succeeded" | "failed";
-  currentRegion: string | null;
-  progress: { bytes: number; total: number | null } | null;
-  completed: string[];
-  failed: string[];
-  startedAt: string;
-  finishedAt: string | null;
-  log: { seq: number; line: string }[];
+export type MapStep = "starting" | "download" | "extract" | "partition" | "customize";
+
+export type QueueStatus = {
+  paused: boolean;
+  current: {
+    region: string;
+    goal: "downloaded" | "prepared";
+    step: MapStep;
+    steps: MapStep[];
+    stepIndex: number;
+    startedAt: string;
+    stepStartedAt: string;
+    progress: { bytes?: number; total?: number | null; rate?: number; verifying?: boolean } | null;
+  } | null;
+  pending: { region: string; goal: "downloaded" | "prepared" }[];
+  failures: Record<string, MapFailure>;
+  history: Record<string, { downloadedAt?: string; preparedAt?: string; prepareSeconds?: number }>;
+  log?: { seq: number; line: string }[];
+  lastSeq: number;
 };
 
 export type SupervisorStatus = {
   ok: true;
   activeRegion: string | null;
   osrm: OsrmStatus;
-  job: JobStatus | null;
+  queue: QueueStatus;
+  disk: { free: number; total: number } | null;
+  memory: number;
   regions: SupervisorRegion[];
 };
 
@@ -127,4 +141,29 @@ export function isAdmin(request: Request) {
 /** Public view of the region list: no bounds and no job log. */
 export function publicRegions(status: SupervisorStatus) {
   return status.regions.map(({ key, label, group, download, expanded, state }) => ({ key, label, group, download, expanded, state }));
+}
+
+/**
+ * Map progress for the public /maps page: what is prepared, in progress and waiting. Failure
+ * details, disk space and the log stay behind the admin token.
+ */
+export function publicMaps(status: SupervisorStatus) {
+  const { queue } = status;
+  return {
+    ok: true,
+    activeRegion: status.activeRegion,
+    osrm: { state: status.osrm.state, region: status.osrm.region, switchTarget: status.osrm.switchTarget },
+    queue: { paused: queue.paused, current: queue.current, pending: queue.pending },
+    regions: status.regions.map(({ key, label, group, download, expanded, state, queue: queued, failure, preparedAt }) => ({
+      key,
+      label,
+      group,
+      download,
+      expanded,
+      state,
+      queue: queued,
+      failed: Boolean(failure),
+      preparedAt,
+    })),
+  };
 }
