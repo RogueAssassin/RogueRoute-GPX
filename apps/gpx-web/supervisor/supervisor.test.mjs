@@ -140,6 +140,9 @@ async function idle(queue) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   assert.equal(queue.current, null, "queue did not finish");
+  // The queue empties before its final save reaches queue.json; wait for the write so a
+  // second queue (a simulated restart) reads the finished state.
+  await queue.saving;
 }
 
 test("auto-prepares downloaded regions smallest first and loads the first one", async (t) => {
