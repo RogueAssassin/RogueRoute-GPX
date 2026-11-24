@@ -1,5 +1,13 @@
 # Changelog
 
+## v13.2.0 — v13.1 fixes rolled up, documentation refresh
+
+- Includes v13.1.1: `start`, `restart` and `update` clear the previous container and stale Podman pod before starting.
+- Fixed a flaky map-queue unit test that could read `queue.json` before the queue finished saving.
+- CI downloads its test maps from the openstreetmap.fr mirror, so Geofabrik refusing GitHub runners no longer fails the build.
+- README: new Updating section with the stable and testing channels and their image tags, `ROGUEROUTE_CHANNEL` and `OSRM_PROFILE` in the configuration table, links to all release notes and the changelog, refreshed screenshots; OpenSSL is no longer listed as a requirement.
+- Docs: rolling back within v13 (`update --no-fetch`), v13.1 to v13.2 upgrade note.
+
 ## v13.1.1 — Clear stale Podman pods on start
 
 - `start`, `restart` and `update` remove the previous container, and on Podman the `pod_rogueroute-gpx` pod, after pulling and before starting. This fixes `Error: no pod with name or ID pod_rogueroute-gpx found` under podman-compose when a container outlived its pod. Map data, `.env` and the map queue are not affected.

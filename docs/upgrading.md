@@ -24,6 +24,10 @@ removed (the v12 manager settings and `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`). Set
 template does not know are kept under "Your additional settings". The previous file is saved
 as `.env.backup-<time>` (the last five are kept).
 
+## From v13.1 to v13.2
+
+A normal `./rogueroute-gpx update`. Nothing in `.env` or the map data changes.
+
 ## From v13.0 to v13.1
 
 A normal update. Map download and preparation now run in a background queue:
@@ -91,7 +95,18 @@ What changed for you:
 
 ## Rolling back
 
-Stop the v13 container, check out the previous release and update. Going back to v12
+**Within v13**, check out the commit you want and apply it without fetching (a plain `update`
+would fast-forward straight back to the latest commit):
+
+```bash
+git log --oneline -n 10 origin/main        # pick a commit, for example the previous merge
+git checkout COMMIT
+./rogueroute-gpx update --no-fetch
+```
+
+Return to the latest release with `./rogueroute-gpx update stable`.
+
+**To v12**, stop the v13 container, check out the previous release and update. Going back to v12
 recreates the v12 containers (rename the checkout back to `RogueRoute-GPX` first if you moved
 it and your v12 `.env` or scripts refer to that path):
 
@@ -103,7 +118,7 @@ git checkout 50b3682   # v12.6.3 on main
 
 ## Switching channel
 
-The `testing` branch publishes `VERSION-testing` images (for example `13.1.0-testing`) and is
+The `testing` branch publishes `VERSION-testing` images (for example `13.2.0-testing`) and is
 where changes are tried before they reach `main`. One command switches the checkout, the
 channel in `.env` and the image tag together:
 
