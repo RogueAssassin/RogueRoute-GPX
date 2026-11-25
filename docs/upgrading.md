@@ -24,6 +24,17 @@ removed (the v12 manager settings, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` and `ADM
 template does not know are kept under "Your additional settings". The previous file is saved
 as `.env.backup-<time>` (the last five are kept).
 
+## From v13.5.0 to v13.5.1
+
+v13.5.0's `./rogueroute-gpx` stops without a message once `ADMIN_TOKEN` is gone from `.env`,
+which is after its first update, and leaves the container missing. Let it through once, then
+update:
+
+```bash
+echo 'ADMIN_TOKEN=' >> .env
+./rogueroute-gpx update
+```
+
 ## From v13.4 to v13.5
 
 A normal `./rogueroute-gpx update`. The admin token is replaced by a password and an admin

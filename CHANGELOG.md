@@ -1,5 +1,10 @@
 # Changelog
 
+## v13.5.1 — Fix start and update after the v13.5.0 upgrade
+
+- Fixed `./rogueroute-gpx start`, `restart` and `update` exiting silently (code 1, no container) once `.env` no longer had an `ADMIN_TOKEN` line, which is every run after the first v13.5.0 update. The container was left missing until this fix.
+- CI now runs the `.env` tidy-up on sample files (`scripts/test-tidy-env.sh`).
+
 ## v13.5.0 — Admin page, map requests and map updates
 
 - New `/admin` page with a password login (`ADMIN_PASSWORD`) and tabs for map requests, the map queue, regions and adding regions. It replaces the admin token and the Map administration section of `/maps`, which is now read-only. An existing `ADMIN_TOKEN` value becomes `ADMIN_PASSWORD` on update.

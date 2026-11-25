@@ -40,6 +40,8 @@ jobs:
           bash scripts/version.sh check
           bash -n install.sh rogueroute rogueroute-gpx scripts/version.sh
           test -x rogueroute-gpx && test -x rogueroute && test -x install.sh
+      - name: Tidy .env the way start and update do
+        run: bash scripts/test-tidy-env.sh
       - name: Validate Compose configuration
         run: |
           cp .env.example .env
