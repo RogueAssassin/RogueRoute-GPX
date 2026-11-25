@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileState, readState, readStateFile, writeStateFile } from "./catalog.mjs";
 import { OsrmService } from "./osrm.mjs";
-import { MapQueue } from "./queue.mjs";
+import { MapQueue, parseSize } from "./queue.mjs";
 
 // A stand-in for osrm-routed: serves /nearest on --port, or exits when the graph is "broken".
 const FAKE_ROUTED = `#!/usr/bin/env node
@@ -117,7 +117,7 @@ const fs = require("node:fs");
 for (const suffix of ["mldgr", "cell_metrics"]) fs.writeFileSync(process.argv.at(-1) + "." + suffix, "x");
 `;
 
-async function queueFixture(t, { pbfs = {}, catalogExtra = [], autoPrepare = true } = {}) {
+async function queueFixture(t, { pbfs = {}, catalogExtra = [], autoPrepare = true, options = {} } = {}) {
   const base = await fixture(t, { prepared: [] });
   for (const [name, body] of Object.entries({ "osrm-extract": FAKE_EXTRACT, "osrm-partition": FAKE_PARTITION, "osrm-customize": FAKE_CUSTOMIZE })) {
     await writeFile(join(base.binDir, name), body);
@@ -129,7 +129,7 @@ async function queueFixture(t, { pbfs = {}, catalogExtra = [], autoPrepare = tru
   }
   base.catalog.push(...catalogExtra);
   const logs = [];
-  const queue = new MapQueue({ ...base, profilesDir: base.binDir, profile: "foot", niceness: 0, autoPrepare, log: (line) => logs.push(line) });
+  const queue = new MapQueue({ ...base, profilesDir: base.binDir, profile: "foot", niceness: 0, autoPrepare, log: (line) => logs.push(line), ...options });
   t.after(() => queue.stop());
   await base.osrm.boot("");
   return { ...base, queue, logs };
@@ -219,4 +219,45 @@ test("resumes a saved download, checks the MD5 and prepares when asked", async (
   await queue.act({ action: "add", regions: ["epsilon"] });
   await idle(queue);
   assert.equal(await fileState(dataDir, epsilon), "prepared");
+});
+
+test("parses memory sizes like Docker", () => {
+  assert.equal(parseSize("64g"), 64 * 1024 ** 3);
+  assert.equal(parseSize("91750m"), 91750 * 1024 ** 2);
+  assert.equal(parseSize("1.5GB"), Math.round(1.5 * 1024 ** 3));
+  assert.equal(parseSize("2048"), 2048);
+  assert.equal(parseSize(""), 0);
+  assert.equal(parseSize("auto"), 0);
+});
+
+test("refuses regions too large for the memory cap unless forced", async (t) => {
+  // 10 bytes of extract x 5 (foot) = 50 bytes needed; a 40-byte cap leaves 34 for map work.
+  const { queue, dataDir, logs } = await queueFixture(t, { pbfs: { gamma: "xxxxxxxxxx", delta: "x" }, options: { memoryCap: 40 } });
+  await queue.init();
+  await idle(queue);
+  assert.ok(logs.some((line) => /Auto-prepare skipped gamma: .*needs about/.test(line)));
+  assert.equal(await fileState(dataDir, region("gamma")), "downloaded");
+  assert.equal(await fileState(dataDir, region("delta")), "prepared");
+
+  await assert.rejects(queue.act({ action: "add", regions: ["gamma"] }), (error) => error.code === "too-large");
+  assert.equal(queue.items.length, 0);
+  await queue.act({ action: "add", regions: ["gamma"], force: true });
+  await idle(queue);
+  assert.equal(await fileState(dataDir, region("gamma")), "prepared");
+});
+
+test("the memory watchdog stops a tool when the host runs low", async (t) => {
+  const lowMemory = async () => ({ hostAvailable: 1, hostTotal: 1, cgroupCurrent: null, cgroupMax: null });
+  const { queue, dataDir } = await queueFixture(t, {
+    pbfs: { gamma: "slow" },
+    autoPrepare: false,
+    options: { probe: lowMemory, memoryFloor: 1024, watchdogMs: 50 },
+  });
+  await queue.init();
+  await queue.act({ action: "add", regions: ["gamma"] });
+  await idle(queue);
+  assert.equal(queue.failures.gamma.code, "memory-watchdog");
+  assert.equal(queue.failures.gamma.step, "extract");
+  assert.match(queue.failures.gamma.message, /memory watchdog/);
+  assert.equal(await fileState(dataDir, region("gamma")), "downloaded");
 });

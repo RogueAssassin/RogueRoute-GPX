@@ -47,6 +47,7 @@ jobs:
           docker network create rogueroute-gpx >/dev/null
           docker compose --env-file .env -f compose.yaml config -q
           docker compose --env-file .env -f compose.yaml -f compose.podman.yaml config -q
+          ROGUEROUTE_MEMORY_CAP=4g docker compose --env-file .env -f compose.yaml -f compose.memory.yaml config -q
 
   container:
     runs-on: ubuntu-24.04
@@ -70,7 +71,8 @@ jobs:
           cat > "$RUNNER_TEMP/regions.json" <<'JSON'
           { "regions": [
             { "key": "andorra", "label": "Andorra", "group": "test", "graph": "andorra", "url": "https://download.openstreetmap.fr/extracts/europe/andorra-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[1.40, 42.42, 1.80, 42.66]] },
-            { "key": "san-marino", "label": "San Marino", "group": "test", "graph": "san-marino", "url": "https://download.openstreetmap.fr/extracts/europe/san_marino-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[12.40, 43.89, 12.52, 43.99]] }
+            { "key": "san-marino", "label": "San Marino", "group": "test", "graph": "san-marino", "url": "https://download.openstreetmap.fr/extracts/europe/san_marino-latest.osm.pbf", "download": "small", "expanded": "small", "bounds": [[12.40, 43.89, 12.52, 43.99]] },
+            { "key": "big-test", "label": "Big test", "group": "test", "graph": "big-test", "url": "https://download.openstreetmap.fr/extracts/europe/does-not-exist.osm.pbf", "download": "100GB", "expanded": "300GB", "bounds": [[0.0, 0.0, 0.1, 0.1]] }
           ] }
           JSON
           cp .env.example .env
@@ -86,11 +88,20 @@ jobs:
           YAML
           docker network create media-net >/dev/null
           docker network create rogueroute-gpx >/dev/null
-          docker compose --env-file .env -f compose.yaml -f "$RUNNER_TEMP/ci.yaml" up -d
+          # Cap the container like ./rogueroute-gpx does, at a size CI can check.
+          export ROGUEROUTE_MEMORY_CAP=6g
+          docker compose --env-file .env -f compose.yaml -f compose.memory.yaml -f "$RUNNER_TEMP/ci.yaml" up -d
           for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19080/api/health && break; sleep 1; done
           echo
           curl -fsS http://127.0.0.1:19080/api/health | jq -e '.osrm.state == "no-graph"'
           test "$(docker exec rogueroute-gpx id -u)" = "$(id -u)"
+          # The memory cap reaches the cgroup and the supervisor; map tools run at idle disk priority.
+          test "$(docker exec rogueroute-gpx cat /sys/fs/cgroup/memory.max)" = $((6 * 1024 * 1024 * 1024))
+          docker exec rogueroute-gpx node -e "fetch('http://127.0.0.1:9080/api/maps').then(r=>r.json()).then(j=>{console.log(j.limits);process.exit(j.limits?.capped && j.limits.ioIdle?0:1)})"
+          # A region estimated to need more memory than the cap allows is refused before downloading.
+          if docker exec rogueroute-gpx rogueroute-gpx osm add big-test > /tmp/big.txt 2>&1; then cat /tmp/big.txt; exit 1; fi
+          cat /tmp/big.txt; grep -q "needs about" /tmp/big.txt
+          test ! -e "$data/big-test-latest.osm.pbf.part"
           curl -fsS http://127.0.0.1:19080/ >/dev/null
       - name: Download and prepare inside the container
         shell: bash

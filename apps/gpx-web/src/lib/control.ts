@@ -14,9 +14,15 @@ export type SupervisorRegion = {
   queue: "working" | "queued" | null;
   failure: MapFailure | null;
   preparedAt: string | null;
+  /** Estimated (or, once prepared, measured) peak memory to prepare the region, in bytes. */
+  memoryNeeded: number;
+  peakMemory: number | null;
 };
 
-export type MapFailure = { message: string; step: string | null; at: string };
+export type MapFailure = { message: string; step: string | null; code?: string; at: string };
+
+/** The container memory cap and how much of it map work may plan to use, in bytes. */
+export type MemoryLimits = { cap: number; capped: boolean; budget: number; floor: number; ioIdle: boolean };
 
 export type OsrmStatus = {
   state: "stopped" | "no-graph" | "loading" | "ready" | "switching" | "failed";
@@ -44,7 +50,7 @@ export type QueueStatus = {
   } | null;
   pending: { region: string; goal: "downloaded" | "prepared" }[];
   failures: Record<string, MapFailure>;
-  history: Record<string, { downloadedAt?: string; preparedAt?: string; prepareSeconds?: number }>;
+  history: Record<string, { downloadedAt?: string; preparedAt?: string; prepareSeconds?: number; peakMemory?: number }>;
   log?: { seq: number; line: string }[];
   lastSeq: number;
 };
@@ -56,6 +62,7 @@ export type SupervisorStatus = {
   queue: QueueStatus;
   disk: { free: number; total: number } | null;
   memory: number;
+  limits: MemoryLimits;
   regions: SupervisorRegion[];
 };
 
@@ -154,7 +161,8 @@ export function publicMaps(status: SupervisorStatus) {
     activeRegion: status.activeRegion,
     osrm: { state: status.osrm.state, region: status.osrm.region, switchTarget: status.osrm.switchTarget },
     queue: { paused: queue.paused, current: queue.current, pending: queue.pending },
-    regions: status.regions.map(({ key, label, group, download, expanded, state, queue: queued, failure, preparedAt }) => ({
+    limits: { capped: status.limits.capped, cap: status.limits.cap, budget: status.limits.budget },
+    regions: status.regions.map(({ key, label, group, download, expanded, state, queue: queued, failure, preparedAt, memoryNeeded }) => ({
       key,
       label,
       group,
@@ -164,6 +172,8 @@ export function publicMaps(status: SupervisorStatus) {
       queue: queued,
       failed: Boolean(failure),
       preparedAt,
+      memoryNeeded,
+      tooLarge: state !== "prepared" && memoryNeeded > status.limits.budget,
     })),
   };
 }

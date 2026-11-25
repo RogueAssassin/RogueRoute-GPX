@@ -1,0 +1,10 @@
+# Added by ./rogueroute-gpx unless ROGUEROUTE_MEMORY_LIMIT=none.
+#
+# Caps the container's memory so OSRM map preparation can never take the whole host down.
+# ROGUEROUTE_MEMORY_CAP is worked out by the script from ROGUEROUTE_MEMORY_LIMIT (auto = 70% of
+# host RAM). Swap is capped to the same value, so the container never pushes the host into swap;
+# if the cap is reached, the kernel stops the map tool inside the container and routing carries on.
+services:
+  rogueroute-gpx:
+    mem_limit: ${ROGUEROUTE_MEMORY_CAP}
+    memswap_limit: ${ROGUEROUTE_MEMORY_CAP}

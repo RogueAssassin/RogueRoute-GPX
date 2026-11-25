@@ -26,16 +26,16 @@ be running.
 | Command | Function |
 | --- | --- |
 | `./rogueroute-gpx osm list` | Regions with rough download and prepared sizes. |
-| `./rogueroute-gpx osm status` | Active region, OSRM state, map queue, free disk and each region's state. |
-| `./rogueroute-gpx osm add REGION… [--wait]` | Queue regions: download if needed, then prepare. `prepare` does the same. |
+| `./rogueroute-gpx osm status` | Active region, OSRM state, map queue, free disk, the memory cap and each region's state and memory estimate. |
+| `./rogueroute-gpx osm add REGION… [--wait]` | Queue regions: download if needed, then prepare. `prepare` does the same. Regions too large for the memory cap are refused; add `--force` to try anyway. |
 | `./rogueroute-gpx osm download REGION… [--wait]` | Queue downloads only (resumable, MD5-checked). |
-| `./rogueroute-gpx osm prepare-downloaded [--yes]` | Queue every downloaded, unprepared region. |
+| `./rogueroute-gpx osm prepare-downloaded [--yes]` | Queue every downloaded, unprepared region. Skips regions too large for the memory cap unless `--force`. |
 | `./rogueroute-gpx osm prepare-all --yes` | Queue every catalog region (very large). |
 | `./rogueroute-gpx osm download-missing --yes` | Queue downloads of every region not downloaded yet. |
 | `./rogueroute-gpx osm queue` | Task in progress, waiting regions and failures. |
 | `./rogueroute-gpx osm queue pause` / `resume` / `cancel` / `clear` | Control the queue. |
 | `./rogueroute-gpx osm queue remove REGION…` | Take regions out of the queue. |
-| `./rogueroute-gpx osm retry [REGION…]` | Queue failed regions again (all of them by default). |
+| `./rogueroute-gpx osm retry [REGION…]` | Queue failed regions again (all of them by default). `--force` includes regions too large for the memory cap. |
 | `./rogueroute-gpx osm follow` | Follow the map log until the queue is empty. |
 | `./rogueroute-gpx osm switch REGION` | Serve another prepared region now (skips the cooldown). |
 | `./rogueroute-gpx osm verify REGION` | Check a region is prepared. |

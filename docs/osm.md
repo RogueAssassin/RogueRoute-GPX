@@ -23,8 +23,11 @@ You ask for regions; the container does the rest in the background:
 ```
 
 - One region at a time, **smallest first**, so more regions become usable sooner.
-- Build tools run at a lower CPU priority (`ROGUEROUTE_PREPARE_NICE`, default 10) so routing
-  and the website stay responsive. `ROGUEROUTE_PREPARE_THREADS` limits the cores they use.
+- Build tools run at a lower CPU priority (`ROGUEROUTE_PREPARE_NICE`, default 10) and at idle
+  disk priority (`ROGUEROUTE_PREPARE_IDLE_IO`), so routing, the website and other services on
+  the host stay responsive. `ROGUEROUTE_PREPARE_THREADS` limits the cores they use.
+- Map work runs inside a **memory cap** and under a **memory watchdog**, so a large region
+  cannot take the host down (see Memory below).
 - The queue is saved in `OSRM_DATA_DIR/.rogueroute-gpx/queue.json`. After `update`, `restart`
   or a reboot it **resumes**: downloads continue from their `.part` file and an interrupted
   preparation starts that region again.
@@ -70,12 +73,31 @@ Preparation runs the upstream OSRM tools inside the container:
 Before it starts, the queue removes leftovers of an earlier interrupted build of that region
 and checks that about three times the extract size is free on disk.
 
-**Memory.** `osrm-extract` needs roughly 2–3 times the `.osm.pbf` size in RAM. The queue logs a
-warning when a region probably needs more than the container has. If the kernel kills the tool,
-the region is marked failed with "killed, most likely out of memory" and the queue continues
-with the next region. Continent extracts such as Europe (30+ GB) and the whole United States
-need a very large host; the country extracts (Germany, France, Spain, Italy, UK and Ireland …)
-are far smaller.
+### Memory
+
+`osrm-extract` is the step that needs the most memory: roughly 5 times the `.osm.pbf` size
+with the foot profile (4 for bike, 3 for car). Once a region has been prepared, its measured
+peak is remembered and used instead. Three layers keep this from taking the host down:
+
+1. **Memory cap.** `./rogueroute-gpx` caps the container at `ROGUEROUTE_MEMORY_LIMIT`
+   (`auto` = 70% of host RAM, or a size such as `64g`, or `none`) with no extra swap. If the
+   cap is reached, the kernel stops the map tool inside the container, never the rest of the
+   host, and the website and `osrm-routed` keep running.
+2. **Size check.** A region estimated to need more than 85% of the cap is not prepared:
+   `osm add` refuses it, auto-prepare and `prepare-downloaded` skip it, and `/maps` marks it
+   "Too large for this server". Add `--force` (or **Prepare anyway** on `/maps`) to try it
+   anyway, still inside the cap.
+3. **Watchdog.** While a tool runs, the supervisor checks memory every 2 seconds and stops the
+   tool if free host memory falls below `ROGUEROUTE_MEMORY_FLOOR` (default 5% of RAM, at least
+   2 GB) or the container reaches 95% of its cap. The region is marked failed with the reason.
+
+`./rogueroute-gpx osm status` shows the cap, what map work may use and each region's estimate.
+Continent extracts such as Europe (30+ GB) and the whole United States need a very large host;
+country or state extracts are far smaller.
+
+```bash
+./rogueroute-gpx osm add us --force   # try a region that is over the estimate
+```
 
 The region being served cannot be rebuilt in place: switch to another region first.
 

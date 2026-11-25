@@ -47,8 +47,14 @@ The log shows why `osrm-routed` stopped. Common causes:
 
 `./rogueroute-gpx osm queue` (or Map administration on `/maps`) shows the step and reason.
 
-- **Killed, most likely out of memory** during `extract`: the host or container does not have
-  enough RAM for that extract. Use smaller country regions instead, add memory or swap, then
+- **Too large for this server**: the region is estimated to need more than 85% of the memory
+  cap. Use a smaller region, raise `ROGUEROUTE_MEMORY_LIMIT` in `.env` and
+  `./rogueroute-gpx restart`, or try it anyway with `./rogueroute-gpx osm retry REGION --force`.
+- **Stopped by the memory watchdog**: free host memory fell below `ROGUEROUTE_MEMORY_FLOOR`, or
+  the container neared its cap. The message says which. Other services may have needed the
+  memory; retry at a quieter time, or use a smaller region.
+- **Killed, most likely out of memory** during `extract`: the container reached its memory
+  cap. Use a smaller region, or raise `ROGUEROUTE_MEMORY_LIMIT`, then
   `./rogueroute-gpx osm retry REGION`.
 - **Not enough disk space**: free space in `OSRM_DATA_DIR` (about the download size for a
   download, three times the extract size for preparation), then retry.
@@ -58,7 +64,7 @@ Failed regions are skipped by automatic preparation until you retry them.
 
 ## Map work is slowing the server down
 
-Preparation already runs at nice 10. Set `ROGUEROUTE_PREPARE_NICE=19` and
+Preparation already runs at nice 10, idle disk priority and inside the memory cap. Set `ROGUEROUTE_PREPARE_NICE=19` and
 `ROGUEROUTE_PREPARE_THREADS` to fewer cores in `.env`, then `./rogueroute-gpx restart` (the
 queue resumes), or `./rogueroute-gpx osm queue pause` until a quieter time.
 
