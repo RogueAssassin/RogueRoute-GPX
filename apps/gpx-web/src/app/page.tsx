@@ -23,6 +23,8 @@ const RouteMap = dynamic(() => import("../components/route-map"), {
 
 type Point = [number, number];
 
+type MapRequestHint = { id: string; name: string; state: string | null; queue: string | null };
+
 type BuildInfo = {
   app: string;
   version: string;
@@ -155,6 +157,9 @@ export default function HomePage() {
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [regionChoice, setRegionChoice] = useState("auto");
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
+  // Set when no prepared map covers the waypoints: the region a visitor can request.
+  const [mapRequest, setMapRequest] = useState<MapRequestHint | null>(null);
+  const [requestNotice, setRequestNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const savedRouteMode = window.localStorage.getItem("rogue.routeMode");
@@ -276,6 +281,8 @@ export default function HomePage() {
     setRoutingFailure(null);
     setFailureWaypoints([]);
     setImportNotice(null);
+    setMapRequest(null);
+    setRequestNotice(null);
 
     try {
       const response = await fetch("/api/generate", {
@@ -296,6 +303,7 @@ export default function HomePage() {
       const data = await response.json();
       if (!response.ok) {
         setRoutingFailure(data.routingFailure ?? null);
+        setMapRequest(data.mapRequest ?? null);
         setFailureWaypoints(
           Array.isArray(data.previewWaypoints) ? data.previewWaypoints : [],
         );
@@ -307,6 +315,22 @@ export default function HomePage() {
       setResult(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function requestMap(hint: MapRequestHint) {
+    setRequestNotice(null);
+    try {
+      const response = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: hint.id, note: routeName ? `Route: ${routeName}` : "" }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The request could not be sent.");
+      setRequestNotice(`Requested the ${hint.name} map. An administrator will review it; Map status shows when it is ready.`);
+    } catch (err) {
+      setRequestNotice(err instanceof Error ? err.message : "The request could not be sent.");
     }
   }
 
@@ -430,9 +454,6 @@ export default function HomePage() {
               <span>
                 Router: {buildInfo ? `${buildInfo.routerMode}/${buildInfo.osrmProfile}` : "unknown"}
               </span>
-              <a href="/maps" style={{ ...miniButtonStyle, textDecoration: "none" }}>
-                Map status
-              </a>
               <button type="button" onClick={resetLocalBrowserState} style={miniButtonStyle}>
                 Reset browser cache
               </button>
@@ -698,6 +719,26 @@ export default function HomePage() {
             <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
               {importNotice && <div style={noticeStyle}>{importNotice}</div>}
               {error && <div style={errorStyle}>Error: {error}</div>}
+              {mapRequest && (
+                <div style={{ ...noticeStyle, marginTop: 10 }}>
+                  {mapRequest.queue
+                    ? `The ${mapRequest.name} map is in the map queue and will be ready soon.`
+                    : mapRequest.state && mapRequest.state !== "missing"
+                      ? `The ${mapRequest.name} map is on this server's list but not ready yet.`
+                      : `This server has no map for this area yet. The ${mapRequest.name} map covers it.`}
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                    {!mapRequest.queue && (
+                      <button type="button" onClick={() => void requestMap(mapRequest)} style={secondaryButton}>
+                        Request the {mapRequest.name} map
+                      </button>
+                    )}
+                    <a href={`/maps/download?id=${encodeURIComponent(mapRequest.id)}`} style={{ color: "#93c5fd", alignSelf: "center" }}>
+                      See it on the map →
+                    </a>
+                  </div>
+                  {requestNotice && <div style={{ marginTop: 8 }}>{requestNotice}</div>}
+                </div>
+              )}
             </div>
           )}
         </section>

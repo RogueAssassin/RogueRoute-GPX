@@ -1,11 +1,11 @@
-import { errorResponse, getStatus, publicMaps } from "../../../lib/control";
+import { errorResponse, getStatus, publicMaps, isAdmin } from "../../../lib/control";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     return Response.json(
-      { ...publicMaps(await getStatus()), adminEnabled: Boolean(process.env.ADMIN_TOKEN?.trim()) },
+      { ...publicMaps(await getStatus()), admin: isAdmin(request) },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {

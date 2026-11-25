@@ -28,16 +28,6 @@ const STATE_COLOURS: Record<string, string> = {
   unavailable: "#f87171",
 };
 
-const TOKEN_KEY = "rogueroute-gpx.adminToken";
-
-/** The admin token saved on the /maps page, if any; it lets "Load now" skip the cooldown. */
-function readToken() {
-  try {
-    return window.sessionStorage.getItem(TOKEN_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
 
 type MapsSummary = { current: string | null; step: string | null; pending: number };
 
@@ -56,7 +46,6 @@ export default function RegionPanel({
   const [maps, setMaps] = useState<MapsSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [token, setToken] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -75,7 +64,6 @@ export default function RegionPanel({
   }, []);
 
   useEffect(() => {
-    setToken(readToken());
     void refresh();
   }, [refresh]);
 
@@ -101,7 +89,8 @@ export default function RegionPanel({
     try {
       const response = await fetch("/api/regions/switch", {
         method: "POST",
-        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        // A logged-in administrator's session cookie lets "Load now" skip the cooldown.
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ region: key }),
       });
       const data = await response.json();
@@ -157,8 +146,6 @@ export default function RegionPanel({
             {lastUsed.switched ? " (region loaded for this route)" : ""}
           </>
         )}
-        <br />
-        Prepared: {prepared.length ? prepared.map((region) => region.label).join(", ") : "none yet"}
       </div>
       {osrm?.error && <div style={{ ...noticeStyle, marginTop: 10 }}>{osrm.error}</div>}
       {notice && <div style={{ ...noticeStyle, marginTop: 10 }}>{notice}</div>}
@@ -168,7 +155,11 @@ export default function RegionPanel({
           ? `Map work in the background: ${label(maps.current)}${maps.step ? ` (${maps.step})` : ""}${maps.pending ? `, ${maps.pending} more waiting` : ""}. `
           : null}
         <a href="/maps" style={{ color: "#93c5fd" }}>
-          Map status{maps?.current ? "" : " and downloads"} →
+          Map status →
+        </a>
+        {" · "}
+        <a href="/maps/download" style={{ color: "#93c5fd" }}>
+          Missing your area? Request a map →
         </a>
       </div>
     </div>

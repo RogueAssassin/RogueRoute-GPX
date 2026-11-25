@@ -241,6 +241,25 @@ export class GeofabrikIndex {
   }
 
   /**
+   * The smallest index region whose outline contains every point ([lon, lat]), or null. Used to
+   * suggest which map to request when a route falls outside the prepared regions.
+   */
+  locate(points) {
+    let best = null;
+    let bestArea = Infinity;
+    for (const region of this.regions) {
+      if (!region.areas?.length || !points.every(([lon, lat]) => regionContains(region, lon, lat))) continue;
+      const [minLon, minLat, maxLon, maxLat] = region.bbox ?? ringBox(region.areas.flat());
+      const area = (maxLon - minLon) * (maxLat - minLat);
+      if (area < bestArea) {
+        best = region;
+        bestArea = area;
+      }
+    }
+    return best;
+  }
+
+  /**
    * Prepared catalog regions (other than the given key) that cover a box: its middle and four
    * points 10% in from its corners, so outlines that share a border with the box still count.
    */

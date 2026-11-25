@@ -111,9 +111,10 @@ is too large for the server.
 **On the website:** open `http://SERVER-IP:9080/maps/download`. Browse the tree or search, and
 the map shows the region's outline, its sub-regions (click one to open it) and what is already
 prepared. For each region you see the download size, the memory it needs to prepare, whether a
-prepared region already covers it, and whether it is too large for this server. With the
-admin token entered, **Download and prepare** or **Download only** add it to the region list and
-the map queue.
+prepared region already covers it, and whether it is too large for this server. Visitors see
+**Request this map**; logged in to `/admin`, the same page (or the **Add regions** tab of
+`/admin`) offers **Download and prepare** and **Download only**, which add it to the region list
+and the map queue.
 
 **From the command line:**
 
@@ -125,7 +126,53 @@ the map queue.
 
 Added regions behave like the built-in ones: they show on `/maps` under **Added regions**, are
 used by automatic region selection, and are kept in `OSRM_DATA_DIR/.rogueroute-gpx/regions.json`.
-An added region without map files can be taken off the list again on `/maps/download`.
+An added region can be taken off the list again from the **Regions** tab of `/admin` (its
+files are deleted with it), or with `./rogueroute-gpx osm delete REGION --yes --remove`.
+
+## Map requests
+
+When a visitor's waypoints are outside every prepared region, the route builder names the
+Geofabrik region that covers them and offers **Request the … map**. Visitors can also request
+any region from `/maps/download`. Requests are kept in
+`OSRM_DATA_DIR/.rogueroute-gpx/requests.json`; asking again for the same region counts it again
+instead of adding a duplicate.
+
+The **Requests** tab of `/admin` lists them with how often and when they were asked for and any
+note. **Download and prepare** adds the region and queues it; **Dismiss** closes the request.
+`./rogueroute-gpx osm requests` shows the same list.
+
+## Keeping maps up to date
+
+Geofabrik publishes new data for every region daily. Every `ROGUEROUTE_UPDATE_CHECK_DAYS` (7 by
+default) the container asks Geofabrik for the date of each downloaded region and compares it
+with the date of the data on disk. Regions with newer data show **Update available** in the
+**Regions** tab of `/admin` and in `./rogueroute-gpx osm updates`. Regions whose data is older
+than `ROGUEROUTE_AUTO_UPDATE_DAYS` (30 by default; 0 turns this off) are updated automatically.
+
+An update downloads the new extract and prepares it next to the current files
+(`REGION-next.*`), then swaps them in. The region keeps routing on the old data until the swap.
+For the region being served, `osrm-routed` restarts on the new graph (a few seconds for a small
+region) and goes back to the old files if the new graph does not load.
+
+```bash
+./rogueroute-gpx osm updates --check     # ask Geofabrik now
+./rogueroute-gpx osm update australia    # update one region now
+./rogueroute-gpx osm update --all        # update every region with newer data
+```
+
+An update needs free disk space for a second copy of the region while it runs.
+
+## Deleting map files
+
+**Delete files** in the **Regions** tab of `/admin`, or:
+
+```bash
+./rogueroute-gpx osm delete europe --yes          # the .osm.pbf, partial downloads and the .osrm* graph
+./rogueroute-gpx osm delete us-oregon --yes --remove   # and take an added region off the list
+```
+
+This also clears the region's queue entry, failure and history. The region being served cannot
+be deleted: load another one first.
 
 The region list comes from Geofabrik's index (`index-v1.json`), downloaded once a week and kept
 in `OSRM_DATA_DIR/.rogueroute-gpx/geofabrik-index.json`. **Update** on `/maps/download` fetches
@@ -158,10 +205,21 @@ skip the cooldown:
 `/maps` is public and read-only: region states, the task in progress (step, download progress
 and speed, time in the step) and the waiting list. It refreshes itself.
 
-Set `ADMIN_TOKEN` in `.env` and restart to manage the queue there too. Enter the token in
-**Map administration** at the bottom of `/maps` to queue, remove, retry or cancel regions,
-pause or resume the queue, and read the map log with failure reasons, free disk space and
-memory. Without the token, visitors only see progress and use prepared regions.
+`/admin` is for administrators. Set `ADMIN_PASSWORD` in `.env`, run `./rogueroute-gpx restart`,
+and log in with that password. Its tabs:
+
+- **Requests**: visitors' map requests, to approve or dismiss.
+- **Queue**: the task in progress and the waiting list; pause, resume, cancel, retry failed,
+  prepare everything downloaded, remove or clear waiting tasks; failure reasons and the map log.
+- **Regions**: every region's files, data date and update state; prepare, download, update,
+  load now, delete files, remove from the list; check for updates.
+- **Add regions**: the region browser with the admin actions.
+
+The login lasts 12 hours, and a container restart or a new password logs everyone out. Five
+wrong passwords in a minute from one address block further tries for the rest of that minute.
+Use a long password, and put the site behind HTTPS (a reverse proxy) if it is reachable from the
+internet. Without `ADMIN_PASSWORD`, `/admin` is off and visitors only see progress, request
+maps and use prepared regions.
 
 ## Permissions
 

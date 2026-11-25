@@ -32,3 +32,67 @@
 .rogueroute-map .leaflet-tooltip::before {
   border-top-color: rgba(103, 232, 249, 0.4);
 }
+
+/* Tabs across the top of every page */
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 14px 24px 0;
+}
+.site-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #f8fafc;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+.site-nav ul {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  flex-wrap: wrap;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.72);
+}
+.site-nav a:not(.site-nav-brand) {
+  display: block;
+  padding: 8px 14px;
+  border-radius: 10px;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.site-nav a:not(.site-nav-brand):hover {
+  color: #f8fafc;
+  background: rgba(71, 85, 105, 0.45);
+}
+.site-nav a.is-current {
+  color: #020617;
+  background: #22d3ee;
+}
+.site-nav a:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+@media (max-width: 520px) {
+  .site-nav {
+    padding: 12px 16px 0;
+  }
+  .site-nav ul {
+    width: 100%;
+  }
+  .site-nav a:not(.site-nav-brand) {
+    padding: 8px 10px;
+  }
+}

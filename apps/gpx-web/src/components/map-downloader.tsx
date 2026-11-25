@@ -9,9 +9,9 @@ const DownloaderMap = dynamic(() => import("./downloader-map"), {
   loading: () => <div className="downloader-map downloader-map-loading">Loading map…</div>,
 });
 
-type IndexState = IndexResponse & { adminEnabled: boolean };
+/** admin: the visitor is logged in to /admin. */
+type IndexState = IndexResponse & { admin: boolean };
 
-const TOKEN_KEY = "rogueroute-gpx.adminToken";
 const gb = (bytes: number) => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(bytes / 1e6))} MB`);
 const STATE_LABEL: Record<string, string> = {
   prepared: "Prepared",
@@ -20,16 +20,11 @@ const STATE_LABEL: Record<string, string> = {
   missing: "In list",
 };
 
-function readToken() {
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-/** The /maps/download page: browse Geofabrik regions on a map and add them to the queue. */
-export default function MapDownloader() {
+/**
+ * Browse Geofabrik regions on a map. Visitors can request a region; a logged-in administrator
+ * adds it to the queue. `embedded` drops the page header (used in the admin page's tab).
+ */
+export default function MapDownloader({ embedded = false }: { embedded?: boolean }) {
   const [index, setIndex] = useState<IndexState | null>(null);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,11 +33,8 @@ export default function MapDownloader() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [token, setToken] = useState("");
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => setToken(readToken()), []);
 
   const loadIndex = useCallback(async () => {
     try {
@@ -106,22 +98,22 @@ export default function MapDownloader() {
     [byId, loadDetail],
   );
 
-  function saveToken(value: string) {
-    setToken(value);
-    try {
-      sessionStorage.setItem(TOKEN_KEY, value);
-    } catch {
-      /* private window: keep it in memory only */
-    }
-  }
+  // A link such as /maps/download?id=us/oregon (from the route builder) opens that region.
+  const [linked, setLinked] = useState(false);
+  useEffect(() => {
+    if (linked || !index?.regions.length) return;
+    setLinked(true);
+    const id = new URLSearchParams(window.location.search).get("id");
+    if (id && byId.has(id)) select(id);
+  }, [linked, index, byId, select]);
 
-  async function act(payload: Record<string, unknown>, success: string) {
+  async function act(payload: Record<string, unknown>, success: string, endpoint = "/api/admin/geofabrik") {
     setBusy(true);
     setNotice(null);
     try {
-      const response = await fetch("/api/admin/geofabrik", {
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
       const body = await response.json().catch(() => ({}));
@@ -148,7 +140,7 @@ export default function MapDownloader() {
     return names.join(" › ");
   };
 
-  const canAdmin = Boolean(index?.adminEnabled && token);
+  const canAdmin = Boolean(index?.admin);
   // Stable objects, so the map only re-fits when another region is selected.
   const selectedShape = useMemo(
     () => (detail ? { id: detail.region.id, name: detail.region.name, areas: detail.region.areas, bbox: detail.region.bbox } : null),
@@ -157,16 +149,14 @@ export default function MapDownloader() {
   const subregions = useMemo(() => detail?.children ?? [], [detail]);
 
   return (
-    <main className="maps downloader">
+    <main className={embedded ? "downloader is-embedded" : "maps downloader"}>
       <header className="maps-header">
         <div>
-          <a className="maps-back" href="/maps">
-            ← Map status
-          </a>
-          <h1>Add map regions</h1>
+          {!embedded && <h1>Find a map</h1>}
           <p className="maps-lede">
-            Browse every region Geofabrik publishes, from continents down to states. Pick the smallest region that covers where
-            you route: it downloads and prepares faster and needs far less memory.
+            {canAdmin
+              ? "Browse every region Geofabrik publishes, from continents down to states. Pick the smallest region that covers where you route: it downloads and prepares faster and needs far less memory."
+              : "Browse every region Geofabrik publishes, from continents down to states, and see which ones this server can route. If yours is missing, request it and an administrator will add it."}
           </p>
         </div>
         {index?.fetchedAt && (
@@ -254,13 +244,6 @@ export default function MapDownloader() {
               />
             )}
             {notice && <div className={notice.kind === "ok" ? "maps-ok" : "maps-alert"}>{notice.text}</div>}
-            {index?.adminEnabled && !token && (
-              <div className="maps-admin-row">
-                <input type="password" placeholder="Admin token" value={token} onChange={(event) => saveToken(event.target.value)} aria-label="Admin token" />
-                <span className="maps-muted">Enter the admin token to add regions.</span>
-              </div>
-            )}
-            {index && !index.adminEnabled && <p className="maps-muted">Adding regions needs ADMIN_TOKEN set in .env, or use ./rogueroute-gpx osm add.</p>}
           </section>
         </div>
       </section>
@@ -328,8 +311,9 @@ function RegionPanel({
   canAdmin: boolean;
   busy: boolean;
   onSelect: (id: string) => void;
-  act: (payload: Record<string, unknown>, success: string) => Promise<void>;
+  act: (payload: Record<string, unknown>, success: string, endpoint?: string) => Promise<void>;
 }) {
+  const [note, setNote] = useState("");
   const { region, catalog, limits } = detail;
   const name = region.name;
   const inQueue = catalog?.queue;
@@ -426,6 +410,25 @@ function RegionPanel({
             </button>
           )}
         </div>
+      )}
+      {!canAdmin && !prepared && !inQueue && (
+        <form
+          className="downloader-request"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void act({ id: region.id, note }, `Thanks: ${name} has been requested. An administrator will review it; progress shows on Map status.`, "/api/requests").then(() =>
+              setNote(""),
+            );
+          }}
+        >
+          <label>
+            <span className="maps-muted">Why you need it (optional)</span>
+            <input type="text" maxLength={200} value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. walking routes around Portland" />
+          </label>
+          <button type="submit" disabled={busy}>
+            Request this map
+          </button>
+        </form>
       )}
       {inQueue && (
         <p className="maps-muted">

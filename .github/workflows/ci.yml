@@ -76,7 +76,7 @@ jobs:
           ] }
           JSON
           cp .env.example .env
-          sed -i "s|^OSRM_DATA_DIR=.*|OSRM_DATA_DIR=$data|; s|^ROGUEROUTE_TAG=.*|ROGUEROUTE_TAG=ci|; s|^PUID=.*|PUID=$(id -u)|; s|^PGID=.*|PGID=$(id -g)|; s|^OSRM_ACTIVE_REGION=.*|OSRM_ACTIVE_REGION=andorra|; s|^OSRM_SWITCH_COOLDOWN_SECONDS=.*|OSRM_SWITCH_COOLDOWN_SECONDS=0|; s|^HOST_PORT=.*|HOST_PORT=19080|" .env
+          sed -i "s|^OSRM_DATA_DIR=.*|OSRM_DATA_DIR=$data|; s|^ROGUEROUTE_TAG=.*|ROGUEROUTE_TAG=ci|; s|^PUID=.*|PUID=$(id -u)|; s|^PGID=.*|PGID=$(id -g)|; s|^OSRM_ACTIVE_REGION=.*|OSRM_ACTIVE_REGION=andorra|; s|^OSRM_SWITCH_COOLDOWN_SECONDS=.*|OSRM_SWITCH_COOLDOWN_SECONDS=0|; s|^HOST_PORT=.*|HOST_PORT=19080|; s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=ci-admin-password|" .env
           cat > "$RUNNER_TEMP/ci.yaml" <<YAML
           services:
             rogueroute-gpx:
@@ -121,7 +121,8 @@ jobs:
           curl -fsS http://127.0.0.1:19080/api/maps | jq -e '[.regions[] | select(.state == "prepared")] | length == 2'
           curl -fsS http://127.0.0.1:19080/maps | grep -q "Map status"
           # The downloader page and its API answer even when Geofabrik refuses the runner.
-          curl -fsS http://127.0.0.1:19080/maps/download | grep -q "Add map regions"
+          curl -fsS http://127.0.0.1:19080/maps/download | grep -q "Find a map"
+          curl -fsS http://127.0.0.1:19080/admin | grep -q "Log in"
           curl -fsS http://127.0.0.1:19080/api/geofabrik | jq -e '(.regions | type == "array") and (.prepared | type == "array")'
           # The first prepared region is loaded automatically when nothing was served.
           for _ in $(seq 1 60); do
@@ -144,8 +145,52 @@ jobs:
           code=$(curl -s -o /tmp/outside.json -w '%{http_code}' -X POST http://127.0.0.1:19080/api/generate \
             -H 'content-type: application/json' -d '{"input":"-37.8136,144.9631\n-37.8160,144.9690"}')
           test "$code" = 400 && jq -e '.error | test("not inside any")' /tmp/outside.json
-          # Admin endpoints are closed without ADMIN_TOKEN.
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:19080/api/admin/queue)" = 401
+      - name: Admin login, map requests, updates and deleting files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=http://127.0.0.1:19080
+          jar="$RUNNER_TEMP/cookies.txt"
+          code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          # Admin endpoints are closed without a session, and a wrong password is refused.
+          test "$(code $base/api/admin/status)" = 401
+          test "$(code $base/api/admin/queue)" = 401
+          test "$(code -X POST $base/api/admin/login -H 'content-type: application/json' -d '{"password":"wrong"}')" = 401
+          curl -fsS -c "$jar" -X POST $base/api/admin/login -H 'content-type: application/json' -d '{"password":"ci-admin-password"}' | jq -e '.ok'
+          grep -q rrg_admin "$jar"
+          curl -fsS -b "$jar" $base/api/admin/status | jq -e '(.requests | type == "array") and (.regions | length) >= 2'
+          curl -fsS -b "$jar" $base/admin | grep -q "Log out"
+          # A change from another site is refused even with the session cookie.
+          test "$(code -b "$jar" -X POST $base/api/admin/queue -H 'origin: http://evil.example' -H 'content-type: application/json' -d '{"action":"pause"}')" = 401
+          # Visitors' map requests need the Geofabrik index, which the runner cannot always reach.
+          if curl -fsS $base/api/geofabrik | jq -e '.regions | length > 0' >/dev/null; then
+            curl -fsS -X POST $base/api/requests -H 'content-type: application/json' -d '{"id":"monaco","note":"CI"}' | jq -e '.request.count == 1'
+            curl -fsS -b "$jar" $base/api/admin/status | jq -e '.openRequests == 1 and .requests[0].id == "monaco"'
+            curl -fsS -b "$jar" -X POST $base/api/admin/requests -H 'content-type: application/json' -d '{"id":"monaco","action":"dismiss"}' | jq -e '.request.status == "dismissed"'
+            # The failed Melbourne route names the Geofabrik region to request.
+            jq -e '.mapRequest.id | length > 0' /tmp/outside.json
+          else
+            echo "Geofabrik index unavailable on this runner; skipping the request checks."
+          fi
+          # Update the region being served: built next to the old files, then swapped in.
+          docker exec rogueroute-gpx rogueroute-gpx osm updates --check
+          docker exec rogueroute-gpx rogueroute-gpx osm update san-marino --wait
+          ls "$RUNNER_TEMP/osrm" | tee /tmp/files.txt
+          if grep -E 'san-marino-(next|previous)' /tmp/files.txt; then exit 1; fi
+          curl -fsS $base/api/regions | jq -e '.activeRegion == "san-marino" and .osrm.state == "ready"'
+          curl -fsS -X POST $base/api/generate -H 'content-type: application/json' \
+            -d '{"input":"43.9356,12.4473,A\n43.9367,12.4485,B","routeMode":"preserve-order"}' | jq -e '.region.key == "san-marino" and (.gpx | contains("<trk"))'
+          for _ in $(seq 1 10); do
+            jq -e '.history["san-marino"].dataDate' "$RUNNER_TEMP/osrm/.rogueroute-gpx/queue.json" && break; sleep 1
+          done
+          jq -e '.history["san-marino"].dataDate' "$RUNNER_TEMP/osrm/.rogueroute-gpx/queue.json"
+          # Deleting files: refused for the region being served, done for another one.
+          if docker exec rogueroute-gpx rogueroute-gpx osm delete san-marino --yes; then exit 1; fi
+          curl -fsS -b "$jar" -X POST $base/api/admin/files -H 'content-type: application/json' -d '{"key":"andorra"}' | jq -e '.deleted | length > 0'
+          test -z "$(ls "$RUNNER_TEMP/osrm" | grep '^andorra' || true)"
+          curl -fsS $base/api/maps | jq -e '.regions[] | select(.key == "andorra") | .state == "missing"'
+          curl -fsS -b "$jar" -c "$jar" -X POST $base/api/admin/logout | jq -e '.ok'
+          test "$(code -b "$jar" $base/api/admin/status)" = 401
       - name: Graceful stop
         if: always()
         shell: bash

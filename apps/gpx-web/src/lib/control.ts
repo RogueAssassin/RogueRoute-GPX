@@ -1,5 +1,5 @@
 import { request } from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { isAdminRequest } from "./auth";
 
 export type RegionState = "missing" | "partial" | "downloaded" | "prepared";
 
@@ -19,7 +19,13 @@ export type SupervisorRegion = {
   /** Estimated (or, once prepared, measured) peak memory to prepare the region, in bytes. */
   memoryNeeded: number;
   peakMemory: number | null;
+  /** Date of the local map data (Geofabrik's date when it was downloaded). */
+  dataDate: string | null;
+  update: RegionUpdate | null;
 };
+
+/** Result of the last check for newer data on Geofabrik. */
+export type RegionUpdate = { remoteDate: string | null; remoteSize: number | null; localDate: string | null; available: boolean; error?: string };
 
 export type MapFailure = { message: string; step: string | null; code?: string; at: string };
 
@@ -36,13 +42,14 @@ export type OsrmStatus = {
   cooldownRemainingSeconds: number;
 };
 
-export type MapStep = "starting" | "download" | "extract" | "partition" | "customize";
+export type MapStep = "starting" | "download" | "extract" | "partition" | "customize" | "swap";
+export type MapGoal = "downloaded" | "prepared" | "updated";
 
 export type QueueStatus = {
   paused: boolean;
   current: {
     region: string;
-    goal: "downloaded" | "prepared";
+    goal: MapGoal;
     step: MapStep;
     steps: MapStep[];
     stepIndex: number;
@@ -50,9 +57,9 @@ export type QueueStatus = {
     stepStartedAt: string;
     progress: { bytes?: number; total?: number | null; rate?: number; verifying?: boolean } | null;
   } | null;
-  pending: { region: string; goal: "downloaded" | "prepared" }[];
+  pending: { region: string; goal: MapGoal }[];
   failures: Record<string, MapFailure>;
-  history: Record<string, { downloadedAt?: string; preparedAt?: string; prepareSeconds?: number; peakMemory?: number }>;
+  history: Record<string, { downloadedAt?: string; dataDate?: string; preparedAt?: string; prepareSeconds?: number; peakMemory?: number }>;
   log?: { seq: number; line: string }[];
   lastSeq: number;
 };
@@ -65,6 +72,8 @@ export type SupervisorStatus = {
   disk: { free: number; total: number } | null;
   memory: number;
   limits: MemoryLimits;
+  updates: { checkedAt: string | null; checking: boolean; checkDays: number; autoDays: number } | null;
+  openRequests: number;
   regions: SupervisorRegion[];
 };
 
@@ -137,15 +146,10 @@ export function errorResponse(error: unknown, fallback: string) {
   return Response.json({ error: error instanceof Error ? error.message : fallback }, { status: 500 });
 }
 
-/** True when ADMIN_TOKEN is configured and the request carries it as a bearer token. */
-export function isAdmin(request: Request) {
-  const expected = process.env.ADMIN_TOKEN?.trim();
-  if (!expected) return false;
-  const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+/** True when the request comes from a logged-in administrator (see lib/auth.ts). */
+export const isAdmin = isAdminRequest;
+
+export const unauthorized = () => Response.json({ error: "Log in at /admin first.", code: "login-required" }, { status: 401 });
 
 /** Public view of the region list: no bounds and no job log. */
 export function publicRegions(status: SupervisorStatus) {
@@ -154,7 +158,7 @@ export function publicRegions(status: SupervisorStatus) {
 
 /**
  * Map progress for the public /maps page: what is prepared, in progress and waiting. Failure
- * details, disk space and the log stay behind the admin token.
+ * details, disk space and the log are for administrators (/admin).
  */
 export function publicMaps(status: SupervisorStatus) {
   const { queue } = status;

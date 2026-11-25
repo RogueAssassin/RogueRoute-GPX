@@ -1,4 +1,4 @@
-import { control, errorResponse, isAdmin } from "../../../../lib/control";
+import { control, errorResponse, isAdmin, unauthorized } from "../../../../lib/control";
 import { GEOFABRIK_ID } from "../../../../lib/geofabrik";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +11,7 @@ const KEY = /^[a-z0-9][a-z0-9-]{0,63}$/;
  * files), refresh (the Geofabrik region index).
  */
 export async function POST(request: Request) {
-  if (!isAdmin(request)) {
-    return Response.json(
-      { error: process.env.ADMIN_TOKEN?.trim() ? "Admin token required." : "Map administration is disabled. Set ADMIN_TOKEN in .env." },
-      { status: 401 },
-    );
-  }
+  if (!isAdmin(request)) return unauthorized();
   const body = await request.json().catch(() => ({}));
   const action = String(body.action ?? "");
   let payload: Record<string, unknown>;

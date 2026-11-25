@@ -212,4 +212,36 @@ export class OsrmService {
       this.switchTarget = null;
     }
   }
+
+  /**
+   * Replace the files of the graph being served: stop osrm-routed, run swap(), start it again.
+   * If the new graph does not load, restore() puts the old files back and the old graph is
+   * started again. Used by map updates; does not count as a switch for the cooldown.
+   */
+  async reload(swap, restore) {
+    const region = this.region;
+    if (this.state === "switching" || this.state === "loading") {
+      throw new ControlError(`OSRM is busy loading ${this.switchTarget ?? region?.key}. Try again shortly.`, 409, "busy");
+    }
+    this.switchTarget = region.key;
+    this.setState("switching");
+    this.log(`[osrm] reloading ${region.key} with updated map data`);
+    try {
+      await this.stop();
+      await swap();
+      await this.start(region);
+    } catch (error) {
+      await this.stop();
+      this.log(`[osrm] updated ${region.key} failed to load (${error.message}); restoring the previous data`);
+      await restore();
+      try {
+        await this.start(region);
+      } catch (rollbackError) {
+        this.setState("failed", `Updated ${region.key} failed and the previous data could not be loaded: ${rollbackError.message}`);
+      }
+      throw error;
+    } finally {
+      this.switchTarget = null;
+    }
+  }
 }

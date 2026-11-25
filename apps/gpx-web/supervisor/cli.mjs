@@ -39,6 +39,12 @@ It keeps going when you close the terminal and resumes after a restart.
   osm queue clear                  Remove every waiting task
   osm retry [REGION...]            Queue failed regions again (all failed ones by default)
   osm follow                       Follow the map log until the queue is empty (Ctrl-C to stop)
+  osm updates [--check]            Which regions have newer data on Geofabrik (--check asks now)
+  osm update REGION...|--all       Download and prepare the latest data, then swap it in
+                                   (the region keeps routing on the old data until the swap)
+  osm delete REGION... --yes       Delete a region's map files (not the region being served)
+                                   --remove also takes a region added with osm add off the list
+  osm requests                     Map requests from website visitors (approve them at /admin)
   osm switch REGION                Serve another prepared region now (ignores the cooldown)
   osm verify REGION                Check that a region is downloaded and prepared
   osm path                         Show the map data directory inside the container
@@ -48,7 +54,7 @@ Add --wait to add, prepare or download to wait for those regions and exit non-ze
 Regions estimated to need more memory than map work may use (85% of the container's memory
 cap) are refused or skipped. Add --force to add, prepare, retry or prepare-all to try anyway;
 the memory cap and watchdog still stop the tool before the host runs out of memory.
-The website shows the same information at /maps.`);
+The website shows the same information at /maps, and /admin manages it.`);
 }
 
 async function status() {
@@ -153,7 +159,7 @@ async function search(text) {
 }
 
 function printQueue(queue) {
-  const waiting = queue.pending.map((item) => (item.goal === "downloaded" ? `${item.region} (download)` : item.region));
+  const waiting = queue.pending.map((item) => (item.goal === "downloaded" ? `${item.region} (download)` : item.goal === "updated" ? `${item.region} (update)` : item.region));
   console.log(`Map queue: ${queue.paused ? "paused" : "running"}`);
   console.log(`Now: ${describeCurrent(queue.current)}`);
   console.log(`Waiting: ${waiting.length ? waiting.join(", ") : "none"}`);
@@ -243,6 +249,50 @@ async function osm(command, args) {
       const result = await queueAction("retry", regionArgs.length ? regionArgs : undefined, undefined, args.includes("--force"));
       if (!result.added.length && !regionArgs.length) return console.log("[OK] No failed regions.");
       return console.log(`[OK] Queued again: ${regionArgs.length ? regionArgs.join(" ") : result.added.join(" ")}`);
+    }
+    case "updates": {
+      const result = args.includes("--check") ? await call("POST", "/updates", { action: "check" }, 600_000) : await call("GET", "/updates");
+      console.log(`Last checked: ${result.checkedAt ?? "never"}${result.checkDays ? ` (every ${result.checkDays} days)` : " (automatic checks are off)"}`);
+      console.log(result.autoDays ? `Regions older than ${result.autoDays} days are updated automatically.` : "Updates are not applied automatically.");
+      const entries = Object.entries(result.regions);
+      if (!entries.length) return console.log("No downloaded regions have been checked yet. Run: ./rogueroute-gpx osm updates --check");
+      console.log(`${pad("REGION", 28)}${pad("LOCAL DATA", 14)}${pad("GEOFABRIK", 14)}STATE`);
+      const day = (iso) => (iso ? iso.slice(0, 10) : "?");
+      for (const [key, entry] of entries) {
+        console.log(`${pad(key, 28)}${pad(day(entry.localDate), 14)}${pad(day(entry.remoteDate), 14)}${entry.error ? `check failed: ${entry.error}` : entry.available ? "update available" : "up to date"}`);
+      }
+      return;
+    }
+    case "update": {
+      let keys = regionArgs;
+      if (args.includes("--all")) {
+        const result = await call("GET", "/updates");
+        keys = Object.entries(result.regions).filter(([, entry]) => entry.available).map(([key]) => key);
+        if (!keys.length) return console.log("[OK] Every checked region is up to date. Check again with: ./rogueroute-gpx osm updates --check");
+      }
+      if (!keys.length) fail("Usage: rogueroute-gpx osm update REGION... | --all [--wait]");
+      await queueAction("update", keys, undefined, args.includes("--force"));
+      console.log(`[OK] Queued updates: ${keys.join(" ")}`);
+      if (args.includes("--wait")) return follow(keys);
+      return console.log("[INFO] Each region keeps routing on its current data until the new data is ready.");
+    }
+    case "delete": {
+      if (!regionArgs.length) fail("Usage: rogueroute-gpx osm delete REGION... --yes [--remove]");
+      await confirm("Delete the map files of", regionArgs, args);
+      for (const key of regionArgs) {
+        const result = await call("POST", "/files", { action: "delete", key, removeFromList: args.includes("--remove") });
+        console.log(`[OK] ${key}: deleted ${result.deleted.length} file(s), ${gb(result.freed)} freed${result.removed ? ", removed from the list" : ""}.`);
+      }
+      return;
+    }
+    case "requests": {
+      const { requests } = await call("GET", "/requests");
+      if (!requests.length) return console.log("No map requests.");
+      console.log(`${pad("GEOFABRIK ID", 34)}${pad("NAME", 28)}${pad("ASKED", 7)}${pad("LAST", 12)}STATUS`);
+      for (const request of requests) {
+        console.log(`${pad(request.id, 34)}${pad(request.name, 28)}${pad(request.count, 7)}${pad(request.lastAt.slice(0, 10), 12)}${request.status}`);
+      }
+      return console.log("Approve one with: ./rogueroute-gpx osm add ID   (or at /admin)");
     }
     case "search":
       if (!regionArgs.length) fail("Usage: rogueroute-gpx osm search TEXT");

@@ -261,3 +261,50 @@ test("the memory watchdog stops a tool when the host runs low", async (t) => {
   assert.match(queue.failures.gamma.message, /memory watchdog/);
   assert.equal(await fileState(dataDir, region("gamma")), "downloaded");
 });
+
+test("updates the region being served by building the new data aside and swapping it in", async (t) => {
+  const body = Buffer.alloc(2 * 1024 * 1024, 9);
+  const modified = "Tue, 24 Nov 2026 20:15:00 GMT";
+  const server = createHttpServer((req, res) => {
+    if (req.url.endsWith(".md5")) return res.end(`${createHash("md5").update(body).digest("hex")}  zeta-latest.osm.pbf\n`);
+    res.writeHead(200, { "content-length": body.length, "last-modified": modified });
+    res.end(req.method === "HEAD" ? undefined : body);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const zeta = { ...region("zeta"), url: `http://127.0.0.1:${server.address().port}/zeta-latest.osm.pbf`, download: "2MB" };
+  const { queue, osrm, dataDir } = await queueFixture(t, { catalogExtra: [zeta], autoPrepare: false });
+  await queue.init();
+  await queue.act({ action: "add", regions: ["zeta"] });
+  await idle(queue);
+  assert.equal(osrm.status().region, "zeta");
+  // Pretend the first download was older data.
+  queue.history.zeta.dataDate = "2026-10-01T00:00:00.000Z";
+
+  await queue.act({ action: "update", regions: ["zeta"] });
+  await idle(queue);
+  assert.deepEqual(queue.failures, {});
+  assert.equal(queue.history.zeta.dataDate, new Date(modified).toISOString());
+  assert.equal(osrm.status().state, "ready");
+  assert.equal(osrm.status().region, "zeta");
+  assert.equal(await fileState(dataDir, zeta), "prepared");
+  const { readdir } = await import("node:fs/promises");
+  const leftovers = (await readdir(dataDir)).filter((name) => /zeta-(next|previous)/.test(name));
+  assert.deepEqual(leftovers, []);
+  await assert.rejects(queue.act({ action: "update", regions: ["missing"] }), (error) => error.code === "nothing-to-update");
+});
+
+test("deletes a region's files but refuses the region being served", async (t) => {
+  const { queue, osrm, dataDir } = await queueFixture(t, { pbfs: { gamma: "x", delta: "xx" } });
+  await queue.init();
+  await idle(queue);
+  assert.equal(osrm.status().region, "gamma");
+  await assert.rejects(queue.deleteFiles("gamma"), (error) => error.code === "active");
+  await writeFile(join(dataDir, "delta-latest.osm.pbf.part"), "partial");
+  const result = await queue.deleteFiles("delta");
+  assert.ok(result.deleted.includes("delta-latest.osm.pbf"));
+  assert.ok(result.deleted.includes("delta-latest.osm.pbf.part"));
+  assert.ok(result.deleted.includes("delta-latest.osrm.mldgr"));
+  assert.equal(await fileState(dataDir, region("delta")), "missing");
+  assert.equal(queue.history.delta, undefined);
+});
