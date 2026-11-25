@@ -43,7 +43,7 @@ It keeps going when you close the terminal and resumes after a restart.
   osm update REGION...|--all       Download and prepare the latest data, then swap it in
                                    (the region keeps routing on the old data until the swap)
   osm delete REGION... --yes       Delete a region's map files (not the region being served)
-                                   --remove also takes a region added with osm add off the list
+                                   --remove also takes the region off the list
   osm requests                     Map requests from website visitors (approve them at /admin)
   osm switch REGION                Serve another prepared region now (ignores the cooldown)
   osm verify REGION                Check that a region is downloaded and prepared

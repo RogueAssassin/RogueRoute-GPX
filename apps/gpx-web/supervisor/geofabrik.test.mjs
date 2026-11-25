@@ -114,5 +114,11 @@ test("adds a sub-region to the catalog, saves it and removes it again", async (t
   await index.removeFromCatalog("land-north");
   assert.equal(catalog.length, 1);
   assert.deepEqual(await GeofabrikIndex.loadAdded(dataDir), []);
-  await assert.rejects(index.removeFromCatalog("land"), /not an added region/);
+  // A built-in region taken off the list stays hidden; adding it again brings it back.
+  await index.removeFromCatalog("land");
+  assert.equal(catalog.length, 0);
+  assert.deepEqual(await GeofabrikIndex.loadHidden(dataDir), ["land"]);
+  await assert.rejects(index.removeFromCatalog("land"), /not on the region list/);
+  assert.equal((await index.addToCatalog("land")).key, "land");
+  assert.deepEqual(await GeofabrikIndex.loadHidden(dataDir), []);
 });

@@ -77,9 +77,10 @@ export function parseIndex(json) {
 }
 
 export class GeofabrikIndex {
-  constructor({ dataDir, catalog, log, url = DEFAULT_INDEX_URL, fetchImpl = (...args) => fetch(...args) }) {
+  constructor({ dataDir, catalog, log, hidden = [], url = DEFAULT_INDEX_URL, fetchImpl = (...args) => fetch(...args) }) {
     this.dataDir = dataDir;
     this.catalog = catalog;
+    this.hidden = new Set(hidden); // built-in region keys taken off the list
     this.log = (line) => log(`[maps] ${line}`);
     this.url = url;
     this.fetch = fetchImpl;
@@ -97,6 +98,12 @@ export class GeofabrikIndex {
     return (Array.isArray(saved.regions) ? saved.regions : []).filter(
       (region) => region && typeof region.key === "string" && keyFor(region.key) === region.key && typeof region.url === "string",
     );
+  }
+
+  /** Keys of built-in regions that were taken off the list. */
+  static async loadHidden(dataDir) {
+    const saved = await readStateFile(dataDir, ADDED_FILE);
+    return (Array.isArray(saved.hidden) ? saved.hidden : []).filter((key) => typeof key === "string" && keyFor(key) === key);
   }
 
   /** Read the cached index and refresh it in the background when it is old or missing. */
@@ -209,16 +216,22 @@ export class GeofabrikIndex {
       osrm: `${key}-latest.osrm`,
     };
     this.catalog.push(entry);
+    // Adding a built-in region again after it was taken off the list brings it back.
+    this.hidden.delete(key);
     await this.saveAdded();
     this.log(`Added ${entry.label} (${id}) to the region list.`);
     return entry;
   }
 
-  /** Take an added region off the list again (only regions that were added from the index). */
+  /**
+   * Take a region off the list. A built-in region is remembered as hidden so it stays off after
+   * a restart; adding it again from the index brings it back.
+   */
   async removeFromCatalog(key) {
-    const index = this.catalog.findIndex((region) => region.key === key && region.group === "added");
-    if (index < 0) throw new Error(`${key} is not an added region.`);
-    this.catalog.splice(index, 1);
+    const index = this.catalog.findIndex((region) => region.key === key);
+    if (index < 0) throw new Error(`${key} is not on the region list.`);
+    const [entry] = this.catalog.splice(index, 1);
+    if (entry.group !== "added") this.hidden.add(key);
     await this.saveAdded();
   }
 
@@ -237,7 +250,7 @@ export class GeofabrikIndex {
         areas,
         geofabrik,
       }));
-    return writeStateFile(this.dataDir, ADDED_FILE, { regions });
+    return writeStateFile(this.dataDir, ADDED_FILE, { regions, hidden: [...this.hidden] });
   }
 
   /**

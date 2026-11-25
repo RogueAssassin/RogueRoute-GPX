@@ -78,13 +78,13 @@ async function resolveRequest({ catalog, dataDir, geofabrik, queue, requests, bo
   return { ...result, request: await requests.resolve(id, "approved", { key: result.key }) };
 }
 
-/** Delete a region's map files; optionally take an added region off the list as well. */
+/** Delete a region's map files; optionally take it off the region list as well. */
 async function filesAction({ geofabrik, queue, body }) {
   if (body.action !== "delete") throw new ControlError(`Unknown action: ${body.action}`, 400);
   const key = String(body.key ?? "");
   const result = await queue.deleteFiles(key);
   let removed = false;
-  if (body.removeFromList === true && geofabrik?.catalog.some((region) => region.key === key && region.group === "added")) {
+  if (body.removeFromList === true && geofabrik?.catalog.some((region) => region.key === key)) {
     await geofabrik.removeFromCatalog(key);
     removed = true;
   }
@@ -153,8 +153,8 @@ async function regionPayload({ catalog, dataDir, geofabrik, queue, id }) {
   };
 }
 
-/** add (to the catalog and the queue), remove (an added region without files), refresh (the index). */
-async function indexAction({ dataDir, geofabrik, queue, body }) {
+/** add (to the catalog and the queue), remove (a region without files, off the list), refresh (the index). */
+async function indexAction({ dataDir, geofabrik, osrm, queue, body }) {
   const action = String(body.action ?? "");
   if (action === "refresh") {
     await geofabrik.refresh();
@@ -178,7 +178,10 @@ async function indexAction({ dataDir, geofabrik, queue, body }) {
   if (action === "remove") {
     const key = String(body.key ?? "");
     const entry = geofabrik.catalog.find((region) => region.key === key);
-    if (!entry || entry.group !== "added") throw new ControlError(`${key} is not a region added from the downloader.`, 400);
+    if (!entry) throw new ControlError(`${key} is not on the region list.`, 404, "unknown-region");
+    if (osrm?.region?.key === key || osrm?.switchTarget === key) {
+      throw new ControlError(`${entry.label} is the region being served. Load another region first.`, 409, "active");
+    }
     if (queue.items.some((item) => item.region === key)) throw new ControlError(`${entry.label} is in the map queue. Remove it from the queue first.`, 409);
     if ((await fileState(dataDir, entry)) !== "missing") {
       throw new ControlError(`${entry.label} has map files on disk. Delete them first, then remove it from the list.`, 409);
@@ -223,7 +226,7 @@ export async function startControlServer({ socketPath, catalog, dataDir, osrm, q
         return send(200, await regionPayload({ catalog, dataDir, geofabrik, queue, id: url.searchParams.get("id") ?? "" }));
       }
       if (geofabrik && req.method === "POST" && url.pathname === "/geofabrik") {
-        return send(200, await indexAction({ catalog, dataDir, geofabrik, queue, body: await readJson(req) }));
+        return send(200, await indexAction({ catalog, dataDir, geofabrik, osrm, queue, body: await readJson(req) }));
       }
       if (geofabrik && req.method === "POST" && url.pathname === "/geofabrik/locate") {
         const region = geofabrik.locate(readPoints((await readJson(req)).points));

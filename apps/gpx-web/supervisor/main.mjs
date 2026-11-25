@@ -47,13 +47,15 @@ const config = {
 
 const log = (line) => console.log(`${new Date().toISOString()} ${line}`);
 
-const catalog = await loadCatalog(config.catalogFile);
+// Built-in regions an admin took off the list stay off.
+const hidden = await GeofabrikIndex.loadHidden(config.dataDir);
+const catalog = (await loadCatalog(config.catalogFile)).filter((region) => !hidden.includes(region.key));
 // Regions added from the downloader page come after the built-in ones.
 for (const region of await GeofabrikIndex.loadAdded(config.dataDir)) {
   if (catalog.some((entry) => entry.key === region.key)) continue;
   catalog.push({ ...region, pbf: `${region.graph}-latest.osm.pbf`, osrm: `${region.graph}-latest.osrm` });
 }
-const geofabrik = new GeofabrikIndex({ dataDir: config.dataDir, catalog, log, url: config.geofabrikUrl });
+const geofabrik = new GeofabrikIndex({ dataDir: config.dataDir, catalog, log, hidden, url: config.geofabrikUrl });
 geofabrik.init().catch((error) => log(`[maps] region index unavailable: ${error.message}`));
 const osrm = new OsrmService({ ...config, port: config.osrmPort, catalog, log });
 const queue = new MapQueue({ ...config, catalog, osrm, log });

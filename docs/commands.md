@@ -39,7 +39,7 @@ be running.
 | `./rogueroute-gpx osm retry [REGION…]` | Queue failed regions again (all of them by default). `--force` includes regions too large for the memory cap. |
 | `./rogueroute-gpx osm updates [--check]` | Each downloaded region's data date and Geofabrik's, and whether an update is available. `--check` asks Geofabrik now. |
 | `./rogueroute-gpx osm update REGION… \| --all [--wait]` | Download and prepare the latest data next to the current files, then swap it in. The region keeps routing until the swap. |
-| `./rogueroute-gpx osm delete REGION… --yes [--remove]` | Delete a region's `.osm.pbf`, partial downloads and `.osrm*` graph. `--remove` also takes an added region off the list. Refused for the region being served. |
+| `./rogueroute-gpx osm delete REGION… --yes [--remove]` | Delete a region's `.osm.pbf`, partial downloads and `.osrm*` graph. `--remove` also takes the region off the list (built-in regions stay hidden until added again). Refused for the region being served. |
 | `./rogueroute-gpx osm requests` | Map requests from website visitors (approve them in `/admin`). |
 | `./rogueroute-gpx osm follow` | Follow the map log until the queue is empty. |
 | `./rogueroute-gpx osm switch REGION` | Serve another prepared region now (skips the cooldown). |
