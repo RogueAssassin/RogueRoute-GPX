@@ -126,8 +126,8 @@ and the map queue.
 
 Added regions behave like the built-in ones: they show on `/maps` under **Added regions**, are
 used by automatic region selection, and are kept in `OSRM_DATA_DIR/.rogueroute-gpx/regions.json`.
-An added region can be taken off the list again from the **Regions** tab of `/admin` (its
-files are deleted with it), or with `./rogueroute-gpx osm delete REGION --yes --remove`.
+Any region, added or built-in, can be taken off the list again from the **Regions** tab of `/admin`
+(its files are deleted with it), or with `./rogueroute-gpx osm delete REGION --yes --remove`.
 
 ## Map requests
 
@@ -164,14 +164,18 @@ An update needs free disk space for a second copy of the region while it runs.
 
 ## Deleting map files
 
-**Delete files** in the **Regions** tab of `/admin`, or:
+**Delete files** in the **Regions** tab of `/admin` deletes the files and takes the region off the
+list. A region without files shows **Remove from list** instead. From the command line:
 
 ```bash
-./rogueroute-gpx osm delete europe --yes          # the .osm.pbf, partial downloads and the .osrm* graph
-./rogueroute-gpx osm delete us-oregon --yes --remove   # and take an added region off the list
+./rogueroute-gpx osm delete europe --yes            # the .osm.pbf, partial downloads and the .osrm* graph
+./rogueroute-gpx osm delete europe --yes --remove   # and take it off the region list
 ```
 
-This also clears the region's queue entry, failure and history. The region being served cannot
+This also clears the region's queue entry, failure and history. A built-in region taken off the
+list (such as Europe or United States mainland) is remembered under `hidden` in
+`.rogueroute-gpx/regions.json` and stays off after restarts and updates; add it again from
+**Add regions** to bring it back. The region being served cannot
 be deleted: load another one first.
 
 The region list comes from Geofabrik's index (`index-v1.json`), downloaded once a week and kept

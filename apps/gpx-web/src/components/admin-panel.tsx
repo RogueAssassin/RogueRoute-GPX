@@ -435,9 +435,8 @@ function RegionRow({ region, data, busy, run, queue }: { region: SupervisorRegio
   const tooLarge = region.state !== "prepared" && region.memoryNeeded > data.limits.budget;
   const hasFiles = region.state !== "missing";
   const deleteFiles = () => {
-    const removeFromList = region.group === "added";
-    if (!window.confirm(`Delete every map file of ${region.label}${removeFromList ? " and take it off the region list" : ""}? This cannot be undone.`)) return;
-    void run(() => post("/api/admin/files", { key: region.key, removeFromList }), `Deleted the files of ${region.label}.`);
+    if (!window.confirm(`Delete every map file of ${region.label} and take it off the region list? This cannot be undone. You can add it again from the Add regions tab.`)) return;
+    void run(() => post("/api/admin/files", { key: region.key, removeFromList: true }), `Deleted ${region.label} and took it off the list.`);
   };
   return (
     <li className={`admin-row ${active ? "is-active" : ""}`}>
@@ -496,7 +495,7 @@ function RegionRow({ region, data, busy, run, queue }: { region: SupervisorRegio
             {region.queue === "working" ? "Cancel" : "Unqueue"}
           </button>
         )}
-        {(hasFiles || region.group === "added") && !region.queue && (
+        {!region.queue && (
           <button
             type="button"
             className="maps-small is-danger"

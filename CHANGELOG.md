@@ -1,5 +1,11 @@
 # Changelog
 
+## v13.5.2 — Take built-in regions off the region list
+
+- **Delete files** in `/admin` now also takes the region off the list, including built-in regions such as Europe and United States mainland. Before, a built-in region stayed on the list as missing after its files were deleted, with no way to remove it. Regions without files show **Remove from list**.
+- Removed built-in regions are kept under `hidden` in `OSRM_DATA_DIR/.rogueroute-gpx/regions.json` and stay off after restarts; adding one again from **Add regions** brings it back.
+- `osm delete REGION --yes --remove` works for built-in regions too.
+
 ## v13.5.1 — Fix start and update after the v13.5.0 upgrade
 
 - Fixed `./rogueroute-gpx start`, `restart` and `update` exiting silently (code 1, no container) once `.env` no longer had an `ADMIN_TOKEN` line, which is every run after the first v13.5.0 update. The container was left missing until this fix.
