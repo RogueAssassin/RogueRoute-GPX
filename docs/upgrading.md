@@ -24,6 +24,14 @@ removed (the v12 manager settings and `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`). Set
 template does not know are kept under "Your additional settings". The previous file is saved
 as `.env.backup-<time>` (the last five are kept).
 
+## From v13.3 to v13.4
+
+A normal `./rogueroute-gpx update`. Nothing in `.env` changes. On its first start the container
+downloads Geofabrik's region index (about 3.5 MB) for the new `/maps/download` page; routing
+works the same while it loads. If a built-in region such as `us` or `europe` is too large for
+the server, add its sub-regions instead (for example `./rogueroute-gpx osm add us-west`) and
+delete the large `.osm.pbf` you no longer need from `OSRM_DATA_DIR` to free the disk space.
+
 ## From v13.2 to v13.3
 
 A normal `./rogueroute-gpx update`. The container now gets a memory cap of 70% of host RAM by

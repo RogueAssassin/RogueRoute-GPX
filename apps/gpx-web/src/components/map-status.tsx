@@ -230,6 +230,9 @@ export default function MapStatus() {
             Which map regions can be routed right now, which one is being built, and what is still waiting. Map work runs in
             the background, one region at a time, smallest first.
           </p>
+          <a className="maps-link maps-add-link" href="/maps/download">
+            Add regions: browse countries, states and provinces on a map →
+          </a>
         </div>
         <div className="maps-live" aria-live="polite">
           <span className={`maps-dot ${error ? "is-down" : busy ? "is-busy" : ""}`} />
@@ -325,7 +328,7 @@ export default function MapStatus() {
             </div>
             {groups.map(([group, items]) => (
               <div key={group} className="maps-group">
-                <h3>{group === "core" ? "Core regions" : group === "popular" ? "Popular regions" : group}</h3>
+                <h3>{group === "core" ? "Core regions" : group === "popular" ? "Popular regions" : group === "added" ? "Added regions" : group}</h3>
                 <ul className="maps-regions">
                   {items.map((region) => {
                     const view = viewOf(region);
@@ -337,9 +340,13 @@ export default function MapStatus() {
                             {region.label}
                             {region.key === data.activeRegion && <span className="maps-chip is-active">Serving</span>}
                             {region.tooLarge && (
-                              <span className="maps-chip is-too-large" title={`Needs about ${gb(region.memoryNeeded)} of memory; map work may use ${gb(data.limits.budget)}.`}>
-                                Too large for this server
-                              </span>
+                              <a
+                                className="maps-chip is-too-large"
+                                href="/maps/download"
+                                title={`Needs about ${gb(region.memoryNeeded)} of memory; map work may use ${gb(data.limits.budget)}. Pick a smaller region instead.`}
+                              >
+                                Too large: pick a smaller region
+                              </a>
                             )}
                           </span>
                           <span className="maps-muted">

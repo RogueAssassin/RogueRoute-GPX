@@ -32,6 +32,7 @@ export async function statusPayload({ catalog, dataDir, osrm, queue }) {
       download: region.download,
       expanded: region.expanded,
       bounds: region.bounds,
+      areas: region.areas ?? null,
       state: await fileState(dataDir, region),
       queue: maps.current?.region === region.key ? "working" : queued.has(region.key) ? "queued" : null,
       failure: maps.failures[region.key] ?? null,
@@ -52,11 +53,109 @@ export async function statusPayload({ catalog, dataDir, osrm, queue }) {
   };
 }
 
+/** State of a catalog region for the downloader: files on disk and place in the queue. */
+async function catalogState({ dataDir, queue }, region) {
+  if (!region) return null;
+  const maps = queue.status({ log: false });
+  return {
+    key: region.key,
+    label: region.label,
+    added: region.group === "added",
+    state: await fileState(dataDir, region),
+    queue: maps.current?.region === region.key ? "working" : maps.pending.some((item) => item.region === region.key) ? "queued" : null,
+    failure: maps.failures[region.key]?.message ?? null,
+  };
+}
+
+/** Prepared catalog regions with their outlines (or boxes), for coverage and the map. */
+async function preparedRegions({ catalog, dataDir }) {
+  const prepared = [];
+  for (const region of catalog) if ((await fileState(dataDir, region)) === "prepared") prepared.push(region);
+  return prepared;
+}
+
+/** Every Geofabrik region (no outlines) and how each relates to the catalog. */
+async function indexPayload({ catalog, dataDir, geofabrik }) {
+  const states = new Map();
+  for (const region of catalog) if (region.geofabrik) states.set(region.geofabrik, { key: region.key, state: await fileState(dataDir, region) });
+  const prepared = await preparedRegions({ catalog, dataDir });
+  return {
+    ok: true,
+    fetchedAt: geofabrik.fetchedAt,
+    error: geofabrik.regions.length ? null : geofabrik.error ?? (geofabrik.refreshing ? "The region index is loading." : "The region index is not available yet."),
+    regions: geofabrik.regions.map(({ id, name, parent, bbox }) => ({ id, name, parent, bbox, ...(states.get(id) ?? { key: null, state: null }) })),
+    prepared: prepared.map(({ key, label, geofabrik: id, areas, bounds }) => ({ key, label, id: id ?? null, areas: areas ?? null, bounds })),
+  };
+}
+
+/** One Geofabrik region in detail: outline, sub-regions, size, memory estimate and coverage. */
+async function regionPayload({ catalog, dataDir, geofabrik, queue, id }) {
+  const region = geofabrik.get(id);
+  if (!region) throw new ControlError(`Unknown Geofabrik region: ${id}`, 404, "unknown-region");
+  const entry = geofabrik.catalogEntry(id);
+  const size = await geofabrik.size(id);
+  const limits = await queue.limits();
+  const memoryNeeded = entry ? await queue.estimate(entry) : size ? queue.estimateBytes(size) : null;
+  const prepared = await preparedRegions({ catalog, dataDir });
+  return {
+    ok: true,
+    region: { id: region.id, name: region.name, parent: region.parent, url: region.url, bbox: region.bbox, areas: region.areas },
+    parents: (() => {
+      const chain = [];
+      for (let parent = geofabrik.get(region.parent); parent; parent = geofabrik.get(parent.parent)) chain.unshift({ id: parent.id, name: parent.name });
+      return chain;
+    })(),
+    children: geofabrik.children(id).map((child) => ({ id: child.id, name: child.name, areas: child.areas, key: geofabrik.catalogEntry(child.id)?.key ?? null })),
+    size,
+    memoryNeeded,
+    limits: { cap: limits.cap, capped: limits.capped, budget: limits.budget },
+    tooLarge: memoryNeeded !== null && memoryNeeded > limits.budget,
+    catalog: await catalogState({ dataDir, queue }, entry),
+    coveredBy: geofabrik.coveredBy(region.bbox, prepared, entry?.key).map(({ key, label }) => ({ key, label })),
+  };
+}
+
+/** add (to the catalog and the queue), remove (an added region without files), refresh (the index). */
+async function indexAction({ dataDir, geofabrik, queue, body }) {
+  const action = String(body.action ?? "");
+  if (action === "refresh") {
+    await geofabrik.refresh();
+    return { ok: true, regions: geofabrik.regions.length };
+  }
+  if (action === "add") {
+    const id = String(body.id ?? "");
+    if (!geofabrik.get(id)) throw new ControlError(`Unknown Geofabrik region: ${id}`, 404, "unknown-region");
+    const goal = body.goal === "downloaded" ? "downloaded" : "prepared";
+    const isNew = !geofabrik.catalogEntry(id);
+    const entry = await geofabrik.addToCatalog(id, isNew ? await geofabrik.size(id) : null);
+    try {
+      const result = await queue.act({ action: "add", regions: [entry.key], goal, force: body.force === true });
+      return { ok: true, key: entry.key, isNew, ...result };
+    } catch (error) {
+      // Refused (for example too large): keep the list as it was before this request.
+      if (isNew) await geofabrik.removeFromCatalog(entry.key).catch(() => {});
+      throw error;
+    }
+  }
+  if (action === "remove") {
+    const key = String(body.key ?? "");
+    const entry = geofabrik.catalog.find((region) => region.key === key);
+    if (!entry || entry.group !== "added") throw new ControlError(`${key} is not a region added from the downloader.`, 400);
+    if (queue.items.some((item) => item.region === key)) throw new ControlError(`${entry.label} is in the map queue. Remove it from the queue first.`, 409);
+    if ((await fileState(dataDir, entry)) !== "missing") {
+      throw new ControlError(`${entry.label} has map files on disk. Delete them first, then remove it from the list.`, 409);
+    }
+    await geofabrik.removeFromCatalog(key);
+    return { ok: true, removed: key };
+  }
+  throw new ControlError(`Unknown action: ${action}`, 400);
+}
+
 /**
  * Control API over a unix socket inside the container. Only processes in the container (the
  * web server and the rogueroute-gpx CLI) can reach it; nothing is published on the network.
  */
-export async function startControlServer({ socketPath, catalog, dataDir, osrm, queue, log }) {
+export async function startControlServer({ socketPath, catalog, dataDir, osrm, queue, geofabrik, log }) {
   const server = createServer(async (req, res) => {
     const send = (status, payload) => {
       res.writeHead(status, { "content-type": "application/json" });
@@ -78,6 +177,15 @@ export async function startControlServer({ socketPath, catalog, dataDir, osrm, q
         const body = await readJson(req);
         const result = await queue.act({ action: String(body.action || ""), regions: body.regions, goal: body.goal, force: body.force === true });
         return send(200, { ok: true, ...result, queue: queue.status({ log: false }) });
+      }
+      if (geofabrik && req.method === "GET" && url.pathname === "/geofabrik") {
+        return send(200, await indexPayload({ catalog, dataDir, geofabrik }));
+      }
+      if (geofabrik && req.method === "GET" && url.pathname === "/geofabrik/region") {
+        return send(200, await regionPayload({ catalog, dataDir, geofabrik, queue, id: url.searchParams.get("id") ?? "" }));
+      }
+      if (geofabrik && req.method === "POST" && url.pathname === "/geofabrik") {
+        return send(200, await indexAction({ catalog, dataDir, geofabrik, queue, body: await readJson(req) }));
       }
       send(404, { error: "Not found" });
     } catch (error) {

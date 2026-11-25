@@ -24,7 +24,9 @@ It keeps going when you close the terminal and resumes after a restart.
 
   osm status                       Active region, OSRM state, the map queue and every region
   osm list                         Regions with rough download and prepared sizes
+  osm search TEXT                  Find any Geofabrik region (country, state, province) by name
   osm add REGION...                Queue regions: download if needed, then prepare
+                                   REGION can also be a Geofabrik id from osm search (us/california)
   osm prepare REGION...            Same as add
   osm download REGION...           Queue downloads only (no preparation)
   osm prepare-downloaded [--yes]   Queue every downloaded but unprepared region
@@ -108,12 +110,46 @@ async function follow(regions = null) {
 const queueAction = (action, regions, goal, force = false) => call("POST", "/queue", { action, regions, goal, force });
 
 async function enqueue(regions, goal, args) {
-  const result = await queueAction("add", regions, goal, args.includes("--force"));
+  const force = args.includes("--force");
   const verb = goal === "downloaded" ? "download" : "download (if needed) and prepare";
-  const note = result.added.length < regions.length ? " (some were already queued)" : "";
-  console.log(`[OK] Queued to ${verb}: ${regions.join(" ")}${note}`);
-  if (args.includes("--wait")) return follow(regions);
+  // Catalog keys are queued directly; anything else is looked up in the Geofabrik index
+  // (for example us/california), added to the region list and queued.
+  const known = new Set((await status()).regions.map((region) => region.key));
+  const keys = regions.filter((name) => known.has(name));
+  const queued = [...keys];
+  let note = "";
+  if (keys.length) {
+    const result = await queueAction("add", keys, goal, force);
+    if (result.added.length < keys.length) note = " (some were already queued)";
+  }
+  for (const id of regions.filter((name) => !known.has(name))) {
+    const result = await call("POST", "/geofabrik", { action: "add", id, goal, force }, 150_000).catch((error) =>
+      fail(`${error.message}${/Unknown/.test(error.message) ? ` Find the id with: ./rogueroute-gpx osm search ${id.split("/").pop()}` : ""}`),
+    );
+    if (result.isNew) console.log(`[OK] Added ${id} from the Geofabrik index as ${result.key}.`);
+    queued.push(result.key);
+  }
+  console.log(`[OK] Queued to ${verb}: ${queued.join(" ")}${note}`);
+  if (args.includes("--wait")) return follow(queued);
   console.log("[INFO] This runs in the background. Watch it with ./rogueroute-gpx osm follow, or open /maps.");
+}
+
+/** Search the Geofabrik index by name or id. */
+async function search(text) {
+  const index = await call("GET", "/geofabrik");
+  if (!index.regions.length) fail(index.error ?? "The Geofabrik region index is not available yet.");
+  const byId = new Map(index.regions.map((region) => [region.id, region]));
+  const needle = text.toLowerCase();
+  const found = index.regions.filter((region) => region.name.toLowerCase().includes(needle) || region.id.includes(needle));
+  if (!found.length) return console.log(`No Geofabrik region matches "${text}".`);
+  console.log(`${pad("ID", 34)}${pad("NAME", 30)}${pad("STATE", 12)}IN`);
+  for (const region of found.slice(0, 50)) {
+    const path = [];
+    for (let parent = byId.get(region.parent); parent; parent = byId.get(parent.parent)) path.unshift(parent.name);
+    console.log(`${pad(region.id, 34)}${pad(region.name, 30)}${pad(region.state ?? "", 12)}${path.join(" > ")}`);
+  }
+  if (found.length > 50) console.log(`... and ${found.length - 50} more. Narrow the search.`);
+  console.log("Add one with: ./rogueroute-gpx osm add ID   (sizes and a map: /maps/download)");
 }
 
 function printQueue(queue) {
@@ -208,6 +244,9 @@ async function osm(command, args) {
       if (!result.added.length && !regionArgs.length) return console.log("[OK] No failed regions.");
       return console.log(`[OK] Queued again: ${regionArgs.length ? regionArgs.join(" ") : result.added.join(" ")}`);
     }
+    case "search":
+      if (!regionArgs.length) fail("Usage: rogueroute-gpx osm search TEXT");
+      return search(regionArgs.join(" "));
     case "follow":
     case "job":
       return follow();

@@ -26,8 +26,9 @@ be running.
 | Command | Function |
 | --- | --- |
 | `./rogueroute-gpx osm list` | Regions with rough download and prepared sizes. |
+| `./rogueroute-gpx osm search TEXT` | Find any Geofabrik region (country, state, province) by name and show its id. |
 | `./rogueroute-gpx osm status` | Active region, OSRM state, map queue, free disk, the memory cap and each region's state and memory estimate. |
-| `./rogueroute-gpx osm add REGION… [--wait]` | Queue regions: download if needed, then prepare. `prepare` does the same. Regions too large for the memory cap are refused; add `--force` to try anyway. |
+| `./rogueroute-gpx osm add REGION… [--wait]` | Queue regions: download if needed, then prepare. REGION can be a list name or a Geofabrik id from `osm search` (for example `us/california`), which is added to the list first. `prepare` does the same. Regions too large for the memory cap are refused; add `--force` to try anyway. |
 | `./rogueroute-gpx osm download REGION… [--wait]` | Queue downloads only (resumable, MD5-checked). |
 | `./rogueroute-gpx osm prepare-downloaded [--yes]` | Queue every downloaded, unprepared region. Skips regions too large for the memory cap unless `--force`. |
 | `./rogueroute-gpx osm prepare-all --yes` | Queue every catalog region (very large). |

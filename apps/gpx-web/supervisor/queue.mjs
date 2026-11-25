@@ -196,7 +196,12 @@ export class MapQueue {
     const measured = this.history[region.key]?.peakMemory;
     if (measured) return Math.round(measured * 1.1);
     const pbf = (await sizeOf(join(this.dataDir, region.pbf))) || catalogBytes(region.download);
-    return Math.round(pbf * (EXTRACT_MEMORY_FACTORS[this.profile] ?? EXTRACT_MEMORY_FACTORS.foot));
+    return this.estimateBytes(pbf);
+  }
+
+  /** Estimated peak memory to prepare an extract of the given size. */
+  estimateBytes(pbfBytes) {
+    return Math.round(pbfBytes * (EXTRACT_MEMORY_FACTORS[this.profile] ?? EXTRACT_MEMORY_FACTORS.foot));
   }
 
   /** Throw TooLarge when a region probably cannot be prepared within the memory budget. */

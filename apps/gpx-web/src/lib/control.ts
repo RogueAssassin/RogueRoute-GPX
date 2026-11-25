@@ -10,6 +10,8 @@ export type SupervisorRegion = {
   download: string;
   expanded: string;
   bounds: [number, number, number, number][];
+  /** Outline rings of [lon, lat] from the Geofabrik index, when known. */
+  areas: [number, number][][] | null;
   state: RegionState;
   queue: "working" | "queued" | null;
   failure: MapFailure | null;

@@ -61,11 +61,11 @@ export async function readStateFile(dataDir, name) {
 }
 
 /** Write a JSON file in /data/.rogueroute-gpx atomically (temp file, then rename). */
-export async function writeStateFile(dataDir, name, value) {
+export async function writeStateFile(dataDir, name, value, { compact = false } = {}) {
   const dir = stateDir(dataDir);
   await mkdir(dir, { recursive: true });
   const file = join(dir, name);
-  await writeFile(`${file}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(`${file}.tmp`, `${JSON.stringify(value, null, compact ? 0 : 2)}\n`);
   await rename(`${file}.tmp`, file);
 }
 

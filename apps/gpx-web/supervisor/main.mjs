@@ -6,6 +6,7 @@
 import { spawn } from "node:child_process";
 import { loadCatalog } from "./catalog.mjs";
 import { startControlServer } from "./control.mjs";
+import { GeofabrikIndex } from "./geofabrik.mjs";
 import { OsrmService } from "./osrm.mjs";
 import { MapQueue, parseSize } from "./queue.mjs";
 
@@ -36,14 +37,22 @@ const config = {
   memoryCap: parseSize(env.ROGUEROUTE_MEMORY_CAP),
   memoryFloor: parseSize(env.ROGUEROUTE_MEMORY_FLOOR),
   ioIdle: !/^(0|false|no|off)$/i.test(env.ROGUEROUTE_PREPARE_IDLE_IO || "true"),
+  geofabrikUrl: env.ROGUEROUTE_GEOFABRIK_INDEX_URL || undefined,
 };
 
 const log = (line) => console.log(`${new Date().toISOString()} ${line}`);
 
 const catalog = await loadCatalog(config.catalogFile);
+// Regions added from the downloader page come after the built-in ones.
+for (const region of await GeofabrikIndex.loadAdded(config.dataDir)) {
+  if (catalog.some((entry) => entry.key === region.key)) continue;
+  catalog.push({ ...region, pbf: `${region.graph}-latest.osm.pbf`, osrm: `${region.graph}-latest.osrm` });
+}
+const geofabrik = new GeofabrikIndex({ dataDir: config.dataDir, catalog, log, url: config.geofabrikUrl });
+geofabrik.init().catch((error) => log(`[maps] region index unavailable: ${error.message}`));
 const osrm = new OsrmService({ ...config, port: config.osrmPort, catalog, log });
 const queue = new MapQueue({ ...config, catalog, osrm, log });
-const control = await startControlServer({ ...config, catalog, osrm, queue, log });
+const control = await startControlServer({ ...config, catalog, osrm, queue, geofabrik, log });
 log(`[supervisor] control socket ${config.socketPath}`);
 
 let web = null;

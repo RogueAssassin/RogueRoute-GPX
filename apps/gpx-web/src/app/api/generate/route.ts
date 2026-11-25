@@ -31,6 +31,7 @@ async function ensureRegion(points: { lat: number; lng: number }[], requested: s
     key: region.key,
     label: region.label,
     bounds: region.bounds,
+    areas: region.areas,
     prepared: region.state === "prepared",
   }));
   let target: { key: string; label: string; prepared: boolean } | undefined;
