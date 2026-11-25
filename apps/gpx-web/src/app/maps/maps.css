@@ -484,3 +484,216 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* /maps/download: region downloader */
+.maps-ok {
+  border: 1px solid rgba(65, 217, 155, 0.35);
+  background: rgba(65, 217, 155, 0.08);
+  color: #bbf7d0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+.downloader-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.downloader-tree {
+  display: grid;
+  gap: 10px;
+  max-height: 820px;
+  overflow: auto;
+}
+.downloader-search {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--maps-border);
+  background: rgba(15, 23, 42, 0.8);
+  color: inherit;
+  font: inherit;
+}
+.downloader-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.downloader-list.is-nested {
+  padding-left: 16px;
+  border-left: 1px solid var(--maps-border);
+  margin-left: 10px;
+}
+.downloader-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.downloader-row {
+  justify-content: space-between;
+  cursor: pointer;
+}
+button.downloader-row small {
+  display: block;
+  font-size: 12px;
+}
+.downloader-row.is-selected,
+.downloader-row:hover {
+  background: rgba(34, 211, 238, 0.1);
+}
+.downloader-toggle {
+  width: 20px;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--maps-muted);
+  cursor: pointer;
+  font: inherit;
+}
+.downloader-name {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.downloader-badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.downloader-badge.is-prepared {
+  color: var(--maps-ready);
+}
+.downloader-badge.is-downloaded,
+.downloader-badge.is-partial {
+  color: var(--maps-waiting);
+}
+.downloader-badge.is-working {
+  color: var(--maps-working);
+}
+.downloader-badge.is-queued {
+  color: var(--maps-queued);
+}
+.downloader-badge.is-missing {
+  color: var(--maps-muted);
+}
+.downloader-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.downloader-map {
+  height: 460px;
+  border-radius: 16px;
+  border: 1px solid var(--maps-border);
+  overflow: hidden;
+}
+.downloader-map-loading {
+  display: grid;
+  place-items: center;
+  color: var(--maps-muted);
+}
+.downloader-legend {
+  margin: 0;
+  font-size: 13px;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  vertical-align: -1px;
+  border: 2px solid;
+}
+.legend-swatch.is-prepared {
+  border-color: #41d99b;
+  background: rgba(65, 217, 155, 0.2);
+}
+.legend-swatch.is-selected {
+  border-color: #22d3ee;
+}
+.legend-swatch.is-sub {
+  border-color: #a78bfa;
+  border-style: dashed;
+}
+.downloader-detail {
+  display: grid;
+  gap: 12px;
+}
+.downloader-detail .is-loading {
+  opacity: 0.6;
+}
+.downloader-crumbs {
+  font-size: 13px;
+  color: var(--maps-muted);
+}
+.downloader-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.downloader-facts div {
+  border: 1px solid var(--maps-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.downloader-facts dt {
+  font-size: 12px;
+  color: var(--maps-muted);
+}
+.downloader-facts dd {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.downloader-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.downloader-children .maps-chip {
+  cursor: pointer;
+  background: rgba(167, 139, 250, 0.1);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  color: inherit;
+  font-size: 12px;
+}
+@media (max-width: 860px) {
+  .downloader-layout {
+    grid-template-columns: 1fr;
+  }
+  .downloader-tree {
+    max-height: 360px;
+  }
+  .downloader-map {
+    height: 340px;
+  }
+}
+.downloader-detail a {
+  color: var(--maps-accent);
+}
+.maps-add-link {
+  display: inline-block;
+  margin-top: 6px;
+}

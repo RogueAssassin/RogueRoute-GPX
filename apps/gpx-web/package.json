@@ -1,6 +1,6 @@
 {
   "name": "@rogueroute-gpx/web",
-  "version": "13.3.0",
+  "version": "13.4.0",
   "private": true,
   "engines": {
     "node": "26.8.1",

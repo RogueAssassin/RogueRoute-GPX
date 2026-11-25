@@ -101,6 +101,37 @@ country or state extracts are far smaller.
 
 The region being served cannot be rebuilt in place: switch to another region first.
 
+## Adding any region
+
+The built-in list covers popular countries and continents. Any other region Geofabrik
+publishes (about 550: continents, countries, US states, German states, Canadian provinces,
+French regions and more) can be added too, and a sub-region is usually the answer when a region
+is too large for the server.
+
+**On the website:** open `http://SERVER-IP:9080/maps/download`. Browse the tree or search, and
+the map shows the region's outline, its sub-regions (click one to open it) and what is already
+prepared. For each region you see the download size, the memory it needs to prepare, whether a
+prepared region already covers it, and whether it is too large for this server. With the
+admin token entered, **Download and prepare** or **Download only** add it to the region list and
+the map queue.
+
+**From the command line:**
+
+```bash
+./rogueroute-gpx osm search california      # find the Geofabrik id
+./rogueroute-gpx osm add us/california      # add it to the list and queue it
+./rogueroute-gpx osm add us-west us/oregon  # several at once; ids and list names can be mixed
+```
+
+Added regions behave like the built-in ones: they show on `/maps` under **Added regions**, are
+used by automatic region selection, and are kept in `OSRM_DATA_DIR/.rogueroute-gpx/regions.json`.
+An added region without map files can be taken off the list again on `/maps/download`.
+
+The region list comes from Geofabrik's index (`index-v1.json`), downloaded once a week and kept
+in `OSRM_DATA_DIR/.rogueroute-gpx/geofabrik-index.json`. **Update** on `/maps/download` fetches
+it now. Its outlines are also used by automatic region selection, so waypoints are matched to a
+region's real border instead of a rectangle around it.
+
 ## Switching regions
 
 You rarely need to switch by hand. When a route is generated, the website picks the prepared

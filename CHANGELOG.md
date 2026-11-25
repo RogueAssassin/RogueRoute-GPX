@@ -1,5 +1,14 @@
 # Changelog
 
+## v13.4.0 — Add any region: downloader page and region outlines
+
+- New `/maps/download` page: browse every Geofabrik region (continents down to states and provinces) in a tree or by search, on a map that shows the region's outline, its clickable sub-regions and what is already prepared. Each region shows its download size, the memory it needs, whether a prepared region already covers it and whether it is too large for this server; admins can download, prepare or remove it there.
+- `osm search TEXT` finds any Geofabrik region; `osm add` accepts Geofabrik ids such as `us/california` and adds them to the region list first.
+- Added regions are kept in `OSRM_DATA_DIR/.rogueroute-gpx/regions.json` and behave like built-in ones (Map status, automatic selection, queue).
+- Automatic region selection uses real Geofabrik outlines instead of rectangles, for built-in and added regions.
+- The Geofabrik index is downloaded once a week and cached in the map folder.
+- `/maps` links "Too large" regions to the downloader, so a smaller sub-region is one click away.
+
 ## v13.3.0 — Map preparation that cannot take the server down
 
 - The container gets a memory cap (`ROGUEROUTE_MEMORY_LIMIT`, `auto` = 70% of host RAM) with no extra swap, so the kernel stops a map tool inside the container instead of the host running out of memory.

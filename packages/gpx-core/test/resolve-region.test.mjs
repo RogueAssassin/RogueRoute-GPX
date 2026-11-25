@@ -49,3 +49,16 @@ test("reports unprepared and unknown areas", () => {
   assert.equal(split.reason, "outside-catalog");
   assert.equal(resolveRegion([], regions([]), undefined).reason, "no-waypoints");
 });
+
+test("uses region outlines when they are known, instead of the box", () => {
+  // A triangle whose box contains (1, 9) but whose outline does not.
+  const triangle = [[0, 0], [10, 0], [0, 10], [0, 0]];
+  const candidates = [
+    { key: "triangle", label: "Triangle", bounds: [[0, 0, 10, 10]], areas: [triangle], prepared: true },
+    { key: "square", label: "Square", bounds: [[0, 0, 20, 20]], prepared: true },
+  ];
+  const inside = resolveRegion([{ lat: 1, lng: 1 }], candidates);
+  assert.equal(inside.ok && inside.region.key, "triangle");
+  const outside = resolveRegion([{ lat: 9, lng: 9 }], candidates);
+  assert.equal(outside.ok && outside.region.key, "square");
+});

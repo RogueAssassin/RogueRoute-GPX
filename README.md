@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-13.3.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
+[![Release](https://img.shields.io/badge/release-13.4.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
 [![Container](https://img.shields.io/badge/GHCR-one_container-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/rogueroute-gpx/pkgs/container/rogueroute-gpx)
 [![Engines](https://img.shields.io/badge/runtime-docker_%7C_podman-ff2bd6?style=for-the-badge)](#requirements)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **13.3.0** · One container · Local OSRM routing with automatic regions
+Version **13.4.0** · One container · Local OSRM routing with automatic regions
 
 </div>
 
@@ -23,19 +23,23 @@ Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM ro
   <img src="docs/assets/screenshot-route-builder.png" alt="RogueRoute GPX route builder: generator, operations deck, map preview and the Map region panel" width="49%">
   <img src="docs/assets/screenshot-maps.png" alt="Map status page: regions ready, the region being prepared, the queue and every region's state" width="49%">
 </p>
+<p align="center">
+  <img src="docs/assets/screenshot-downloader.png" alt="Add map regions: the United States on a map with its 58 sub-regions, its download size and memory estimate" width="80%">
+</p>
 
 ## Why RogueRoute GPX?
 
 | | What you get |
 | --- | --- |
 | 🥾 | **Follow the real path.** Local OSRM routing uses mapped roads, footways and walking tracks instead of drawing straight lines. |
-| 🌏 | **Automatic regions.** Paste waypoints anywhere you have a prepared map; RogueRoute picks the matching region and loads it. |
+| 🌏 | **Automatic regions.** Paste waypoints anywhere you have a prepared map; RogueRoute picks the matching region and loads it. Real region outlines are used, not rectangles. |
 | 🧲 | **Recover difficult portals.** Strict routing searches progressively from 250 m up to a configurable 5,000 m snap limit. |
 | 🗺️ | **See the route before export.** The map shows the route, the original waypoints, automatic snap corrections and failures. |
 | 📦 | **Manageable GPX files.** Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
 | 🧰 | **Maps build themselves.** A background queue downloads and prepares regions one at a time, smallest first, at low CPU and disk priority. It resumes after a restart and auto-prepares anything already downloaded. |
 | 🛡️ | **Safe on a shared server.** The container has a memory cap, regions too large for it are refused (unless forced), and a watchdog stops map work before the host runs low on memory. |
 | 📊 | **Map status page.** `/maps` shows what is ready, what is being built (step, progress, time) and what is still waiting, with admin controls behind `ADMIN_TOKEN`. |
+| 🧭 | **Add any region.** `/maps/download` browses every Geofabrik region on a map, from continents down to states and provinces, with download size, memory needed and what already covers it. |
 | 🐳 | **One container.** No sidecars, no engine socket, no shared secrets volume. |
 
 ## Install from scratch
@@ -135,6 +139,7 @@ flowchart LR
 
 ./rogueroute-gpx osm status     # active region, map queue and every region's state
 ./rogueroute-gpx osm add japan  # queue: download if needed, then prepare (runs in the background)
+./rogueroute-gpx osm search oregon   # find any Geofabrik region; osm add us/oregon adds it
 ./rogueroute-gpx osm prepare-downloaded   # queue everything downloaded but not prepared
 ./rogueroute-gpx osm follow     # watch the map log; Ctrl-C stops watching, not the work
 ./rogueroute-gpx osm retry      # queue failed regions again
@@ -190,7 +195,7 @@ The container joins the `rogueroute-gpx` and `media-net` networks and still answ
 - [Upgrading, including from v12](docs/upgrading.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Command reference](docs/commands.md)
-- [v13.3.0 release notes](docs/releases/v13.3.0.md) · [all release notes](docs/releases/) ·
+- [v13.4.0 release notes](docs/releases/v13.4.0.md) · [all release notes](docs/releases/) ·
   [changelog](CHANGELOG.md)
 
 ## Development

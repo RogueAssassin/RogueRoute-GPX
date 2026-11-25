@@ -1,10 +1,15 @@
 /** [minLon, minLat, maxLon, maxLat] */
 export type RegionBox = [number, number, number, number];
 
+/** A closed ring of [lon, lat] points. */
+export type RegionRing = [number, number][];
+
 export type RegionCandidate = {
   key: string;
   label: string;
   bounds: RegionBox[];
+  /** The region's real outline (outer rings), when known; preferred over the boxes. */
+  areas?: RegionRing[] | null;
   prepared: boolean;
 };
 
@@ -18,7 +23,19 @@ function boxContains([minLon, minLat, maxLon, maxLat]: RegionBox, point: Point) 
   return point.lng >= minLon && point.lng <= maxLon && point.lat >= minLat && point.lat <= maxLat;
 }
 
+/** Even-odd point-in-polygon test. */
+function ringContains(ring: RegionRing, point: Point) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > point.lat !== yj > point.lat && point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function regionContains(region: RegionCandidate, point: Point) {
+  if (region.areas?.length) return region.areas.some((ring) => ringContains(ring, point));
   return region.bounds.some((box) => boxContains(box, point));
 }
 
