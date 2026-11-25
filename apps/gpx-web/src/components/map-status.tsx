@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type Step = "starting" | "download" | "extract" | "partition" | "customize";
-type Goal = "downloaded" | "prepared";
+export type Step = "starting" | "download" | "extract" | "partition" | "customize" | "swap";
+export type Goal = "downloaded" | "prepared" | "updated";
 
 type Region = {
   key: string;
@@ -23,7 +23,7 @@ type Region = {
 
 type Limits = { capped: boolean; cap: number; budget: number };
 
-type Current = {
+export type Current = {
   region: string;
   goal: Goal;
   step: Step;
@@ -40,17 +40,8 @@ type MapsResponse = {
   queue: { paused: boolean; current: Current | null; pending: { region: string; goal: Goal }[] };
   limits: Limits;
   regions: Region[];
-  adminEnabled: boolean;
-};
-
-type AdminResponse = {
-  queue: {
-    failures: Record<string, { message: string; step: string | null; at: string }>;
-    log: { seq: number; line: string }[];
-    lastSeq: number;
-  };
-  disk: { free: number; total: number } | null;
-  memory: number;
+  /** The visitor is logged in to /admin. */
+  admin: boolean;
 };
 
 /** What a region looks like on this page, from its files and its place in the queue. */
@@ -65,12 +56,13 @@ const VIEW_LABEL: Record<View, string> = {
   failed: "Failed",
 };
 
-const STEP_LABEL: Record<Step, string> = {
+export const STEP_LABEL: Record<Step, string> = {
   starting: "Starting",
   download: "Download",
   extract: "Extract",
   partition: "Partition",
   customize: "Customize",
+  swap: "Swap in",
 };
 
 const STEP_HELP: Record<Step, string> = {
@@ -79,9 +71,14 @@ const STEP_HELP: Record<Step, string> = {
   extract: "Reading every road and path in the extract. This is the longest and most memory-hungry step.",
   partition: "Splitting the road network into cells for fast routing.",
   customize: "Calculating walking times across each cell.",
+  swap: "Replacing the old map data with the new data (routing pauses for a moment if this region is being served).",
 };
 
-const TOKEN_KEY = "rogueroute-gpx.adminToken";
+export const GOAL_LABEL: Record<Goal, string> = {
+  downloaded: "download only",
+  prepared: "download and prepare",
+  updated: "update to the latest data",
+};
 
 function viewOf(region: Region): View {
   if (region.queue === "working") return "working";
@@ -91,9 +88,9 @@ function viewOf(region: Region): View {
   return region.state === "downloaded" ? "waiting" : "missing";
 }
 
-const gb = (bytes: number) => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`);
+export const gb = (bytes: number) => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`);
 
-function duration(ms: number) {
+export function duration(ms: number) {
   const minutes = Math.max(0, Math.round(ms / 60_000));
   if (minutes < 1) return "under a minute";
   if (minutes < 60) return `${minutes} min`;
@@ -101,20 +98,13 @@ function duration(ms: number) {
   return `${hours} h ${minutes % 60} min`;
 }
 
-function ago(iso: string | null, now: number) {
+export function ago(iso: string | null, now: number) {
   if (!iso) return null;
   const ms = now - Date.parse(iso);
   if (ms < 60_000) return "just now";
   return `${duration(ms)} ago`;
 }
 
-function readToken() {
-  try {
-    return window.sessionStorage.getItem(TOKEN_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
 
 export default function MapStatus() {
   const [data, setData] = useState<MapsResponse | null>(null);
@@ -122,10 +112,6 @@ export default function MapStatus() {
   const [updatedAt, setUpdatedAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [filter, setFilter] = useState<View | "all">("all");
-  const [token, setToken] = useState("");
-  const [admin, setAdmin] = useState<AdminResponse | null>(null);
-  const [adminError, setAdminError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -140,21 +126,7 @@ export default function MapStatus() {
     }
   }, []);
 
-  const refreshAdmin = useCallback(async (adminToken: string) => {
-    if (!adminToken) return setAdmin(null);
-    const response = await fetch("/api/admin/queue", { cache: "no-store", headers: { authorization: `Bearer ${adminToken}` } });
-    const body = await response.json().catch(() => ({}));
-    if (response.ok) {
-      setAdmin(body);
-      setAdminError(null);
-    } else {
-      setAdmin(null);
-      setAdminError(body.error || "Admin token rejected.");
-    }
-  }, []);
-
   useEffect(() => {
-    setToken(readToken());
     void refresh();
   }, [refresh]);
 
@@ -163,41 +135,16 @@ export default function MapStatus() {
     const tick = () => {
       if (document.hidden) return;
       void refresh();
-      if (token) void refreshAdmin(token);
     };
     const timer = window.setInterval(tick, busy ? 2_000 : 10_000);
     return () => window.clearInterval(timer);
-  }, [busy, refresh, refreshAdmin, token]);
+  }, [busy, refresh]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (token && data?.adminEnabled) void refreshAdmin(token);
-  }, [token, data?.adminEnabled, refreshAdmin]);
-
-  function saveToken(value: string) {
-    setToken(value);
-    try {
-      window.sessionStorage.setItem(TOKEN_KEY, value);
-    } catch {
-      /* session storage unavailable */
-    }
-  }
-
-  async function act(action: string, regions?: string[], goal: Goal = "prepared", force = false) {
-    setNotice(null);
-    const response = await fetch("/api/admin/queue", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action, regions, goal, force }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) setNotice(body.error || "The queue action failed.");
-    await Promise.all([refresh(), refreshAdmin(token)]);
-  }
 
   const regions = useMemo(() => data?.regions ?? [], [data]);
   const counts = useMemo(() => {
@@ -213,7 +160,6 @@ export default function MapStatus() {
     return [...byGroup.entries()];
   }, [regions, filter]);
 
-  const isAdmin = Boolean(admin);
   const current = data?.queue.current ?? null;
   const pending = data?.queue.pending ?? [];
   const order: View[] = ["ready", "working", "queued", "waiting", "failed", "missing"];
@@ -222,17 +168,19 @@ export default function MapStatus() {
     <main className="maps">
       <header className="maps-header">
         <div>
-          <a className="maps-back" href="/">
-            ← Route builder
-          </a>
           <h1>Map status</h1>
           <p className="maps-lede">
             Which map regions can be routed right now, which one is being built, and what is still waiting. Map work runs in
             the background, one region at a time, smallest first.
           </p>
           <a className="maps-link maps-add-link" href="/maps/download">
-            Add regions: browse countries, states and provinces on a map →
+            Missing a place? Find its map and request it →
           </a>
+          {data?.admin && (
+            <a className="maps-link maps-add-link" href="/admin">
+              Manage maps in Admin →
+            </a>
+          )}
         </div>
         <div className="maps-live" aria-live="polite">
           <span className={`maps-dot ${error ? "is-down" : busy ? "is-busy" : ""}`} />
@@ -307,7 +255,9 @@ export default function MapStatus() {
                   {pending.map((item) => (
                     <li key={item.region}>
                       <span>{label(item.region)}</span>
-                      <span className="maps-muted">{item.goal === "downloaded" ? "download only" : regions.find((r) => r.key === item.region)?.state === "downloaded" ? "prepare" : "download + prepare"}</span>
+                      <span className="maps-muted">
+                        {item.goal === "prepared" && regions.find((r) => r.key === item.region)?.state === "downloaded" ? "prepare" : GOAL_LABEL[item.goal]}
+                      </span>
                     </li>
                   ))}
                 </ol>
@@ -332,7 +282,6 @@ export default function MapStatus() {
                 <ul className="maps-regions">
                   {items.map((region) => {
                     const view = viewOf(region);
-                    const failure = admin?.queue.failures[region.key];
                     return (
                       <li key={region.key} className={`maps-region is-${view}`}>
                         <div className="maps-region-main">
@@ -354,11 +303,9 @@ export default function MapStatus() {
                             {region.memoryNeeded > 0 && view !== "ready" ? ` · needs ~${gb(region.memoryNeeded)} memory` : ""}
                             {region.preparedAt && view === "ready" ? ` · built ${ago(region.preparedAt, now)}` : ""}
                           </span>
-                          {failure && <span className="maps-failure">{failure.message}</span>}
                         </div>
                         <div className="maps-region-side">
                           <span className={`maps-state is-${view}`}>{VIEW_LABEL[view]}</span>
-                          {isAdmin && <RegionActions region={region} view={view} act={act} />}
                         </div>
                       </li>
                     );
@@ -368,69 +315,13 @@ export default function MapStatus() {
             ))}
           </section>
 
-          {data.adminEnabled && (
-            <section className="maps-card maps-admin" aria-label="Map administration">
-              <div className="maps-card-head">
-                <h2>Map administration</h2>
-                {admin?.disk && (
-                  <span className="maps-muted">
-                    Disk {gb(admin.disk.free)} free of {gb(admin.disk.total)} · Memory {gb(admin.memory)}
-                  </span>
-                )}
-              </div>
-              <div className="maps-admin-row">
-                <input type="password" placeholder="Admin token" value={token} onChange={(event) => saveToken(event.target.value)} aria-label="Admin token" />
-                {isAdmin && (
-                  <>
-                    {data.queue.paused ? (
-                      <button type="button" onClick={() => void act("resume")}>
-                        Resume queue
-                      </button>
-                    ) : (
-                      <button type="button" onClick={() => void act("pause")}>
-                        Pause queue
-                      </button>
-                    )}
-                    <button type="button" disabled={!current} onClick={() => void act("cancel")}>
-                      Cancel current
-                    </button>
-                    <button type="button" disabled={!counts.failed} onClick={() => void act("retry")}>
-                      Retry failed
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!regions.some((region) => viewOf(region) === "waiting" && !region.tooLarge)}
-                      onClick={() =>
-                        void act(
-                          "add",
-                          regions.filter((region) => viewOf(region) === "waiting" && !region.tooLarge).map((region) => region.key),
-                        )
-                      }
-                    >
-                      Prepare all downloaded
-                    </button>
-                    <button type="button" disabled={!pending.length} onClick={() => void act("clear")}>
-                      Clear waiting
-                    </button>
-                  </>
-                )}
-              </div>
-              {adminError && token && <div className="maps-alert">{adminError}</div>}
-              {notice && <div className="maps-alert">{notice}</div>}
-              {admin && (
-                <pre className="maps-log" aria-label="Map log">
-                  {admin.queue.log.slice(-60).map((entry) => entry.line).join("\n") || "No map work since the container started."}
-                </pre>
-              )}
-            </section>
-          )}
         </>
       )}
     </main>
   );
 }
 
-function CurrentTask({ current, label, now }: { current: Current; label: string; now: number }) {
+export function CurrentTask({ current, label, now }: { current: Current; label: string; now: number }) {
   const progress = current.progress;
   const percent = progress?.total && progress.bytes !== undefined ? Math.min(100, (progress.bytes / progress.total) * 100) : null;
   const eta = progress?.rate && progress.total && progress.bytes !== undefined ? ((progress.total - progress.bytes) / progress.rate) * 1000 : null;
@@ -444,7 +335,7 @@ function CurrentTask({ current, label, now }: { current: Current; label: string;
       <div className="maps-task-title">
         <strong>{label}</strong>
         <span className="maps-muted">
-          {current.goal === "prepared" ? "download and prepare" : "download only"} · started {ago(current.startedAt, now)}
+          {GOAL_LABEL[current.goal]} · started {ago(current.startedAt, now)}
         </span>
       </div>
       <ol className="maps-steps">
@@ -472,65 +363,4 @@ function CurrentTask({ current, label, now }: { current: Current; label: string;
       </p>
     </div>
   );
-}
-
-function RegionActions({
-  region,
-  view,
-  act,
-}: {
-  region: Region;
-  view: View;
-  act: (action: string, regions?: string[], goal?: Goal, force?: boolean) => Promise<void>;
-}) {
-  if (region.tooLarge && (view === "waiting" || view === "missing" || view === "failed")) {
-    const tryAnyway = () => {
-      const ok = window.confirm(
-        `${region.label} probably needs about ${gb(region.memoryNeeded)} of memory. It will run inside the memory cap, ` +
-          "and the watchdog stops it if the server runs low. Try anyway?",
-      );
-      if (ok) void act(view === "failed" ? "retry" : "add", [region.key], "prepared", true);
-    };
-    return (
-      <span className="maps-actions">
-        {view === "missing" && (
-          <button type="button" className="maps-small" onClick={() => void act("add", [region.key], "downloaded")}>
-            Download only
-          </button>
-        )}
-        <button type="button" className="maps-small" onClick={tryAnyway}>
-          Prepare anyway
-        </button>
-      </span>
-    );
-  }
-  if (view === "working") {
-    return (
-      <button type="button" className="maps-small" onClick={() => void act("cancel")}>
-        Cancel
-      </button>
-    );
-  }
-  if (view === "queued") {
-    return (
-      <button type="button" className="maps-small" onClick={() => void act("remove", [region.key])}>
-        Remove
-      </button>
-    );
-  }
-  if (view === "failed") {
-    return (
-      <button type="button" className="maps-small" onClick={() => void act("retry", [region.key])}>
-        Retry
-      </button>
-    );
-  }
-  if (view === "waiting" || view === "missing") {
-    return (
-      <button type="button" className="maps-small" onClick={() => void act("add", [region.key])}>
-        {view === "waiting" ? "Prepare" : "Download + prepare"}
-      </button>
-    );
-  }
-  return null;
 }

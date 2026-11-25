@@ -45,7 +45,7 @@ The log shows why `osrm-routed` stopped. Common causes:
 
 ## A region shows Failed on /maps
 
-`./rogueroute-gpx osm queue` (or Map administration on `/maps`) shows the step and reason.
+`./rogueroute-gpx osm queue` (or the **Queue** tab of `/admin`) shows the step and reason.
 
 - **Too large for this server**: the region is estimated to need more than 85% of the memory
   cap. Use a smaller region, raise `ROGUEROUTE_MEMORY_LIMIT` in `.env` and
@@ -78,6 +78,25 @@ A switch happened less than `OSRM_SWITCH_COOLDOWN_SECONDS` ago. Wait, or switch 
 The waypoints are inside a catalog region that is not prepared. Download and prepare it. If
 the message says the waypoints are not inside any single region, split the route, or pick a
 region manually in the Map region panel.
+
+## Cannot log in to /admin
+
+- "Administration is turned off": `ADMIN_PASSWORD` is empty. Set it in `.env`, then
+  `./rogueroute-gpx restart`.
+- "Too many failed attempts": wait a minute. Behind a reverse proxy, make sure it sends
+  `X-Forwarded-For`, or every visitor shares one limit.
+- Logged out unexpectedly: logins last 12 hours, and a restart, an update or a new password
+  logs everyone out.
+- Behind HTTPS the session cookie is marked Secure when the proxy sends
+  `X-Forwarded-Proto: https`.
+
+## An update failed or the disk filled up during an update
+
+An update keeps the current files until the new ones are ready, so it needs space for a second
+copy of the region. Free space or delete regions you no longer use (**Delete files** in `/admin`
+or `./rogueroute-gpx osm delete REGION --yes`), then `./rogueroute-gpx osm update REGION`.
+Leftover `REGION-next.*` files from an interrupted update are replaced by the next attempt, and
+`osm delete` removes them too.
 
 ## Downloads or preparation fail with permission errors
 

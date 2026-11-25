@@ -1,14 +1,8 @@
-import { control, errorResponse, getStatus, isAdmin, type QueueStatus } from "../../../../lib/control";
+import { control, errorResponse, getStatus, isAdmin, unauthorized, type QueueStatus } from "../../../../lib/control";
 
 export const dynamic = "force-dynamic";
 
-const ACTIONS = new Set(["add", "remove", "retry", "pause", "resume", "cancel", "clear"]);
-
-const unauthorized = () =>
-  Response.json(
-    { error: process.env.ADMIN_TOKEN?.trim() ? "Admin token required." : "Map administration is disabled. Set ADMIN_TOKEN in .env." },
-    { status: 401 },
-  );
+const ACTIONS = new Set(["add", "remove", "retry", "update", "pause", "resume", "cancel", "clear"]);
 
 /** Full queue state for administrators: failures with reasons, disk, memory and the map log. */
 export async function GET(request: Request) {

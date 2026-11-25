@@ -4,7 +4,7 @@ name: rogueroute-gpx
 # Region switches restart osrm-routed inside the container; nothing needs the engine socket.
 services:
   rogueroute-gpx:
-    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-13.4.0}
+    image: ${ROGUEROUTE_IMAGE:-ghcr.io/rogueassassin/rogueroute-gpx}:${ROGUEROUTE_TAG:-13.5.0}
     container_name: rogueroute-gpx
     restart: unless-stopped
     stop_grace_period: 30s
@@ -23,7 +23,7 @@ services:
     environment:
       ROGUEROUTE_DATA_DIR: /data
       OSRM_REGION: ${OSRM_ACTIVE_REGION:-australia}
-      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-13.4.0}
+      NEXT_PUBLIC_APP_VERSION: v${ROGUEROUTE_VERSION:-13.5.0}
       # The memory cap ./rogueroute-gpx resolved (empty when there is none).
       ROGUEROUTE_MEMORY_CAP: ${ROGUEROUTE_MEMORY_CAP:-}
     ports:

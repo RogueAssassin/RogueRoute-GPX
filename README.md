@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-13.4.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
+[![Release](https://img.shields.io/badge/release-13.5.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
 [![Container](https://img.shields.io/badge/GHCR-one_container-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/rogueroute-gpx/pkgs/container/rogueroute-gpx)
 [![Engines](https://img.shields.io/badge/runtime-docker_%7C_podman-ff2bd6?style=for-the-badge)](#requirements)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **13.4.0** · One container · Local OSRM routing with automatic regions
+Version **13.5.0** · One container · Local OSRM routing with automatic regions
 
 </div>
 
@@ -38,8 +38,10 @@ Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM ro
 | 📦 | **Manageable GPX files.** Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
 | 🧰 | **Maps build themselves.** A background queue downloads and prepares regions one at a time, smallest first, at low CPU and disk priority. It resumes after a restart and auto-prepares anything already downloaded. |
 | 🛡️ | **Safe on a shared server.** The container has a memory cap, regions too large for it are refused (unless forced), and a watchdog stops map work before the host runs low on memory. |
-| 📊 | **Map status page.** `/maps` shows what is ready, what is being built (step, progress, time) and what is still waiting, with admin controls behind `ADMIN_TOKEN`. |
-| 🧭 | **Add any region.** `/maps/download` browses every Geofabrik region on a map, from continents down to states and provinces, with download size, memory needed and what already covers it. |
+| 📊 | **Map status page.** `/maps` shows everyone what is ready, what is being built (step, progress, time) and what is still waiting. |
+| 🧭 | **Find any region.** `/maps/download` browses every Geofabrik region on a map, from continents down to states and provinces, with download size, memory needed and what already covers it. Visitors can request a missing map. |
+| 🔐 | **Admin page.** `/admin`, behind a password: approve map requests, run the queue, delete files you no longer need, and see which regions have newer data. |
+| 🔄 | **Maps stay up to date.** Newer Geofabrik data is checked for weekly; old regions are rebuilt next to the current files and swapped in, so routing keeps working. |
 | 🐳 | **One container.** No sidecars, no engine socket, no shared secrets volume. |
 
 ## Install from scratch
@@ -74,7 +76,9 @@ already. Run it without `--start` to only configure.
 ### 3. Open RogueRoute GPX
 
 Visit `http://SERVER-IP:9080` for the route builder and `http://SERVER-IP:9080/maps` for map
-status. Change `HOST_PORT` in `.env` if port 9080 is taken.
+status. To manage maps from the browser, set `ADMIN_PASSWORD` in `.env`, run
+`./rogueroute-gpx restart` and log in at `http://SERVER-IP:9080/admin`. Change `HOST_PORT` in
+`.env` if port 9080 is taken.
 
 ## Updating
 
@@ -120,6 +124,8 @@ flowchart LR
   Europe) and switches to it if needed. Pick a region in the **Map region** panel to override.
 - Region switches are global (one OSRM serves every visitor), so they are serialised and
   rate-limited by `OSRM_SWITCH_COOLDOWN_SECONDS`.
+- **Updates** download and prepare the latest data under `-next` names, then swap the files in;
+  the region being served is reloaded and falls back to the old files if the new graph fails.
 - The **map queue** works through regions in the background: download (resumable, MD5 checked),
   then `osrm-extract`, `osrm-partition` and `osrm-customize`. It is saved in
   `OSRM_DATA_DIR/.rogueroute-gpx/queue.json`, checks free disk space first, warns when a region
@@ -143,10 +149,13 @@ flowchart LR
 ./rogueroute-gpx osm prepare-downloaded   # queue everything downloaded but not prepared
 ./rogueroute-gpx osm follow     # watch the map log; Ctrl-C stops watching, not the work
 ./rogueroute-gpx osm retry      # queue failed regions again
+./rogueroute-gpx osm updates --check   # which regions have newer data on Geofabrik
+./rogueroute-gpx osm update --all      # rebuild them with the latest data, then swap them in
+./rogueroute-gpx osm delete europe --yes   # delete a region's map files
 ./rogueroute-gpx osm switch japan  # optional: routes switch automatically
 ```
 
-Open `http://SERVER-IP:9080/maps` to see the same progress in a browser. See the [command reference](docs/commands.md) and [maps guide](docs/osm.md).
+Open `http://SERVER-IP:9080/maps` to see the same progress in a browser, and `/admin` to manage it. See the [command reference](docs/commands.md) and [maps guide](docs/osm.md).
 
 ## Configuration
 
@@ -161,7 +170,9 @@ for each. The most useful ones:
 | `OSRM_ACTIVE_REGION` | `australia` | Region loaded on the very first start |
 | `OSRM_PROFILE` | `foot` | Routing profile: `foot`, `bike` or `car` (re-prepare maps after changing) |
 | `OSRM_SWITCH_COOLDOWN_SECONDS` | `60` | Minimum time between automatic or public switches |
-| `ADMIN_TOKEN` | empty | Set to a long random value to manage the map queue from `/maps` |
+| `ADMIN_PASSWORD` | empty | Password for the `/admin` page; empty turns it off |
+| `ROGUEROUTE_UPDATE_CHECK_DAYS` | `7` | How often to look for newer Geofabrik data (0 = never) |
+| `ROGUEROUTE_AUTO_UPDATE_DAYS` | `30` | Update regions older than this automatically (0 = only report) |
 | `ROGUEROUTE_AUTO_PREPARE` | `true` | Queue downloaded but unprepared regions at start |
 | `ROGUEROUTE_PREPARE_THREADS` | all cores | Limit the cores used by map preparation |
 | `ROGUEROUTE_PREPARE_NICE` | `10` | CPU priority of map preparation (0-19, higher is gentler) |
@@ -195,7 +206,7 @@ The container joins the `rogueroute-gpx` and `media-net` networks and still answ
 - [Upgrading, including from v12](docs/upgrading.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Command reference](docs/commands.md)
-- [v13.4.0 release notes](docs/releases/v13.4.0.md) · [all release notes](docs/releases/) ·
+- [v13.5.0 release notes](docs/releases/v13.5.0.md) · [all release notes](docs/releases/) ·
   [changelog](CHANGELOG.md)
 
 ## Development

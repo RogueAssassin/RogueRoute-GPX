@@ -53,7 +53,8 @@ Edit `/opt/media-server/rogueroute-gpx/.env`; never commit it. Notable settings:
 
 - `ROGUEROUTE_RUNTIME=auto` selects a running engine: Podman first, or Docker first as root.
 - `HOST_BIND=127.0.0.1` when a reverse proxy on the same host is the only client.
-- `ADMIN_TOKEN` enables map queue management on the website (`/maps`, Map administration). Leave it empty to keep that to the CLI.
+- `ADMIN_PASSWORD` turns on the admin page, `/admin` (map requests, the queue, deleting files, updates). Leave it empty to keep map management to the CLI.
+- `ROGUEROUTE_UPDATE_CHECK_DAYS` and `ROGUEROUTE_AUTO_UPDATE_DAYS` control how often newer Geofabrik data is looked for and when it is applied automatically.
 - `OSRM_SWITCH_COOLDOWN_SECONDS` limits how often visitors' routes can change the region.
 
 The container runs as `PUID:PGID` with a read-only root filesystem, no capabilities and

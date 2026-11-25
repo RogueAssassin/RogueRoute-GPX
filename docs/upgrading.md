@@ -20,9 +20,24 @@ It stops without changing anything if tracked files in the checkout were edited.
 
 On `start`, `restart` and `update` the script rewrites `.env` in the layout of `.env.example`:
 section headings and comments, your values kept, and settings that no longer do anything
-removed (the v12 manager settings and `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`). Settings the
+removed (the v12 manager settings, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` and `ADMIN_TOKEN`). Settings the
 template does not know are kept under "Your additional settings". The previous file is saved
 as `.env.backup-<time>` (the last five are kept).
+
+## From v13.4 to v13.5
+
+A normal `./rogueroute-gpx update`. The admin token is replaced by a password and an admin
+page:
+
+- If `ADMIN_TOKEN` was set, its value becomes `ADMIN_PASSWORD` (a backup of `.env` is saved
+  first). Log in at `http://SERVER-IP:9080/admin` with it. Change it to something you can type
+  if you like, then `./rogueroute-gpx restart`.
+- If it was empty, `/admin` stays off until you set `ADMIN_PASSWORD`.
+- Map administration has moved from the bottom of `/maps` to `/admin`. `/maps` is read-only.
+- Two new settings, `ROGUEROUTE_UPDATE_CHECK_DAYS=7` and `ROGUEROUTE_AUTO_UPDATE_DAYS=30`, are
+  added to `.env`. With them, regions older than 30 days are refreshed from Geofabrik
+  automatically about a week after the update; set `ROGUEROUTE_AUTO_UPDATE_DAYS=0` to only be
+  told about updates.
 
 ## From v13.3 to v13.4
 

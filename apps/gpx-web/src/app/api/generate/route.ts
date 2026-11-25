@@ -14,6 +14,33 @@ import { control, ControlError, getStatus, SWITCH_TIMEOUT_MS } from "../../../li
 
 type RegionChoice = { key: string; label: string; switched: boolean } | null;
 
+/** The map a visitor could request when no prepared region covers their waypoints. */
+type MapRequestHint = { id: string; name: string; state: string | null; queue: string | null };
+
+class MapMissingError extends Error {
+  constructor(
+    message: string,
+    readonly mapRequest: MapRequestHint | null,
+  ) {
+    super(message);
+  }
+}
+
+/** The smallest Geofabrik region that contains all the waypoints, if the index is loaded. */
+async function locateMap(points: { lat: number; lng: number }[]): Promise<MapRequestHint | null> {
+  try {
+    const sample = points.length > 1000 ? points.filter((_, index) => index % Math.ceil(points.length / 1000) === 0) : points;
+    const result = await control<{ region: { id: string; name: string } | null; catalog: { state: string; queue: string | null } | null }>(
+      "POST",
+      "/geofabrik/locate",
+      { points: sample.map((point) => [point.lng, point.lat]) },
+    );
+    return result.region ? { ...result.region, state: result.catalog?.state ?? null, queue: result.catalog?.queue ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Make sure OSRM serves a graph that covers the waypoints: the requested region, or on
  * "auto" the region found from the coordinates. Switches the graph when needed.
@@ -41,7 +68,7 @@ async function ensureRegion(points: { lat: number; lng: number }[], requested: s
     if (!target.prepared) throw new Error(`${target.label} is not prepared on this server.`);
   } else {
     const resolution = resolveRegion(points, candidates, status.activeRegion ?? undefined);
-    if (!resolution.ok) throw new Error(resolution.message);
+    if (!resolution.ok) throw new MapMissingError(resolution.message, await locateMap(points));
     target = resolution.region;
   }
 
@@ -182,6 +209,7 @@ export async function POST(request: Request) {
         error: error instanceof Error ? error.message : "Failed to generate route.",
         routingFailure:
           error instanceof OsrmRoutingError ? error.routingFailure : undefined,
+        mapRequest: error instanceof MapMissingError ? error.mapRequest : undefined,
         previewWaypoints,
       },
       { status: 400 }

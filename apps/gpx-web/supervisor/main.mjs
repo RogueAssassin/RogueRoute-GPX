@@ -9,6 +9,8 @@ import { startControlServer } from "./control.mjs";
 import { GeofabrikIndex } from "./geofabrik.mjs";
 import { OsrmService } from "./osrm.mjs";
 import { MapQueue, parseSize } from "./queue.mjs";
+import { MapRequests } from "./requests.mjs";
+import { UpdateChecker } from "./updates.mjs";
 
 const env = process.env;
 const number = (value, fallback, min = 0) => {
@@ -38,6 +40,9 @@ const config = {
   memoryFloor: parseSize(env.ROGUEROUTE_MEMORY_FLOOR),
   ioIdle: !/^(0|false|no|off)$/i.test(env.ROGUEROUTE_PREPARE_IDLE_IO || "true"),
   geofabrikUrl: env.ROGUEROUTE_GEOFABRIK_INDEX_URL || undefined,
+  // How often to ask Geofabrik for newer data (0 = never), and the age after which it is fetched automatically (0 = report only).
+  updateCheckDays: number(env.ROGUEROUTE_UPDATE_CHECK_DAYS, 7, 0),
+  autoUpdateDays: number(env.ROGUEROUTE_AUTO_UPDATE_DAYS, 30, 0),
 };
 
 const log = (line) => console.log(`${new Date().toISOString()} ${line}`);
@@ -52,7 +57,17 @@ const geofabrik = new GeofabrikIndex({ dataDir: config.dataDir, catalog, log, ur
 geofabrik.init().catch((error) => log(`[maps] region index unavailable: ${error.message}`));
 const osrm = new OsrmService({ ...config, port: config.osrmPort, catalog, log });
 const queue = new MapQueue({ ...config, catalog, osrm, log });
-const control = await startControlServer({ ...config, catalog, osrm, queue, geofabrik, log });
+const requests = new MapRequests({ dataDir: config.dataDir, log: (line) => log(`[maps] ${line}`) });
+await requests.init();
+const updates = new UpdateChecker({
+  catalog,
+  dataDir: config.dataDir,
+  queue,
+  log: (line) => queue.log(line),
+  checkDays: config.updateCheckDays,
+  autoDays: config.autoUpdateDays,
+});
+const control = await startControlServer({ ...config, catalog, osrm, queue, geofabrik, updates, requests, log });
 log(`[supervisor] control socket ${config.socketPath}`);
 
 let web = null;
@@ -102,4 +117,5 @@ osrm
   .catch((error) => log(`[osrm] boot failed: ${error.message}`))
   // Map work starts after the first graph is chosen, so it never competes with the boot load.
   .then(() => queue.init())
+  .then(() => updates.init())
   .catch((error) => log(`[maps] queue failed to start: ${error.message}`));

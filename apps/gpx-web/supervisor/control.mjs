@@ -20,7 +20,7 @@ async function readJson(req) {
   }
 }
 
-export async function statusPayload({ catalog, dataDir, osrm, queue }) {
+export async function statusPayload({ catalog, dataDir, osrm, queue, updates, requests }) {
   const maps = queue.status({ log: false });
   const queued = new Set(maps.pending.map((item) => item.region));
   const limits = await queue.limits();
@@ -39,6 +39,8 @@ export async function statusPayload({ catalog, dataDir, osrm, queue }) {
       preparedAt: maps.history[region.key]?.preparedAt ?? null,
       memoryNeeded: await queue.estimate(region),
       peakMemory: maps.history[region.key]?.peakMemory ?? null,
+      dataDate: maps.history[region.key]?.dataDate ?? updates?.entry(region.key)?.localDate ?? null,
+      update: updates?.entry(region.key) ?? null,
     })),
   );
   return {
@@ -49,8 +51,44 @@ export async function statusPayload({ catalog, dataDir, osrm, queue }) {
     disk: await diskSpace(dataDir),
     memory: limits.cap,
     limits,
+    updates: updates ? { checkedAt: updates.checkedAt, checking: Boolean(updates.checking), checkDays: updates.checkDays, autoDays: updates.autoDays } : null,
+    openRequests: requests?.openCount ?? 0,
     regions,
   };
+}
+
+/** [[lon, lat], ...] from a request body; at most 1000 points. */
+function readPoints(value) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 1000) throw new ControlError("Give between 1 and 1000 points.", 400);
+  return value.map((point) => {
+    const [lon, lat] = Array.isArray(point) ? point.map(Number) : [];
+    if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lon) > 180 || Math.abs(lat) > 90) throw new ControlError("Invalid point.", 400);
+    return [lon, lat];
+  });
+}
+
+/** Approve (add to the list and the queue) or dismiss a visitor's map request. */
+async function resolveRequest({ catalog, dataDir, geofabrik, queue, requests, body }) {
+  const id = String(body.id ?? "");
+  const action = String(body.action ?? "");
+  if (action === "dismiss") return { ok: true, request: await requests.resolve(id, "dismissed") };
+  if (action !== "approve") throw new ControlError(`Unknown action: ${action}`, 400);
+  if (!requests.requests.some((request) => request.id === id)) throw new ControlError(`No request for ${id}.`, 404, "unknown-request");
+  const result = await indexAction({ catalog, dataDir, geofabrik, queue, body: { action: "add", id, goal: body.goal, force: body.force === true } });
+  return { ...result, request: await requests.resolve(id, "approved", { key: result.key }) };
+}
+
+/** Delete a region's map files; optionally take an added region off the list as well. */
+async function filesAction({ geofabrik, queue, body }) {
+  if (body.action !== "delete") throw new ControlError(`Unknown action: ${body.action}`, 400);
+  const key = String(body.key ?? "");
+  const result = await queue.deleteFiles(key);
+  let removed = false;
+  if (body.removeFromList === true && geofabrik?.catalog.some((region) => region.key === key && region.group === "added")) {
+    await geofabrik.removeFromCatalog(key);
+    removed = true;
+  }
+  return { ok: true, ...result, removed };
 }
 
 /** State of a catalog region for the downloader: files on disk and place in the queue. */
@@ -155,7 +193,7 @@ async function indexAction({ dataDir, geofabrik, queue, body }) {
  * Control API over a unix socket inside the container. Only processes in the container (the
  * web server and the rogueroute-gpx CLI) can reach it; nothing is published on the network.
  */
-export async function startControlServer({ socketPath, catalog, dataDir, osrm, queue, geofabrik, log }) {
+export async function startControlServer({ socketPath, catalog, dataDir, osrm, queue, geofabrik, updates, requests, log }) {
   const server = createServer(async (req, res) => {
     const send = (status, payload) => {
       res.writeHead(status, { "content-type": "application/json" });
@@ -163,7 +201,7 @@ export async function startControlServer({ socketPath, catalog, dataDir, osrm, q
     };
     try {
       if (req.method === "GET" && req.url === "/status") {
-        return send(200, await statusPayload({ catalog, dataDir, osrm, queue }));
+        return send(200, await statusPayload({ catalog, dataDir, osrm, queue, updates, requests }));
       }
       if (req.method === "POST" && req.url === "/switch") {
         const body = await readJson(req);
@@ -186,6 +224,35 @@ export async function startControlServer({ socketPath, catalog, dataDir, osrm, q
       }
       if (geofabrik && req.method === "POST" && url.pathname === "/geofabrik") {
         return send(200, await indexAction({ catalog, dataDir, geofabrik, queue, body: await readJson(req) }));
+      }
+      if (geofabrik && req.method === "POST" && url.pathname === "/geofabrik/locate") {
+        const region = geofabrik.locate(readPoints((await readJson(req)).points));
+        const entry = region ? geofabrik.catalogEntry(region.id) : null;
+        return send(200, { ok: true, region: region && { id: region.id, name: region.name }, catalog: await catalogState({ dataDir, queue }, entry) });
+      }
+      if (req.method === "POST" && url.pathname === "/files") {
+        return send(200, await filesAction({ geofabrik, queue, body: await readJson(req) }));
+      }
+      if (updates && req.method === "GET" && url.pathname === "/updates") {
+        return send(200, { ok: true, ...updates.status() });
+      }
+      if (updates && req.method === "POST" && url.pathname === "/updates") {
+        const body = await readJson(req);
+        if (body.action !== "check") throw new ControlError(`Unknown action: ${body.action}`, 400);
+        return send(200, { ok: true, ...(await updates.check()) });
+      }
+      if (requests && req.method === "GET" && url.pathname === "/requests") {
+        return send(200, { ok: true, requests: requests.list() });
+      }
+      if (requests && geofabrik && req.method === "POST" && url.pathname === "/requests") {
+        const body = await readJson(req);
+        const region = geofabrik.get(String(body.id ?? ""));
+        if (!region) throw new ControlError(`Unknown Geofabrik region: ${body.id}`, 404, "unknown-region");
+        const request = await requests.add({ id: region.id, name: region.name, note: body.note });
+        return send(200, { ok: true, request: { id: request.id, name: request.name, count: request.count, status: request.status }, catalog: await catalogState({ dataDir, queue }, geofabrik.catalogEntry(region.id)) });
+      }
+      if (requests && geofabrik && req.method === "POST" && url.pathname === "/requests/resolve") {
+        return send(200, await resolveRequest({ catalog, dataDir, geofabrik, queue, requests, body: await readJson(req) }));
       }
       send(404, { error: "Not found" });
     } catch (error) {

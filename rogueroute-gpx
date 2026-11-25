@@ -94,7 +94,7 @@ image_tag() {
 # server-actions key the app never used. tidy_env drops them.
 OBSOLETE_KEYS=(OSRM_MANAGER_URL OSRM_MANAGER_TOKEN OSRM_MANAGER_TOKEN_FILE OSRM_SWITCH_ACCESS_KEY
   OSRM_SWITCH_ENABLED CONTAINER_SOCKET OSRM_IMAGE OSRM_HOST_PORT OSRM_GRAPH OSRM_PBF
-  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY)
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY ADMIN_TOKEN)
 DEFAULT_IMAGE=ghcr.io/rogueassassin/rogueroute-gpx
 
 # Rewrite .env in the layout of .env.example: template comments and order, your values, no
@@ -105,6 +105,17 @@ tidy_env() {
   local -A known=()
   local -a extras=()
   [[ -f "$template" ]] || return 0
+  # v13.5 replaced ADMIN_TOKEN with ADMIN_PASSWORD; keep the value so /admin works with it.
+  local token
+  token="$(grep -E '^ADMIN_TOKEN=' "$ENV" | tail -n1 | cut -d= -f2-)"
+  if [[ -n "$token" ]] && ! grep -qE '^ADMIN_PASSWORD=.' "$ENV"; then
+    cp -p "$ENV" "$ROOT/.env.backup-$(date +%Y%m%d-%H%M%S)-token"
+    grep -vE '^ADMIN_PASSWORD=' "$ENV" > "$ENV.migrate" || true
+    printf 'ADMIN_PASSWORD=%s\n' "$token" >> "$ENV.migrate"
+    chmod 600 "$ENV.migrate" 2>/dev/null || true
+    mv "$ENV.migrate" "$ENV"
+    echo "[INFO] ADMIN_TOKEN is now ADMIN_PASSWORD: log in at /admin with the same value."
+  fi
   tmp="$(mktemp "$ROOT/.env.tidy.XXXXXX")"
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" =~ ^([A-Z][A-Z0-9_]*)= ]]; then
@@ -382,7 +393,9 @@ case "$cmd" in
       OSRM_ACTIVE_REGION "$(get_env OSRM_ACTIVE_REGION australia)" \
       OSRM_PROFILE "$(get_env OSRM_PROFILE foot)" \
       OSRM_SWITCH_COOLDOWN_SECONDS "$(get_env OSRM_SWITCH_COOLDOWN_SECONDS 60)" \
-      ADMIN_TOKEN "$([[ -n "$(get_env ADMIN_TOKEN)" ]] && echo set || echo 'not set (website map administration off)')" ;;
+      ADMIN_PASSWORD "$([[ -n "$(get_env ADMIN_PASSWORD)" ]] && echo set || echo 'not set (the /admin page is off)')" \
+      ROGUEROUTE_UPDATE_CHECK_DAYS "$(get_env ROGUEROUTE_UPDATE_CHECK_DAYS 7)" \
+      ROGUEROUTE_AUTO_UPDATE_DAYS "$(get_env ROGUEROUTE_AUTO_UPDATE_DAYS 30)" ;;
   version) echo "rogueroute-gpx v$(get_env ROGUEROUTE_VERSION unknown)" ;;
   osm) osm "$@" ;;
   help|-h|--help) show_help ;;

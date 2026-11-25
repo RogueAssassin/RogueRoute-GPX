@@ -1,5 +1,15 @@
 # Changelog
 
+## v13.5.0 — Admin page, map requests and map updates
+
+- New `/admin` page with a password login (`ADMIN_PASSWORD`) and tabs for map requests, the map queue, regions and adding regions. It replaces the admin token and the Map administration section of `/maps`, which is now read-only. An existing `ADMIN_TOKEN` value becomes `ADMIN_PASSWORD` on update.
+- Logins use an HttpOnly, SameSite=Strict session cookie that lasts 12 hours (Secure behind HTTPS), with a limit of five wrong passwords a minute per address; changes from other sites are refused.
+- Visitors can request a missing map from `/maps/download`, and the route builder offers to request the region that covers waypoints outside every prepared map. Requests are counted per region and kept in `OSRM_DATA_DIR/.rogueroute-gpx/requests.json`; admins approve (add and queue) or dismiss them.
+- Map updates: the date of each downloaded region is compared with Geofabrik's every `ROGUEROUTE_UPDATE_CHECK_DAYS` (7). Regions older than `ROGUEROUTE_AUTO_UPDATE_DAYS` (30; 0 = report only) are updated automatically. An update prepares the new data next to the old files and swaps it in, reloading the region being served and falling back to the old files if the new graph fails.
+- Delete a region's files (extract, partial downloads, graph, staged update) from `/admin` or `osm delete`; the region being served is refused.
+- New CLI: `osm updates [--check]`, `osm update REGION|--all`, `osm delete REGION --yes [--remove]`, `osm requests`.
+- Tabs across the top of every page: Route builder, Map status, Find a map, Admin. The Map region panel no longer lists every prepared region.
+
 ## v13.4.0 — Add any region: downloader page and region outlines
 
 - New `/maps/download` page: browse every Geofabrik region (continents down to states and provinces) in a tree or by search, on a map that shows the region's outline, its clickable sub-regions and what is already prepared. Each region shows its download size, the memory it needs, whether a prepared region already covers it and whether it is too large for this server; admins can download, prepare or remove it there.

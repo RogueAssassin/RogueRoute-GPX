@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
+import SiteNav from "../components/site-nav";
 
 export const metadata: Metadata = {
   title: "RogueRoute GPX",
@@ -27,6 +28,7 @@ export default function RootLayout({
           color: "#f8fafc",
         }}
       >
+        <SiteNav />
         {children}
       </body>
     </html>

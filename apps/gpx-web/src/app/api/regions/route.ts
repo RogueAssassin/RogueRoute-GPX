@@ -1,8 +1,8 @@
-import { errorResponse, getStatus, publicRegions } from "../../../lib/control";
+import { errorResponse, getStatus, publicRegions, isAdmin } from "../../../lib/control";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const status = await getStatus();
     return Response.json(
@@ -16,7 +16,7 @@ export async function GET() {
           step: status.queue.current?.step ?? null,
           pending: status.queue.pending.length,
         },
-        adminEnabled: Boolean(process.env.ADMIN_TOKEN?.trim()),
+        admin: isAdmin(request),
       },
       { headers: { "cache-control": "no-store" } },
     );

@@ -11,7 +11,7 @@ import { catalogBytes, fileState, missingGraphFiles, readStateFile, writeStateFi
 
 const PROFILE_FILES = { foot: "foot.lua", bike: "bicycle.lua", bicycle: "bicycle.lua", car: "car.lua" };
 const QUEUE_FILE = "queue.json";
-const GOALS = new Set(["downloaded", "prepared"]);
+const GOALS = new Set(["downloaded", "prepared", "updated"]);
 /** Rough multiplier of the .osm.pbf size for the disk check. */
 const PREPARED_DISK_FACTOR = 3;
 /**
@@ -283,7 +283,7 @@ export class MapQueue {
       delete this.failures[key];
       const existing = this.items.find((item) => item.region === key);
       if (existing) {
-        if (goal === "prepared") existing.goal = "prepared";
+        if (goal === "prepared" && existing.goal === "downloaded") existing.goal = "prepared";
         if (force) existing.force = true;
         continue;
       }
@@ -357,6 +357,22 @@ export class MapQueue {
         if (!keys.length) return { added: [] };
         const added = await this.enqueue(keys, "prepared", force);
         this.log(`Retrying ${keys.join(", ")}.`);
+        await this.save();
+        this.kick();
+        return { added };
+      }
+      case "update": {
+        const keys = this.validate(regions);
+        const ready = [];
+        for (const key of keys) {
+          const state = await fileState(this.dataDir, this.find(key));
+          if (state === "prepared" || state === "downloaded") ready.push(key);
+          else this.log(`[SKIP] ${key} has no map data yet; add it instead of updating it.`);
+        }
+        if (!ready.length) throw new ControlError("None of these regions has map data to update.", 400, "nothing-to-update");
+        await this.sizeGate(ready, { force });
+        const added = await this.enqueue(ready, "updated", force);
+        this.log(`Queued an update of ${ready.join(", ")} (download the latest data, prepare it, then swap it in).`);
         await this.save();
         this.kick();
         return { added };
@@ -442,6 +458,12 @@ export class MapQueue {
     const region = this.find(item.region);
     const started = Date.now();
     try {
+      if (item.goal === "updated") {
+        await this.update(region, item);
+        delete this.failures[region.key];
+        this.log(`[OK] ${region.label} is up to date (${Math.round((Date.now() - started) / 60_000)} min).`);
+        return;
+      }
       const state = await fileState(this.dataDir, region);
       if (state === "prepared" || (item.goal === "downloaded" && state === "downloaded")) {
         this.log(`[SKIP] ${region.label} is already ${state}.`);
@@ -454,20 +476,9 @@ export class MapQueue {
       if (steps[0] === "download") {
         this.setStep("download");
         await this.download(region);
-        this.history[region.key] = { ...this.history[region.key], downloadedAt: new Date().toISOString() };
+        this.recordDownload(region.key);
       }
-      if (item.goal === "prepared") {
-        const prepareStarted = Date.now();
-        this.peak = 0;
-        await this.prepare(region, item);
-        this.history[region.key] = {
-          ...this.history[region.key],
-          preparedAt: new Date().toISOString(),
-          prepareSeconds: Math.round((Date.now() - prepareStarted) / 1000),
-          ...(this.peak ? { peakMemory: this.peak } : {}),
-        };
-        if (this.peak) this.log(`Peak memory while preparing ${region.label}: ${gb(this.peak)}.`);
-      }
+      if (item.goal === "prepared") await this.prepareAndRecord(region, item);
       delete this.failures[region.key];
       this.log(`[OK] ${region.label} is ${item.goal} (${Math.round((Date.now() - started) / 60_000)} min).`);
       if (item.goal === "prepared" && !this.osrm.child && (this.osrm.state === "no-graph" || this.osrm.state === "failed")) {
@@ -491,9 +502,102 @@ export class MapQueue {
     }
   }
 
+  recordDownload(key) {
+    this.history[key] = {
+      ...this.history[key],
+      downloadedAt: new Date().toISOString(),
+      dataDate: this.remoteModified ? new Date(this.remoteModified).toISOString() : new Date().toISOString(),
+    };
+  }
+
+  async prepareAndRecord(region, item) {
+    const prepareStarted = Date.now();
+    this.peak = 0;
+    await this.prepare(region, item);
+    this.history[item.region] = {
+      ...this.history[item.region],
+      preparedAt: new Date().toISOString(),
+      prepareSeconds: Math.round((Date.now() - prepareStarted) / 1000),
+      ...(this.peak ? { peakMemory: this.peak } : {}),
+    };
+    if (this.peak) this.log(`Peak memory while preparing ${region.label}: ${gb(this.peak)}.`);
+  }
+
+  /**
+   * Update a region to Geofabrik's latest data without a gap in routing: download and prepare
+   * it under "-next" names, then swap the files in. A region that is being served is reloaded
+   * (osrm-routed restarts on the new graph; the old files come back if it does not load).
+   */
+  async update(region, item) {
+    const base = region.osrm.replace(/-latest\.osrm$/, "");
+    const staged = { ...region, pbf: `${base}-next.osm.pbf`, osrm: `${base}-next.osrm` };
+    const prepared = (await fileState(this.dataDir, region)) === "prepared";
+    this.current.steps = prepared ? ["download", "extract", "partition", "customize", "swap"] : ["download", "swap"];
+    this.setStep("download");
+    await this.download(staged);
+    if (prepared) await this.prepareAndRecord(staged, item);
+    this.setStep("swap");
+    const files = await readdir(this.dataDir);
+    const graphFiles = (prefix) => files.filter((name) => name.startsWith(`${prefix}.`));
+    const current = graphFiles(region.osrm);
+    const next = prepared ? graphFiles(staged.osrm) : [];
+    const backup = (name) => name.replace(`${region.osrm}.`, `${base}-previous.osrm.`);
+    const swap = async () => {
+      for (const name of current) await rename(join(this.dataDir, name), join(this.dataDir, backup(name)));
+      for (const name of next) {
+        await rename(join(this.dataDir, name), join(this.dataDir, name.replace(`${staged.osrm}.`, `${region.osrm}.`)));
+      }
+    };
+    const restore = async () => {
+      for (const name of next) {
+        await unlink(join(this.dataDir, name.replace(`${staged.osrm}.`, `${region.osrm}.`))).catch(() => {});
+      }
+      for (const name of current) await rename(join(this.dataDir, backup(name)), join(this.dataDir, name)).catch(() => {});
+    };
+    if (prepared) {
+      if (this.osrm.region?.key === region.key && this.osrm.child) await this.osrm.reload(swap, restore);
+      else await swap();
+      await Promise.all(current.map((name) => unlink(join(this.dataDir, backup(name))).catch(() => {})));
+    }
+    await rename(join(this.dataDir, staged.pbf), join(this.dataDir, region.pbf));
+    this.recordDownload(region.key);
+    this.log(`[OK] Swapped in the updated ${region.label} data.`);
+  }
+
+  /**
+   * Delete a region's files (extract, partial download, prepared graph, staged update) and its
+   * queue entry, failure and history. The region being served or worked on is refused.
+   */
+  async deleteFiles(key) {
+    const region = this.find(key);
+    if (!region) throw new ControlError(`Unknown region: ${key}`, 400, "unknown-region");
+    // Also while osrm-routed restarts after a crash: the region is still the one being served.
+    if (this.osrm.region?.key === key || this.osrm.switchTarget === key) {
+      throw new ControlError(`${region.label} is the region being served. Switch to another region first.`, 409, "active");
+    }
+    if (this.current?.region === key) {
+      throw new ControlError(`${region.label} is being worked on. Cancel it first.`, 409, "busy");
+    }
+    const base = region.osrm.replace(/-latest\.osrm$/, "");
+    const prefixes = [region.pbf, `${region.osrm}.`, `${base}-next.`, `${base}-previous.`];
+    const names = (await readdir(this.dataDir)).filter((name) => prefixes.some((prefix) => name.startsWith(prefix)));
+    let freed = 0;
+    for (const name of names) {
+      freed += await sizeOf(join(this.dataDir, name));
+      await unlink(join(this.dataDir, name));
+    }
+    this.items = this.items.filter((item) => item.region !== key);
+    delete this.failures[key];
+    delete this.history[key];
+    await this.save();
+    this.log(`Deleted ${names.length} file(s) of ${region.label} (${gb(freed)} freed).`);
+    return { deleted: names, freed };
+  }
+
   async download(region) {
     const target = join(this.dataDir, region.pbf);
     const part = `${target}.part`;
+    this.remoteModified = null;
     this.log(`Downloading ${region.label} from ${region.url}`);
     let lastError;
     for (let attempt = 1; attempt <= 5; attempt++) {
@@ -544,6 +648,8 @@ export class MapQueue {
     if (response.status === 416) return; // the partial file is already complete
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     if (offset && response.status !== 206) offset = 0; // server ignored the range: restart
+    // Date of the data on the server, so update checks can compare it later.
+    this.remoteModified = response.headers.get("last-modified") || this.remoteModified || null;
     const length = Number(response.headers.get("content-length") || 0);
     const total = length ? offset + length : null;
     const disk = await diskSpace(this.dataDir);
@@ -583,7 +689,8 @@ export class MapQueue {
   }
 
   async prepare(region, item = {}) {
-    if (this.osrm.region?.key === region.key && this.osrm.child) {
+    // Updates build under another name (see update), so only a rebuild in place is refused.
+    if (this.osrm.region?.osrm === region.osrm && this.osrm.child) {
       throw new Error(`${region.label} is the active graph. Switch to another region before rebuilding it.`);
     }
     const pbfSize = await sizeOf(join(this.dataDir, region.pbf));

@@ -37,6 +37,10 @@ be running.
 | `./rogueroute-gpx osm queue pause` / `resume` / `cancel` / `clear` | Control the queue. |
 | `./rogueroute-gpx osm queue remove REGION…` | Take regions out of the queue. |
 | `./rogueroute-gpx osm retry [REGION…]` | Queue failed regions again (all of them by default). `--force` includes regions too large for the memory cap. |
+| `./rogueroute-gpx osm updates [--check]` | Each downloaded region's data date and Geofabrik's, and whether an update is available. `--check` asks Geofabrik now. |
+| `./rogueroute-gpx osm update REGION… \| --all [--wait]` | Download and prepare the latest data next to the current files, then swap it in. The region keeps routing until the swap. |
+| `./rogueroute-gpx osm delete REGION… --yes [--remove]` | Delete a region's `.osm.pbf`, partial downloads and `.osrm*` graph. `--remove` also takes an added region off the list. Refused for the region being served. |
+| `./rogueroute-gpx osm requests` | Map requests from website visitors (approve them in `/admin`). |
 | `./rogueroute-gpx osm follow` | Follow the map log until the queue is empty. |
 | `./rogueroute-gpx osm switch REGION` | Serve another prepared region now (skips the cooldown). |
 | `./rogueroute-gpx osm verify REGION` | Check a region is prepared. |
@@ -44,4 +48,5 @@ be running.
 
 Map work runs in a background queue inside the container, one region at a time, smallest
 first. It keeps running when you close the terminal and resumes after a restart. Ctrl-C only
-stops following the output. The website shows the same progress at `/maps`.
+stops following the output. The website shows the same progress at `/maps`, and `/admin`
+(with `ADMIN_PASSWORD` set) manages it.
