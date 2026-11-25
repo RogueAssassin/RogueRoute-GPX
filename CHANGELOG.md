@@ -1,5 +1,14 @@
 # Changelog
 
+## v13.3.0 — Map preparation that cannot take the server down
+
+- The container gets a memory cap (`ROGUEROUTE_MEMORY_LIMIT`, `auto` = 70% of host RAM) with no extra swap, so the kernel stops a map tool inside the container instead of the host running out of memory.
+- Regions estimated to need more than 85% of the cap are refused by `osm add`, skipped by auto-prepare and `prepare-downloaded`, and marked "Too large for this server" on `/maps`. `--force` (or Prepare anyway) still tries them.
+- A memory watchdog stops `osrm-extract`, `osrm-partition` or `osrm-customize` when free host memory falls below `ROGUEROUTE_MEMORY_FLOOR` or the container nears its cap, and records the reason.
+- Map tools run at idle disk priority (`ROGUEROUTE_PREPARE_IDLE_IO`) and are the first thing the kernel stops if memory runs out.
+- Memory estimates use 5x the extract size for the foot profile (was 2.5x) and the measured peak once a region has been prepared.
+- `osm status`, `doctor` and `/maps` show the memory cap and each region's estimate.
+
 ## v13.2.0 — v13.1 fixes rolled up, documentation refresh
 
 - Includes v13.1.1: `start`, `restart` and `update` clear the previous container and stale Podman pod before starting.

@@ -1,7 +1,7 @@
 import { createServer, request } from "node:http";
 import { unlink } from "node:fs/promises";
 import { fileState } from "./catalog.mjs";
-import { diskSpace, memoryLimit } from "./queue.mjs";
+import { diskSpace } from "./queue.mjs";
 import { ControlError } from "./osrm.mjs";
 
 async function readJson(req) {
@@ -23,6 +23,7 @@ async function readJson(req) {
 export async function statusPayload({ catalog, dataDir, osrm, queue }) {
   const maps = queue.status({ log: false });
   const queued = new Set(maps.pending.map((item) => item.region));
+  const limits = await queue.limits();
   const regions = await Promise.all(
     catalog.map(async (region) => ({
       key: region.key,
@@ -35,6 +36,8 @@ export async function statusPayload({ catalog, dataDir, osrm, queue }) {
       queue: maps.current?.region === region.key ? "working" : queued.has(region.key) ? "queued" : null,
       failure: maps.failures[region.key] ?? null,
       preparedAt: maps.history[region.key]?.preparedAt ?? null,
+      memoryNeeded: await queue.estimate(region),
+      peakMemory: maps.history[region.key]?.peakMemory ?? null,
     })),
   );
   return {
@@ -43,7 +46,8 @@ export async function statusPayload({ catalog, dataDir, osrm, queue }) {
     osrm: osrm.status(),
     queue: maps,
     disk: await diskSpace(dataDir),
-    memory: await memoryLimit(),
+    memory: limits.cap,
+    limits,
     regions,
   };
 }
@@ -72,7 +76,7 @@ export async function startControlServer({ socketPath, catalog, dataDir, osrm, q
       }
       if (req.method === "POST" && url.pathname === "/queue") {
         const body = await readJson(req);
-        const result = await queue.act({ action: String(body.action || ""), regions: body.regions, goal: body.goal });
+        const result = await queue.act({ action: String(body.action || ""), regions: body.regions, goal: body.goal, force: body.force === true });
         return send(200, { ok: true, ...result, queue: queue.status({ log: false }) });
       }
       send(404, { error: "Not found" });

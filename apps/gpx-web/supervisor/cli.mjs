@@ -42,12 +42,19 @@ It keeps going when you close the terminal and resumes after a restart.
   osm path                         Show the map data directory inside the container
 
 Add --wait to add, prepare or download to wait for those regions and exit non-zero if one fails.
+
+Regions estimated to need more memory than map work may use (85% of the container's memory
+cap) are refused or skipped. Add --force to add, prepare, retry or prepare-all to try anyway;
+the memory cap and watchdog still stop the tool before the host runs out of memory.
 The website shows the same information at /maps.`);
 }
 
 async function status() {
   return call("GET", "/status");
 }
+
+/** Not prepared and estimated to need more memory than map work may use. */
+const tooLarge = (region, limits) => Boolean(limits) && region.state !== "prepared" && region.memoryNeeded > limits.budget;
 
 const gb = (bytes) => `${(bytes / 1e9).toFixed(1)} GB`;
 const minutes = (iso) => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
@@ -98,10 +105,10 @@ async function follow(regions = null) {
   }
 }
 
-const queueAction = (action, regions, goal) => call("POST", "/queue", { action, regions, goal });
+const queueAction = (action, regions, goal, force = false) => call("POST", "/queue", { action, regions, goal, force });
 
 async function enqueue(regions, goal, args) {
-  const result = await queueAction("add", regions, goal);
+  const result = await queueAction("add", regions, goal, args.includes("--force"));
   const verb = goal === "downloaded" ? "download" : "download (if needed) and prepare";
   const note = result.added.length < regions.length ? " (some were already queued)" : "";
   console.log(`[OK] Queued to ${verb}: ${regions.join(" ")}${note}`);
@@ -137,15 +144,26 @@ async function osm(command, args) {
     }
     case "status": {
       const data = await status();
-      const { osrm, queue, disk } = data;
+      const { osrm, queue, disk, limits } = data;
       console.log(`Active region: ${data.activeRegion ?? "none"}`);
       console.log(`OSRM: ${osrm.state}${osrm.switchTarget ? ` -> ${osrm.switchTarget}` : ""}${osrm.error ? ` (${osrm.error})` : ""}`);
       printQueue(queue);
       if (disk) console.log(`Disk: ${gb(disk.free)} free of ${gb(disk.total)}`);
+      if (limits) {
+        console.log(
+          `Memory: ${limits.capped ? `capped at ${gb(limits.cap)}` : `no cap (${gb(limits.cap)} host RAM)`}, map work up to ${gb(limits.budget)}, ` +
+            `keeps ${gb(limits.floor)} of host memory free; disk priority ${limits.ioIdle ? "idle" : "normal"}`,
+        );
+      }
       console.log("");
       console.log(`${pad("REGION", 28)}STATE`);
       for (const region of data.regions) {
-        const extra = [region.key === data.activeRegion && "active", region.queue, region.failure && "failed"].filter(Boolean);
+        const extra = [
+          region.key === data.activeRegion && "active",
+          region.queue,
+          region.failure && "failed",
+          tooLarge(region, limits) && `too large, needs ~${gb(region.memoryNeeded)}`,
+        ].filter(Boolean);
         console.log(`${pad(region.key, 28)}${region.state}${extra.length ? ` (${extra.join(", ")})` : ""}`);
       }
       return;
@@ -158,15 +176,20 @@ async function osm(command, args) {
     case "download-missing":
     case "prepare-downloaded":
     case "prepare-all": {
-      const { regions } = await status();
+      const { regions, limits } = await status();
       const wanted = {
         "download-missing": (region) => region.state === "missing" || region.state === "partial",
         "prepare-downloaded": (region) => region.state === "downloaded",
         "prepare-all": (region) => region.state !== "prepared",
       }[command];
-      const keys = regions.filter(wanted).map((region) => region.key);
-      if (!keys.length) return console.log("[OK] Nothing to queue.");
       const goal = command === "download-missing" ? "downloaded" : "prepared";
+      const candidates = regions.filter(wanted);
+      const skipped = goal === "prepared" && !args.includes("--force") ? candidates.filter((region) => tooLarge(region, limits)) : [];
+      for (const region of skipped) {
+        console.log(`[SKIP] ${region.key}: needs ~${gb(region.memoryNeeded)}, map work may use ${gb(limits.budget)} (--force to include)`);
+      }
+      const keys = candidates.filter((region) => !skipped.includes(region)).map((region) => region.key);
+      if (!keys.length) return console.log("[OK] Nothing to queue.");
       await confirm(goal === "downloaded" ? "Download" : "Download (if needed) and prepare", keys, args);
       return enqueue(keys, goal, args);
     }
@@ -181,7 +204,7 @@ async function osm(command, args) {
       return console.log(`[OK] Queue ${action === "pause" ? "paused" : "resumed"}.`);
     }
     case "retry": {
-      const result = await queueAction("retry", regionArgs.length ? regionArgs : undefined);
+      const result = await queueAction("retry", regionArgs.length ? regionArgs : undefined, undefined, args.includes("--force"));
       if (!result.added.length && !regionArgs.length) return console.log("[OK] No failed regions.");
       return console.log(`[OK] Queued again: ${regionArgs.length ? regionArgs.join(" ") : result.added.join(" ")}`);
     }

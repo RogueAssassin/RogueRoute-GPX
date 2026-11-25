@@ -24,6 +24,18 @@ removed (the v12 manager settings and `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`). Set
 template does not know are kept under "Your additional settings". The previous file is saved
 as `.env.backup-<time>` (the last five are kept).
 
+## From v13.2 to v13.3
+
+A normal `./rogueroute-gpx update`. The container now gets a memory cap of 70% of host RAM by
+default, and `update` adds `ROGUEROUTE_MEMORY_LIMIT`, `ROGUEROUTE_MEMORY_FLOOR` and
+`ROGUEROUTE_PREPARE_IDLE_IO` to `.env`. Regions estimated to need more memory than the cap
+allows are no longer prepared automatically; `./rogueroute-gpx osm status` shows which, and
+`--force` still tries them. Set `ROGUEROUTE_MEMORY_LIMIT=none` to go back to no cap.
+
+On rootless Podman the cap needs cgroup v2 with the memory controller delegated to your user
+(the default on current distributions). `./rogueroute-gpx osm status` says "capped at …" when
+it applies; otherwise the size check and the watchdog still protect the host.
+
 ## From v13.1 to v13.2
 
 A normal `./rogueroute-gpx update`. Nothing in `.env` or the map data changes.

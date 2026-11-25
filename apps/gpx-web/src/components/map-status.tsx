@@ -15,7 +15,13 @@ type Region = {
   queue: "working" | "queued" | null;
   failed: boolean;
   preparedAt: string | null;
+  /** Estimated (or measured) peak memory to prepare, in bytes. */
+  memoryNeeded: number;
+  /** Not prepared and estimated to need more memory than map work may use. */
+  tooLarge: boolean;
 };
+
+type Limits = { capped: boolean; cap: number; budget: number };
 
 type Current = {
   region: string;
@@ -32,6 +38,7 @@ type MapsResponse = {
   activeRegion: string | null;
   osrm: { state: string; region: string | null; switchTarget: string | null };
   queue: { paused: boolean; current: Current | null; pending: { region: string; goal: Goal }[] };
+  limits: Limits;
   regions: Region[];
   adminEnabled: boolean;
 };
@@ -180,12 +187,12 @@ export default function MapStatus() {
     }
   }
 
-  async function act(action: string, regions?: string[], goal: Goal = "prepared") {
+  async function act(action: string, regions?: string[], goal: Goal = "prepared", force = false) {
     setNotice(null);
     const response = await fetch("/api/admin/queue", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action, regions, goal }),
+      body: JSON.stringify({ action, regions, goal, force }),
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) setNotice(body.error || "The queue action failed.");
@@ -245,6 +252,12 @@ export default function MapStatus() {
                   {data.osrm.state !== "ready" && ` · OSRM ${data.osrm.state}${data.osrm.switchTarget ? ` ${label(data.osrm.switchTarget)}` : ""}`}
                 </span>
               </div>
+              {data.limits && (
+                <p className="maps-muted maps-limits">
+                  {data.limits.capped ? `Memory cap ${gb(data.limits.cap)}` : `No memory cap (${gb(data.limits.cap)} RAM)`} · map
+                  work may use up to {gb(data.limits.budget)}. Larger regions are not prepared automatically.
+                </p>
+              )}
               <div className="maps-bar" role="img" aria-label={order.map((view) => `${VIEW_LABEL[view]}: ${counts[view]}`).join(", ")}>
                 {order.map((view) =>
                   counts[view] ? (
@@ -323,9 +336,15 @@ export default function MapStatus() {
                           <span className="maps-region-name">
                             {region.label}
                             {region.key === data.activeRegion && <span className="maps-chip is-active">Serving</span>}
+                            {region.tooLarge && (
+                              <span className="maps-chip is-too-large" title={`Needs about ${gb(region.memoryNeeded)} of memory; map work may use ${gb(data.limits.budget)}.`}>
+                                Too large for this server
+                              </span>
+                            )}
                           </span>
                           <span className="maps-muted">
                             {region.download} download · {region.expanded} prepared
+                            {region.memoryNeeded > 0 && view !== "ready" ? ` · needs ~${gb(region.memoryNeeded)} memory` : ""}
                             {region.preparedAt && view === "ready" ? ` · built ${ago(region.preparedAt, now)}` : ""}
                           </span>
                           {failure && <span className="maps-failure">{failure.message}</span>}
@@ -373,8 +392,13 @@ export default function MapStatus() {
                     </button>
                     <button
                       type="button"
-                      disabled={!counts.waiting}
-                      onClick={() => void act("add", regions.filter((region) => viewOf(region) === "waiting").map((region) => region.key))}
+                      disabled={!regions.some((region) => viewOf(region) === "waiting" && !region.tooLarge)}
+                      onClick={() =>
+                        void act(
+                          "add",
+                          regions.filter((region) => viewOf(region) === "waiting" && !region.tooLarge).map((region) => region.key),
+                        )
+                      }
                     >
                       Prepare all downloaded
                     </button>
@@ -443,7 +467,36 @@ function CurrentTask({ current, label, now }: { current: Current; label: string;
   );
 }
 
-function RegionActions({ region, view, act }: { region: Region; view: View; act: (action: string, regions?: string[], goal?: Goal) => Promise<void> }) {
+function RegionActions({
+  region,
+  view,
+  act,
+}: {
+  region: Region;
+  view: View;
+  act: (action: string, regions?: string[], goal?: Goal, force?: boolean) => Promise<void>;
+}) {
+  if (region.tooLarge && (view === "waiting" || view === "missing" || view === "failed")) {
+    const tryAnyway = () => {
+      const ok = window.confirm(
+        `${region.label} probably needs about ${gb(region.memoryNeeded)} of memory. It will run inside the memory cap, ` +
+          "and the watchdog stops it if the server runs low. Try anyway?",
+      );
+      if (ok) void act(view === "failed" ? "retry" : "add", [region.key], "prepared", true);
+    };
+    return (
+      <span className="maps-actions">
+        {view === "missing" && (
+          <button type="button" className="maps-small" onClick={() => void act("add", [region.key], "downloaded")}>
+            Download only
+          </button>
+        )}
+        <button type="button" className="maps-small" onClick={tryAnyway}>
+          Prepare anyway
+        </button>
+      </span>
+    );
+  }
   if (view === "working") {
     return (
       <button type="button" className="maps-small" onClick={() => void act("cancel")}>

@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { loadCatalog } from "./catalog.mjs";
 import { startControlServer } from "./control.mjs";
 import { OsrmService } from "./osrm.mjs";
-import { MapQueue } from "./queue.mjs";
+import { MapQueue, parseSize } from "./queue.mjs";
 
 const env = process.env;
 const number = (value, fallback, min = 0) => {
@@ -32,6 +32,10 @@ const config = {
   autoPrepare: !/^(0|false|no|off)$/i.test(env.ROGUEROUTE_AUTO_PREPARE || "true"),
   threads: number(env.ROGUEROUTE_PREPARE_THREADS, 0, 0),
   niceness: Math.min(19, number(env.ROGUEROUTE_PREPARE_NICE, 10, 0)),
+  // ROGUEROUTE_MEMORY_CAP is the cap ./rogueroute-gpx resolved from ROGUEROUTE_MEMORY_LIMIT.
+  memoryCap: parseSize(env.ROGUEROUTE_MEMORY_CAP),
+  memoryFloor: parseSize(env.ROGUEROUTE_MEMORY_FLOOR),
+  ioIdle: !/^(0|false|no|off)$/i.test(env.ROGUEROUTE_PREPARE_IDLE_IO || "true"),
 };
 
 const log = (line) => console.log(`${new Date().toISOString()} ${line}`);

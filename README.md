@@ -6,12 +6,12 @@
 
 **Turn portal lists and coordinates into practical, path-following GPX routes.**
 
-[![Release](https://img.shields.io/badge/release-13.2.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
+[![Release](https://img.shields.io/badge/release-13.3.0-9b5cff?style=for-the-badge)](https://github.com/RogueAssassin/rogueroute-gpx/releases)
 [![Container](https://img.shields.io/badge/GHCR-one_container-00d9ff?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/RogueAssassin/rogueroute-gpx/pkgs/container/rogueroute-gpx)
 [![Engines](https://img.shields.io/badge/runtime-docker_%7C_podman-ff2bd6?style=for-the-badge)](#requirements)
 [![Platforms](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-41d99b?style=for-the-badge)](#requirements)
 
-Version **13.2.0** · One container · Local OSRM routing with automatic regions
+Version **13.3.0** · One container · Local OSRM routing with automatic regions
 
 </div>
 
@@ -33,7 +33,8 @@ Everything runs in **one container**, `rogueroute-gpx`: the website, the OSRM ro
 | 🧲 | **Recover difficult portals.** Strict routing searches progressively from 250 m up to a configurable 5,000 m snap limit. |
 | 🗺️ | **See the route before export.** The map shows the route, the original waypoints, automatic snap corrections and failures. |
 | 📦 | **Manageable GPX files.** Automatic mode targets 1,000 track points by default, with Compact and Full alternatives. |
-| 🧰 | **Maps build themselves.** A background queue downloads and prepares regions one at a time, smallest first, at low CPU priority. It resumes after a restart and auto-prepares anything already downloaded. |
+| 🧰 | **Maps build themselves.** A background queue downloads and prepares regions one at a time, smallest first, at low CPU and disk priority. It resumes after a restart and auto-prepares anything already downloaded. |
+| 🛡️ | **Safe on a shared server.** The container has a memory cap, regions too large for it are refused (unless forced), and a watchdog stops map work before the host runs low on memory. |
 | 📊 | **Map status page.** `/maps` shows what is ready, what is being built (step, progress, time) and what is still waiting, with admin controls behind `ADMIN_TOKEN`. |
 | 🐳 | **One container.** No sidecars, no engine socket, no shared secrets volume. |
 
@@ -159,6 +160,8 @@ for each. The most useful ones:
 | `ROGUEROUTE_AUTO_PREPARE` | `true` | Queue downloaded but unprepared regions at start |
 | `ROGUEROUTE_PREPARE_THREADS` | all cores | Limit the cores used by map preparation |
 | `ROGUEROUTE_PREPARE_NICE` | `10` | CPU priority of map preparation (0-19, higher is gentler) |
+| `ROGUEROUTE_MEMORY_LIMIT` | `auto` | Container memory cap: `auto` (70% of host RAM), a size such as `64g`, or `none` |
+| `ROGUEROUTE_MEMORY_FLOOR` | 5% of RAM | Free host memory the watchdog keeps while a region is prepared |
 | `HOST_BIND` / `HOST_PORT` | `0.0.0.0` / `9080` | Where the website is published |
 | `PUID` / `PGID` | your account | Container user, so map files stay yours |
 | `ROGUEROUTE_RUNTIME` | `auto` | `podman`, `docker`, or detect a running engine |
@@ -187,7 +190,7 @@ The container joins the `rogueroute-gpx` and `media-net` networks and still answ
 - [Upgrading, including from v12](docs/upgrading.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Command reference](docs/commands.md)
-- [v13.2.0 release notes](docs/releases/v13.2.0.md) · [all release notes](docs/releases/) ·
+- [v13.3.0 release notes](docs/releases/v13.3.0.md) · [all release notes](docs/releases/) ·
   [changelog](CHANGELOG.md)
 
 ## Development

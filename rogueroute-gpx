@@ -45,7 +45,31 @@ fi
 [[ "$runtime" == podman || "$runtime" == docker ]] || fail "ROGUEROUTE_RUNTIME must be auto, podman, or docker."
 command -v "$runtime" >/dev/null || fail "$runtime is not installed."
 
+# The container memory cap: ROGUEROUTE_MEMORY_LIMIT=auto (70% of host RAM), a size such as 64g,
+# or none. Printed as Docker/Podman accept it (for example 91750m), or empty for no cap.
+memory_cap() {
+  local limit total_kb
+  limit="$(get_env ROGUEROUTE_MEMORY_LIMIT auto)"
+  case "${limit,,}" in
+    none | off | 0) return 0 ;;
+    auto | "")
+      total_kb="$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || true)"
+      [[ "$total_kb" =~ ^[0-9]+$ ]] || return 0
+      printf '%sm\n' "$((total_kb * 70 / 100 / 1024))"
+      ;;
+    *)
+      [[ "$limit" =~ ^[0-9]+[kKmMgGtT]?$ ]] ||
+        fail "ROGUEROUTE_MEMORY_LIMIT must be auto, none, or a size such as 64g (got: $limit)."
+      printf '%s\n' "${limit,,}"
+      ;;
+  esac
+}
+
+ROGUEROUTE_MEMORY_CAP="$(memory_cap)"
+export ROGUEROUTE_MEMORY_CAP
+
 COMPOSE=("$runtime" compose --env-file "$ENV" -f "$ROOT/compose.yaml")
+[[ -n "$ROGUEROUTE_MEMORY_CAP" ]] && COMPOSE+=(-f "$ROOT/compose.memory.yaml")
 [[ "$runtime" == podman && $EUID -ne 0 ]] && COMPOSE+=(-f "$ROOT/compose.podman.yaml")
 
 repository_version() {
@@ -243,6 +267,7 @@ doctor() {
   echo "rogueroute-gpx v$(get_env ROGUEROUTE_VERSION unknown) ($runtime)"
   echo "Deployment: $ROOT"
   echo "Map data:   $data"
+  echo "Memory cap: ${ROGUEROUTE_MEMORY_CAP:-none} (ROGUEROUTE_MEMORY_LIMIT=$(get_env ROGUEROUTE_MEMORY_LIMIT auto))"
   "${COMPOSE[@]}" config -q || failures=$((failures + 1))
   [[ -w "$data" ]] || { echo "[WARN] $data is not writable by $(id -un); downloads and preparation will fail."; failures=$((failures + 1)); }
   echo "Container:  $(container_health)"

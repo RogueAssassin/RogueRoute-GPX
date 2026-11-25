@@ -378,6 +378,21 @@
   color: var(--maps-working);
   border: 1px solid rgba(245, 158, 11, 0.4);
 }
+.maps-chip.is-too-large {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+.maps-limits {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.maps-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 
 .maps-admin-row {
   display: flex;
