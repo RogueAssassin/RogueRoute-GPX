@@ -106,8 +106,9 @@ tidy_env() {
   local -a extras=()
   [[ -f "$template" ]] || return 0
   # v13.5 replaced ADMIN_TOKEN with ADMIN_PASSWORD; keep the value so /admin works with it.
+  # grep finds nothing once ADMIN_TOKEN is gone; under pipefail that must not stop the script.
   local token
-  token="$(grep -E '^ADMIN_TOKEN=' "$ENV" | tail -n1 | cut -d= -f2-)"
+  token="$(grep -E '^ADMIN_TOKEN=' "$ENV" | tail -n1 | cut -d= -f2- || true)"
   if [[ -n "$token" ]] && ! grep -qE '^ADMIN_PASSWORD=.' "$ENV"; then
     cp -p "$ENV" "$ROOT/.env.backup-$(date +%Y%m%d-%H%M%S)-token"
     grep -vE '^ADMIN_PASSWORD=' "$ENV" > "$ENV.migrate" || true
