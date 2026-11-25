@@ -97,7 +97,9 @@ jobs:
           test "$(docker exec rogueroute-gpx id -u)" = "$(id -u)"
           # The memory cap reaches the cgroup and the supervisor; map tools run at idle disk priority.
           test "$(docker exec rogueroute-gpx cat /sys/fs/cgroup/memory.max)" = $((6 * 1024 * 1024 * 1024))
-          docker exec rogueroute-gpx node -e "fetch('http://127.0.0.1:9080/api/maps').then(r=>r.json()).then(j=>{console.log(j.limits);process.exit(j.limits?.capped && j.limits.ioIdle?0:1)})"
+          docker exec rogueroute-gpx node -e "fetch('http://127.0.0.1:9080/api/maps').then(r=>r.json()).then(j=>{console.log(j.limits);process.exit(j.limits?.capped?0:1)})"
+          docker exec rogueroute-gpx rogueroute-gpx osm status | tee /tmp/status.txt
+          grep -q "capped at 6.4 GB" /tmp/status.txt && grep -q "disk priority idle" /tmp/status.txt
           # A region estimated to need more memory than the cap allows is refused before downloading.
           if docker exec rogueroute-gpx rogueroute-gpx osm add big-test > /tmp/big.txt 2>&1; then cat /tmp/big.txt; exit 1; fi
           cat /tmp/big.txt; grep -q "needs about" /tmp/big.txt
