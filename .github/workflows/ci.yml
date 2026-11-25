@@ -164,9 +164,9 @@ jobs:
           test "$(code -b "$jar" -X POST $base/api/admin/queue -H 'origin: http://evil.example' -H 'content-type: application/json' -d '{"action":"pause"}')" = 401
           # Visitors' map requests need the Geofabrik index, which the runner cannot always reach.
           if curl -fsS $base/api/geofabrik | jq -e '.regions | length > 0' >/dev/null; then
-            curl -fsS -X POST $base/api/requests -H 'content-type: application/json' -d '{"id":"europe/monaco","note":"CI"}' | jq -e '.request.count == 1'
-            curl -fsS -b "$jar" $base/api/admin/status | jq -e '.openRequests == 1 and .requests[0].id == "europe/monaco"'
-            curl -fsS -b "$jar" -X POST $base/api/admin/requests -H 'content-type: application/json' -d '{"id":"europe/monaco","action":"dismiss"}' | jq -e '.request.status == "dismissed"'
+            curl -fsS -X POST $base/api/requests -H 'content-type: application/json' -d '{"id":"monaco","note":"CI"}' | jq -e '.request.count == 1'
+            curl -fsS -b "$jar" $base/api/admin/status | jq -e '.openRequests == 1 and .requests[0].id == "monaco"'
+            curl -fsS -b "$jar" -X POST $base/api/admin/requests -H 'content-type: application/json' -d '{"id":"monaco","action":"dismiss"}' | jq -e '.request.status == "dismissed"'
             # The failed Melbourne route names the Geofabrik region to request.
             jq -e '.mapRequest.id | length > 0' /tmp/outside.json
           else
